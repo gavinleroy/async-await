@@ -29,37 +29,32 @@
 
 (define -->coro
   (extend-reduction-relation
-   -->sync LC+Coro
+   -->lc LC+Coro
    
-   [--> (t_0 H Q (FS_0 ... (stack (frame L_0 (in-hole E (coro v)) l) F ...) FS_1 ...))
-        (t_1 H Q (FS_0 ... (stack (frame L_1 (in-hole E (tag x_tag)) l) F ...) FS_1 ...))
+   [--> (H L_0 (in-hole E (coro v)))
+        (H L_1 (in-hole E (tag x_tag)))
 
         (where x_tag (fresh-tag L_0))
         (where L_1 (ext1 L_0 (x_tag (coroutine v))))
-        (where t_1 (step t_0))
         "create"]
 
-   [--> (t_0 H Q (FS_0 ... (stack (frame L_0 (in-hole E (resume! (tag x_tag) v ..._1)) l) F ...) FS_1 ...))
-        (t_1 H Q (FS_0 ... (stack (frame L_1 (in-hole E (tagged x_tag ((lambda (x ...) e_body) v ...))) l) F ...) FS_1 ...))
+   [--> (H L_0 (in-hole E (resume! (tag x_tag) v ..._1)))
+        (H L_1 (in-hole E (tagged x_tag ((lambda (x ...) e_body) v ...))))
 
         (where/error (coroutine (lambda (x ..._1) e_body)) (lookup L_0 x_tag))
         (where L_1 (ext1 L_0 (x_tag (void)))) ;; remove the binding for x_tag
-        (where t_1 (step t_0))
         "resume!"]
 
-   [--> (t_0 H Q (FS_0 ... (stack (frame L_0 (in-hole E (tagged x_tag (in-hole E_inner (yield v)))) l) F ...) FS_1 ...))
-        (t_1 H Q (FS_0 ... (stack (frame L_1 (in-hole E v) l) F ...) FS_1 ...))
+   [--> (H L_0 (in-hole E (tagged x_tag (in-hole E_inner (yield v)))))
+        (H L_1 (in-hole E v))
 
         ;; Asymmetric transfer goes from the inner-most nested coroutine to it's caller
         (side-condition (not (term (in-tag? E_inner))))
         (where L_1 (ext1 L_0 (x_tag (coroutine (lambda (x) (in-hole E_inner x))))))
-        (where t_1 (step t_0))
         "yield"]
 
-   [--> (t_0 H Q (FS_0 ... (stack (frame L (in-hole E (tagged x_tag v)) l) F ...) FS_1 ...))
-        (t_1 H Q (FS_0 ... (stack (frame L (in-hole E v) l) F ...) FS_1 ...))
-
-        (where t_1 (step t_0))
+   [--> (H L (in-hole E (tagged x_tag v)))
+        (H L (in-hole E v))
         "tagged"]))
 
 ;; -----------------------------------------------------------------------------
@@ -82,16 +77,13 @@
 ;; Tests
 ;; -----------------------------------------------------------------------------
 
-
-
 (module+ test
   (require (submod "lc.rkt" test))
   (provide (all-from-out (submod "lc.rkt" test))
            main/coro)
 
   (define-metafunction/extension main LC+Coro
-    main/coro : e -> (t H Q P)
-    )
+    main/coro : e -> (H L e))
   
   (define-syntax-rule (coro-->>= e v)
     (test-->> -->coro #:equiv prog/equiv (term (main/coro e)) v))

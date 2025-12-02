@@ -14,7 +14,6 @@
      (- e ...)
      (num->string e)
      (append e e ...)
-     (time)
      (e e ...)               
      (if0 e e e)
      (fix e)
@@ -52,26 +51,14 @@
      (unbox E)
      (set-box! E e)
      (set-box! v E))
-
-  (t ::= natural)
   
-  (L ::= ((x v) ...))
-  
-  (l ::= sync)
-  
-  (F ::= (frame L e l))
-  
-  (FS ::= (stack F ...))
+  (L ::= ((x v) ...))  
 
   (addr ::= natural)
 
   (obj ::= (box v))
   
   (H ::= ((addr obj) ...))
-
-  (Q ::= ())
-  
-  (P ::= (FS ...))
   
   (x ::= variable-not-otherwise-mentioned)
        
@@ -85,126 +72,96 @@
 ;; Operational Semantics
 ;; -----------------------------------------------------------------------------
 
-(define -->sync
+(define -->lc
   (reduction-relation
    LC
-   #:domain (t H Q P)
+   #:domain (H L e)
    
-   [--> (t_0 H Q (FS_0 ... (stack (frame L (in-hole E x) l) F ...) FS_1 ...))
-        (t_1 H Q (FS_0 ... (stack (frame L (in-hole E (lookup L x)) l) F ...) FS_1 ...))
-
-        (where t_1 (step t_0))
+   [--> (H L (in-hole E x))
+        (H L (in-hole E v))
+        
+        (where v (lookup L x))
         "var"]
    
-   (--> (t_0 H Q (FS_0 ... (stack (frame L (in-hole E (if0 0 e_1 e_2)) l) F ...) FS_1 ...))
-        (t_1 H Q (FS_0 ... (stack (frame L (in-hole E e_1) l) F ...) FS_1 ...))
-
-        (where t_1 (step t_0))
+   (--> (H L (in-hole E (if0 0 e_1 e_2)))
+        (H L (in-hole E e_1))
         "if0-true")
    
-   (--> (t_0 H Q (FS_0 ... (stack (frame L (in-hole E (if0 v e_1 e_2)) l) F ...) FS_1 ...))
-        (t_1 H Q (FS_0 ... (stack (frame L (in-hole E e_2) l) F ...) FS_1 ...))
+   (--> (H L (in-hole E (if0 v e_1 e_2)))
+        (H L (in-hole E e_2))
         
         (side-condition (not (equal? 0 (term v))))
-        (where t_1 (step t_0))
         "if0-false")
       
-   [--> (t_0 H Q (FS_0 ... (stack (frame L_0 (in-hole E (set! x v)) l) F ...) FS_1 ...))
-        (t_1 H Q (FS_0 ... (stack (frame L_1 (in-hole E (void)) l) F ...) FS_1 ...))
+   [--> (H L_0 (in-hole E (set! x v)))
+        (H L_1 (in-hole E (void)))
         
         (where L_1 (ext1 L_0 (x v)))
-        (where t_1 (step t_0))
         "set!"]
 
-   [--> (t_0 H Q (FS_0 ... (stack (frame L_0
-                                   (in-hole E ((fix v_rec) v_arg ...)) l) F ...) FS_1 ...))
-        (t_1 H Q (FS_0 ... (stack (frame L_0
-                                   (in-hole E ((v_rec (fix v_rec)) v_arg ...)) l) F ...) FS_1 ...))
-
-        (where t_1 (step t_0))
+   [--> (H L (in-hole E ((fix v_rec) v_arg ...)))
+        (H L (in-hole E ((v_rec (fix v_rec)) v_arg ...)))
         "fix"]
    
-   [--> (t_0 H Q (FS_0 ... (stack (frame L_0 (in-hole E ((lambda (x ..._1) e) v ..._1)) l) F ...)
-                     FS_1 ...))
-        (t_1 H Q (FS_0 ... (stack (frame L_1 (in-hole E e) l) F ...) FS_1 ...))
+   [--> (H L_0 (in-hole E ((lambda (x ..._1) e) v ..._1)))
+        (H L_1 (in-hole E e))
         
         (where L_1 (ext L_0 (x v) ...))
-        (where t_1 (step t_0))
         "app"]   
    
-   [--> (t_0 H Q (FS_0 ... (stack (frame L_0 (in-hole E (let ([x v] ...) e_body)) l) F ...) FS_1 ...))
-        (t_1 H Q (FS_0 ... (stack (frame L_1 (in-hole E e_body) l) F ...) FS_1 ...))
+   [--> (H L_0 (in-hole E (let ([x v] ...) e_body)))
+        (H L_1 (in-hole E e_body))
         
         (where L_1 (ext L_0 (x v) ...))
-        (where t_1 (step t_0))
         "let"]
 
-   [--> (t_0 H Q (FS_0 ... (stack (frame L (in-hole E (slot x_field v_struct)) l) F ...) FS_1 ...))
-        (t_1 H Q (FS_0 ... (stack (frame L (in-hole E v) l) F ...) FS_1 ...))
+   [--> (H L (in-hole E (slot x_field v_struct)))
+        (H L (in-hole E v))
+        
 
         (where/error (struct [x_s v_s] ...) v_struct)
         (where v (lookup ((x_s v_s) ...) x_field))
-        (where t_1 (step t_0))
         "slot"]
 
-   [--> (t_0 H_0 Q (FS_0 ... (stack (frame L (in-hole E (box v)) l) F ...) FS_1 ...))
-        (t_1 H_1 Q (FS_0 ... (stack (frame L (in-hole E (ptr addr)) l) F ...) FS_1 ...))
-
+   [--> (H_0 L (in-hole E (box v)))
+        (H_1 L (in-hole E (ptr addr)))
+        
         (where addr (malloc H_0))
         (where H_1 (ext1 H_0 (addr (box v))))
-        (where t_1 (step t_0))
         "box"]
 
-   [--> (t_0 H Q (FS_0 ... (stack (frame L (in-hole E (unbox v)) l) F ...) FS_1 ...))
-        (t_1 H Q (FS_0 ... (stack (frame L (in-hole E v_unboxed) l) F ...) FS_1 ...))
+   [--> (H L (in-hole E (unbox v)))
+        (H L (in-hole E v_unboxed))
 
         (where/error (ptr addr) v)
         (where/error (box v_unboxed) (lookup H addr))
-        (where t_1 (step t_0))
         "unbox"]
 
-   [--> (t_0 H_0 Q (FS_0 ... (stack (frame L (in-hole E (set-box! v_ptr v_new)) l) F ...) FS_1 ...))
-        (t_1 H_1 Q (FS_0 ... (stack (frame L (in-hole E (void)) l) F ...) FS_1 ...))
+   [--> (H_0 L (in-hole E (set-box! v_ptr v_new)))
+        (H_1 L (in-hole E (void)))
 
         (where/error (ptr addr) v_ptr)
         (where/error (box _) (lookup H_0 addr))
         (where H_1 (ext1 H_0 (addr (box v_new))))
-        (where t_1 (step t_0))
         "set-box!"]
 
    ;; Operations
    
-   [--> (t_0 H Q (FS_0 ... (stack (frame L (in-hole E (+ number ...)) l) F ...) FS_1 ...))
-        (t_1 H Q (FS_0 ... (stack (frame L (in-hole E (Σ number ...)) l) F ...) FS_1 ...))
-
-        (where t_1 (step t_0))
+   [--> (H L (in-hole E (+ number ...)))
+        (H L (in-hole E (Σ number ...)))
         "add"]
 
-   [--> (t_0 H Q (FS_0 ... (stack (frame L (in-hole E (- number ...)) l) F ...) FS_1 ...))
-        (t_1 H Q (FS_0 ... (stack (frame L (in-hole E ,(apply - (term (number ...)))) l) F ...)
-                     FS_1 ...))
-
-        (where t_1 (step t_0))
+   [--> (H L (in-hole E (- number ...)))
+        (H L (in-hole E ,(apply - (term (number ...)))))
         "subtract"]
 
-   [--> (t_0 H Q (FS_0 ... (stack (frame L (in-hole E (append string ...)) l) F ...) FS_1 ...))
-        (t_1 H Q (FS_0 ... (stack (frame L (in-hole E (^ string ...)) l) F ...) FS_1 ...))
-
-        (where t_1 (step t_0))
+   [--> (H L (in-hole E (append string ...)))
+        (H L (in-hole E (^ string ...)))
         "append"]
 
-   [--> (t_0 H Q (FS_0 ... (stack (frame L (in-hole E (num->string number)) l) F ...) FS_1 ...))
-        (t_1 H Q (FS_0 ... (stack (frame L (in-hole E ,(number->string (term number))) l) F ...)
-                     FS_1 ...))
-
-        (where t_1 (step t_0))
-        "num->string"]
-
-   [--> (t_0 H Q (FS_0 ... (stack (frame L (in-hole E (time)) l) F ...) FS_1 ...))
-        (t_1 H Q (FS_0 ... (stack (frame L (in-hole E t_0) l) F ...) FS_1 ...))
-
-        (where t_1 (step t_0))
-        "time"]))
+   [--> (H L (in-hole E (num->string number)))
+        (H L (in-hole E ,(number->string (term number))))
+        "num->string"]))
    
 ;; -----------------------------------------------------------------------------
 ;; Metafunctions
@@ -234,12 +191,11 @@
   [(^ string ...) ,(apply string-append (term (string ...)))])
 
 (define-metafunction REDEX
-  lookup : ((any any) ...) any -> any
+  lookup : ((any any) ...) any -> any or not-found
   [(lookup (any_prefix ... (any any_0) _ ...) any)
    any_0
    (side-condition (not (member (term any) (term (any_prefix ...)))))]
-  [(lookup any_1 any_2)
-   ,(error 'lookup "not found: ~e in: ~e" (term any_2) (term any_1))])
+  [(lookup any _) not-found])
 
 (define-metafunction REDEX
   ext1 : ((any any) ...) (any any) -> ((any any) ...)
@@ -307,40 +263,39 @@
   (provide final-value prog/equiv main)
 
   (define-metafunction LC
-    main : e -> (t H Q P)
-    [(main e) (0 () () ((stack (frame () (substitute e) sync))))])
+    main : e -> (H L e)
+    [(main e) (() () (substitute e))])
   
-  (define (final-value h+p)
-    (match h+p
-      [`(,_t ,_H ,_Q ((stack (frame ,_L ,v ,_l)) ,_FS ...))
-       v]
-      [_ h+p]))
+  (define (final-value p)
+    (match p
+      [`(,_H ,_L ,v) v]
+      [_ p]))
   
   (define (prog/equiv p v)
     ((default-equiv)
      (final-value p)
      v))
   
-  (define-syntax-rule (sync-->>= e v)
-    (test-->> -->sync #:equiv prog/equiv (term (main e)) v))
+  (define-syntax-rule (lc-->>= e v)
+    (test-->> -->lc #:equiv prog/equiv (term (main e)) v))
   
-  (sync-->>=
+  (lc-->>=
    (+ 21 21)
    42)
 
-  (sync-->>=
+  (lc-->>=
     (- 42 0)
     42)
 
-  (sync-->>=
+  (lc-->>=
     (- 42 42)
     0)
 
-  (sync-->>=
+  (lc-->>=
     (- 42 42 42)
     -42)
   
-  (sync-->>=
+  (lc-->>=
    (let ([counter 42] [times 0])
      (begin
        (while-0!= counter
@@ -349,24 +304,24 @@
        times))
    42)
    
-  (sync-->>=
+  (lc-->>=
    ((lambda (x) x) 42)
    42)
      
-  (sync-->>=
+  (lc-->>=
    (let* ([x 21]
           [y (+ x 10)]
           [z (+ y 11)])
      z)
    42)
 
-  (sync-->>=
+  (lc-->>=
    (let ([x 0] [y 42])
      (let ([y x] [x y])
        x))
    42)
    
-  (sync-->>=
+  (lc-->>=
    (let* ([x 42]
           [c 0]
           [loop (fix (lambda (loop)
@@ -380,7 +335,7 @@
      (begin (loop) c))
    42)
 
-  (sync-->>=
+  (lc-->>=
    (let* ([x 42]
           [c 0])
      (letrec ([loop (lambda ()
@@ -393,13 +348,13 @@
        (begin (loop) c)))
    42)
    
-  (sync-->>=
+  (lc-->>=
    (let* ([x 42]
           [foo (lambda (x) (set! x 100))])
      (begin (foo x) x))
    42)
 
-  (sync-->>=
+  (lc-->>=
    (let* ([x 0]
           [x (begin (set! x 1) (+ x 1))]
           [x (+ x 1)]
@@ -407,11 +362,11 @@
      x)
    42)
 
-  (sync-->>=
+  (lc-->>=
    (append (num->string 4) (num->string 2))
    "42")
 
-  (sync-->>= 
+  (lc-->>= 
    (let* ([x 10] [c ""])
      (letrec ([loop (lambda ()
                       (if0 x
@@ -423,7 +378,7 @@
        (begin (loop) c)))
    "9876543210")
 
-  (sync-->>= 
+  (lc-->>= 
    (let* ([x 10] [c (box "")])
      (letrec ([loop (lambda ()
                       (if0 x
@@ -435,17 +390,17 @@
        (begin (loop) (unbox c))))
    "9876543210")
 
-  (sync-->>=
+  (lc-->>=
    (slot x (struct [x 42] [y 0]))
   42)
 
-  (sync-->>=
+  (lc-->>=
    (let ([s (struct [x (- 42 21)] [y 21])])
      (+ (slot x s)
         (slot y s)))
    42)
 
-  (sync-->>=
+  (lc-->>=
    (trace-stdout (print)
      (print "hello")
      (print ", world"))

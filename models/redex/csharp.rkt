@@ -21,9 +21,6 @@
      (delay v ... E e ...)
      (resolve-at v ... E e ...))
 
-  (l ::= ....
-     addr)
-
   (task-state ::=
               (running (F ...))
               (done v)
@@ -32,7 +29,17 @@
   (obj ::= ....
        task-state)
 
+  (t ::= natural)
+  
+  (l ::= sync addr)
+  
+  (F ::= (frame L e l))
+  
   (Q ::= (F ...))
+
+  (FS ::= (stack F ...))
+  
+  (P ::= (FS ...))
 
   #:binding-forms
   
@@ -42,38 +49,24 @@
 ;; Operational Semantics
 ;; -----------------------------------------------------------------------------
 
+(define -->base
+  (extend-reduction-relation -->exn C#))
+
 (define -->c#
-  (extend-reduction-relation
-   -->except
+  (reduction-relation
    C#
-
-   [--> (t_0 H (F_waiting F_s ...) (FS_0 ... (stack) FS_1 ...))
-        (t_1 H (F_s ...) (FS_0 ... (stack F_waiting) FS_1 ...))
-
-        (side-condition (term (all-busy? FS_0 ...)))
-        (where t_1 (step t_0))
-        "idle-thread-work-steal"]
-
+   #:domain (t H Q P)
+   
    [--> (t_0 H_0 Q (FS_0 ... (stack (frame L_0 (in-hole E ((async/lambda (x ..._1) e) v ..._1)) l) F ...)
-                   FS_1 ...))
+                         FS_1 ...))
         (t_1 H_1 Q (FS_0 ... (stack (frame L_1 e addr) (frame L_0 (in-hole E (task addr)) l) F ...)
-                   FS_1 ...))
+                         FS_1 ...))
         
         (where addr (malloc H_0))
         (where L_1 (ext L_0 (x v) ...))
         (where H_1 (ext1 H_0 (addr (running ()))))
         (where t_1 (step t_0))
         "async-app"]
-
-   [--> (t_0 H_0 Q (FS_0 ... (stack (name current-frame
-                                          (frame L (in-hole E (await (task addr))) l)) F ...)
-                    FS_1 ...))
-        (t_1 H_1 Q (FS_0 ... (stack F ...) FS_1 ...))
-
-        (where (running (F_wait ...)) (lookup H_0 addr))
-        (where H_1 (ext1 H_0 (addr (running (current-frame F_wait ...)))))
-        (where t_1 (step t_0))
-        "await"]
 
    [--> (t_0 H_0 (F_queued ...) (FS_0 ... (stack (frame L v l) F ...) FS_1 ...))
         (t_1 H_1 (F_queued ... F_waiting ...) (FS_0 ... (stack F ...) FS_1 ...))
@@ -98,6 +91,16 @@
         (where (failed v) (lookup H addr))
         (where t_1 (step t_0))
         "await-failed"]
+
+   [--> (t_0 H_0 Q (FS_0 ... (stack (name current-frame
+                                          (frame L (in-hole E (await (task addr))) l)) F ...)
+                    FS_1 ...))
+        (t_1 H_1 Q (FS_0 ... (stack F ...) FS_1 ...))
+
+        (where (running (F_wait ...)) (lookup H_0 addr))
+        (where H_1 (ext1 H_0 (addr (running (current-frame F_wait ...)))))
+        (where t_1 (step t_0))
+        "await"]
 
    [--> (t_0 H_0 (F_queued ...) (FS_0 ... (stack (frame L (in-hole E (throw v_err)) l) F ...) FS_1 ...))
         (t_1 H_1 (F_queued ... F_waiting ...) (FS_0 ... (stack F ...) FS_1 ...))
@@ -137,7 +140,22 @@
 
         (side-condition (< (term t_0) (term t_resolve)))
         (where t_1 (step t_0))
-        "resolve-at-blocking"]))
+        "resolve-at-blocking"]
+
+   [--> (t_0 H (F_waiting F_s ...) (FS_0 ... (stack) FS_1 ...))
+        (t_1 H (F_s ...) (FS_0 ... (stack F_waiting) FS_1 ...))
+
+        (side-condition (term (all-busy? FS_0 ...)))
+        (where t_1 (step t_0))
+        "idle-thread-take"]
+
+   [--> (t_0 H_0 Q (FS_0 ... (stack (frame L_0 e_0 l) F ...) FS_1 ...))
+        (t_1 H_1 Q (FS_0 ... (stack (frame L_1 e_1 l) F ...) FS_1 ...))
+
+        (side-condition (not (value? (term e))))
+        (where (H_1 L_1 e_1) (⇓base H_0 L_0 e_0))
+        (where t_1 (step t_0))
+        "base-step"]))
 
 ;; -----------------------------------------------------------------------------
 ;; Metafunctions
@@ -159,6 +177,20 @@
   [(all-busy? (stack _ _ ...) FS_s ...)
    (all-busy? FS_s ...)])
 
+(define (value? t)
+  (redex-match? C# v t))
+
+(define-metafunction C#
+  ⇓base : H L e -> (H L e) or stuck
+  [(⇓base H L e_0)
+   (H_1 L_1 e_1)
+   (where ((H_1 L_1 e_1)) 
+          ,(apply-reduction-relation*
+            -->base (term (H L e_0))
+            #:error-on-multiple? #true))
+   (side-condition (not (equal? (term e_0) (term e_1))))]
+  [(⇓base _ _ _) stuck])
+
 ;; -----------------------------------------------------------------------------
 ;; Tests
 ;; -----------------------------------------------------------------------------
@@ -172,23 +204,24 @@
                            (stack)
                            #;(stack)
                            #;(stack)))])
+
+  (define (final-value p)
+    (match p
+      [`(,_t ,_H ,_Q ((stack (frame ,_L ,v ,_l)) ,_ ...)) v]
+      [_ p]))
+  
+  (define (prog/equiv p v)
+    ((default-equiv)
+     (final-value p)
+     v))
   
   (define-syntax-rule (c#-->>= e v)
     (test-->> -->c# #:equiv prog/equiv (term (main/c# e)) v))
 
   (define-syntax-rule (c#-->>E e v)
-    (test-->>E #:steps 75 -->c# (term (main/c# e)) (lambda (p)
-                                                     #;(printf "Program: ~a\n" p)
+    (test-->>E #:steps 40 -->c# (term (main/c# e)) (lambda (p)
                                                      (prog/equiv p v))))
 
-(stepper -->c# (term (main/c# (trace-stdout (print)
-                 (let* ([work (async/lambda (msg) (print (await (delay 2 msg))))]
-                        [task0 (work "A")]
-                        [task1 (work "B")])
-                   (begin (print "C")
-                          (await task0)
-                          (await task1)))))))
-  
   (c#-->>=
    (await ((async/lambda () 42)))
    42)
@@ -223,19 +256,18 @@
      (await (work)))
    42)
 
-  (c#-->>E
+  (c#-->>=
    (trace-stdout (print)
                  (let* ([work (async/lambda (msg)
                                             (begin
-                                              (print (await (delay 2 msg)))
-                                              (print (await (delay 2 msg)))))])
+                                              (print (await (delay 1 msg)))
+                                              (print (await (delay 1 msg)))))])
                    (await (work "A"))))
    "AA")
 
-  #;
   (c#-->>E
    (trace-stdout (print)
-                 (let* ([work (async/lambda (msg) (print (await (delay 2 msg))))]
+                 (let* ([work (async/lambda (msg) (print (await (delay 1 msg))))]
                         [task0 (work "A")]
                         [task1 (work "B")])
                    (begin (print "C")
@@ -243,15 +275,12 @@
                           (await task1))))
    "CAB")
 
-  #;
-  (c#-->>=
+  (c#-->>E
    (trace-stdout (print)
-                 (let* ([work (async/lambda (msg)
-                                            (begin
-                                              (print (await (delay 2 msg)))
-                                              (print (await (delay 2 msg)))))]
+                 (let* ([work (async/lambda (msg) (print (await (delay 1 msg))))]
                         [task0 (work "A")]
                         [task1 (work "B")])
-                   (begin (await task0)
+                   (begin (print "C")
+                          (await task0)
                           (await task1))))
-  "ABAB"))
+   "CBA"))

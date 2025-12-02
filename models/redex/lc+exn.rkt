@@ -19,21 +19,18 @@
 ;; Operational Semantics
 ;; -----------------------------------------------------------------------------
 
-(define -->except
+(define -->exn
   (extend-reduction-relation
-   -->sync LC+Exn
+   -->lc LC+Exn
    
-   [--> (t_0 H Q (FS_0 ... (stack (frame L (in-hole E (catch v_handler (in-hole E_inner (throw v)))) l) F ...) FS_1 ...))
-        (t_1 H Q (FS_0 ... (stack (frame L (in-hole E (v_handler v)) l) F ...) FS_1 ...))
+   [--> (H L (in-hole E (catch v_handler (in-hole E_inner (throw v))))) 
+        (H L (in-hole E (v_handler v)))
 
         (side-condition (not (term (in-handler? E_inner))))
-        (where t_1 (step t_0))
         "catch-exception"]
 
-   [--> (t_0 H Q (FS_0 ... (stack (frame L (in-hole E (catch v_handler v)) l) F ...) FS_1 ...))
-        (t_1 H Q (FS_0 ... (stack (frame L (in-hole E v) l) F ...) FS_1 ...))
-
-        (where t_1 (step t_0))
+   [--> (H L (in-hole E (catch v_handler v)))
+        (H L (in-hole E v))
         "catch"]))
 
 ;; -----------------------------------------------------------------------------
@@ -57,19 +54,19 @@
            main/exn)
 
   (define-metafunction/extension main LC+Exn
-    main/exn : e -> (t H Q P)
+    main/exn : e -> (H L e)
     )
   
-  (define-syntax-rule (except-->>= e v)
-    (test-->> -->except #:equiv prog/equiv (term (main/exn e)) v))
+  (define-syntax-rule (exn-->>= e v)
+    (test-->> -->exn #:equiv prog/equiv (term (main/exn e)) v))
   
-  (except-->>=
+  (exn-->>=
    (+ 1 (catch (lambda (e) 41)
                (let ([x (throw "nope")])
                  0)))
    42)
   
-  (except-->>=
+  (exn-->>=
    (+ 0 (catch (lambda (e) 42)
                ((lambda ()
                   (begin
@@ -77,7 +74,7 @@
                     1)))))
    42)
 
-  (except-->>=
+  (exn-->>=
    (let ([throwing! (lambda () (throw 0))]
           [with-default (lambda (d thunk)
                           (catch (lambda (e) d)
@@ -85,14 +82,14 @@
      (with-default 42 throwing!))
    42)
 
-  (except-->>=
+  (exn-->>=
    (let ([thirty-eight (lambda (_e) 38)]
           [add1 (lambda (n) (+ n 1))])
      (add1 (add1 (add1 (add1 (catch thirty-eight
                                     (add1 (add1 (add1 (throw 0))))))))))
    42)
 
-  (except-->>=
+  (exn-->>=
    (catch (lambda (e) 0)
           (if0 1
                (throw "nope")
