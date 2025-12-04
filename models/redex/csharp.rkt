@@ -1,6 +1,8 @@
 #lang racket
 
 (require redex
+         "utils.rkt"
+         "lc.rkt"
          "lc+exn.rkt")
 
 (define-extended-language C# LC+Exn
@@ -18,8 +20,11 @@
   (E ::= ....
      (await E)
      (run E)
-     (delay v ... E e ...)
-     (resolve-at v ... E e ...))
+     (delay E e)
+     (delay v E)
+     (resolve-at E e e)
+     (resolve-at v E e)
+     (resolve-at v v E))
 
   (task-state ::=
               (running (F ...))
@@ -56,6 +61,17 @@
   (reduction-relation
    C#
    #:domain (t H Q P)
+
+   [--> (t_0 H_0 (F_s ...)
+             (FS_0 ... (stack (frame L (in-hole E (run v)) l) F ...) FS_1 ...))
+        (t_1 H_1 ((frame L e addr) F_s ...)
+             (FS_0 ... (stack (stack (frame L (in-hole E (task addr)) l) F ...)) FS_1 ...))
+
+        (where/error (lambda () e) v)
+        (where addr (malloc H_0))
+        (where H_1 (ext1 H_0 (addr (running ()))))
+        (where t_1 (step t_0))
+        "task-run"]
    
    [--> (t_0 H_0 Q (FS_0 ... (stack (frame L_0 (in-hole E ((async/lambda (x ..._1) e) v ..._1)) l) F ...)
                          FS_1 ...))
@@ -76,7 +92,7 @@
         (where/error (running (F_waiting ...)) (lookup H_0 addr))
         (where H_1 (ext1 H_0 (addr (done v))))
         (where t_1 (step t_0))
-        "async-return"]
+        "task-return"]
 
    [--> (t_0 H Q (FS_0 ... (stack (frame L (in-hole E (await (task addr))) l) F ...) FS_1 ...))
         (t_1 H Q (FS_0 ... (stack (frame L (in-hole E v) l) F ...) FS_1 ...))
@@ -97,6 +113,7 @@
                     FS_1 ...))
         (t_1 H_1 Q (FS_0 ... (stack F ...) FS_1 ...))
 
+        (side-condition (async? (term l)))
         (where (running (F_wait ...)) (lookup H_0 addr))
         (where H_1 (ext1 H_0 (addr (running (current-frame F_wait ...)))))
         (where t_1 (step t_0))
@@ -141,13 +158,13 @@
         (side-condition (< (term t_0) (term t_resolve)))
         (where t_1 (step t_0))
         "resolve-at-blocking"]
-
-   [--> (t_0 H (F_waiting F_s ...) (FS_0 ... (stack) FS_1 ...))
-        (t_1 H (F_s ...) (FS_0 ... (stack F_waiting) FS_1 ...))
+   
+   [--> (t_0 H (F_waiting F_s ...) (FS_main FS_0 ... (stack) FS_1 ...))
+        (t_1 H (F_s ...) (FS_main FS_0 ... (stack F_waiting) FS_1 ...))
 
         (side-condition (term (all-busy? FS_0 ...)))
         (where t_1 (step t_0))
-        "idle-thread-take"]
+        "thread-work-steal"]
 
    [--> (t_0 H_0 Q (FS_0 ... (stack (frame L_0 e_0 l) F ...) FS_1 ...))
         (t_1 H_1 Q (FS_0 ... (stack (frame L_1 e_1 l) F ...) FS_1 ...))
@@ -160,12 +177,6 @@
 ;; -----------------------------------------------------------------------------
 ;; Metafunctions
 ;; -----------------------------------------------------------------------------
-
-(define (sync? t)
-  (eq? t 'sync))
-
-(define (async? t)
-  (not (sync? t)))
 
 (define-metafunction/extension in-handler? C#
     in-handler?/c# : E -> boolean)
@@ -180,30 +191,20 @@
 (define (value? t)
   (redex-match? C# v t))
 
-(define-metafunction C#
-  ⇓base : H L e -> (H L e) or stuck
-  [(⇓base H L e_0)
-   (H_1 L_1 e_1)
-   (where ((H_1 L_1 e_1)) 
-          ,(apply-reduction-relation*
-            -->base (term (H L e_0))
-            #:error-on-multiple? #true))
-   (side-condition (not (equal? (term e_0) (term e_1))))]
-  [(⇓base _ _ _) stuck])
+(define-big-step ⇓base
+  -->base C#)
 
 ;; -----------------------------------------------------------------------------
 ;; Tests
 ;; -----------------------------------------------------------------------------
 
 (module+ test
-  (require (submod "lc+exn.rkt" test))
   
-  (define-metafunction/extension main/exn C#
+  (define-metafunction C#
     main/c# : e -> (t H Q P)
     [(main/c# e) (0 () () ((stack (frame () (substitute e) sync))
                            (stack)
-                           #;(stack)
-                           #;(stack)))])
+                           (stack)))])
 
   (define (final-value p)
     (match p
@@ -267,7 +268,9 @@
 
   (c#-->>E
    (trace-stdout (print)
-                 (let* ([work (async/lambda (msg) (print (await (delay 1 msg))))]
+                 (let* ([work (async/lambda (msg)
+                                            (begin (await (delay 1 (void)))
+                                                   (print msg)))]
                         [task0 (work "A")]
                         [task1 (work "B")])
                    (begin (print "C")

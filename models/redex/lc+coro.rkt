@@ -2,8 +2,7 @@
 
 (require redex "lc.rkt")
 
-(provide (all-from-out "lc.rkt")
-         (all-defined-out))
+(provide LC+Coro -->coro/core -->coro in-tag? tag?)
 
 (define-extended-language LC+Coro LC
   (e ::= ....              
@@ -20,21 +19,20 @@
      (coro E)
      (tagged x E)
      (resume! v ... E e ...)
-     (yield E)
-     ))
+     (yield E)))
 
 ;; -----------------------------------------------------------------------------
 ;; Operational Semantics
 ;; -----------------------------------------------------------------------------
 
-(define -->coro
-  (extend-reduction-relation
-   -->lc LC+Coro
-   
+(define -->coro/core
+  (reduction-relation
+   LC+Coro #:domain (H L e)
+
    [--> (H L_0 (in-hole E (coro v)))
         (H L_1 (in-hole E (tag x_tag)))
 
-        (where x_tag (fresh-tag L_0))
+        (where x_tag (gensym L_0 ctag))
         (where L_1 (ext1 L_0 (x_tag (coroutine v))))
         "create"]
 
@@ -57,14 +55,15 @@
         (H L (in-hole E v))
         "tagged"]))
 
+(define -->lc/base
+  (extend-reduction-relation -->lc LC+Coro))
+
+(define -->coro
+  (union-reduction-relations -->lc/base -->coro/core))
+
 ;; -----------------------------------------------------------------------------
 ;; Metafunctions
 ;; -----------------------------------------------------------------------------
-
-(define-metafunction LC+Coro
-  fresh-tag : L -> x
-  [(fresh-tag ((x_s any_s) ...))
-   ,(variable-not-in (term (x_s ...)) 'ctag)])
 
 (define-metafunction LC+Coro
   in-tag? : any -> boolean
@@ -73,21 +72,36 @@
    (side-condition (list? (term any)))]
   [(in-tag? any) #false])
 
+(define (tag? t)
+  (match t
+    [`(tag ,_) #true]
+    [_ #false]))
+
 ;; -----------------------------------------------------------------------------
 ;; Tests
 ;; -----------------------------------------------------------------------------
 
 (module+ test
   (require (submod "lc.rkt" test))
-  (provide (all-from-out (submod "lc.rkt" test))
-           main/coro)
+  (provide main/coro)
 
   (define-metafunction/extension main LC+Coro
     main/coro : e -> (H L e))
   
   (define-syntax-rule (coro-->>= e v)
     (test-->> -->coro #:equiv prog/equiv (term (main/coro e)) v))
-  
+
+  (coro-->>=
+   (let ([c (coro (lambda (x)
+                     (begin (yield (+ x 1))
+                            (yield (+ x 2))
+                            (+ x 3))))])
+     (let ([a (resume! c 0)]
+           [b (resume! c 0)]
+           [c (resume! c 0)])
+       (+ a b c)))
+   6)
+
   (coro-->>=
    (let* ([genint-coro (let* ([counter 0]
                               [c (coro (lambda (_)
@@ -111,7 +125,7 @@
                                 0)))])
        (loop)))
    42)
-  
+
   (coro-->>=
    (let* ([genint (let* ([counter 0]
                          [c (coro (lambda (_)
@@ -125,14 +139,14 @@
              
                     (lambda ()
                       (resume! c (void))))]
-          [gensym
+          [make
            (lambda ()
              (append "gsym" (num->string (genint))))])
-     (begin (gensym)
-            (gensym)
-            (gensym)))
+     (begin (make)
+            (make)
+            (make)))
    "gsym3")
-  
+
   (coro-->>=
    (let* ([fib-gen (let ([a 0] [b 1])
                      (letrec ([loop (lambda ()

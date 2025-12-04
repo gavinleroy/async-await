@@ -211,9 +211,15 @@
    (ext1 (ext any any_1 ...) any_0)])          
    
 (define-metafunction REDEX
-  gensyms : any ... -> (any ...)
+  gensyms : any ... -> (variable ...)
   [(gensyms any ...)
-   ,(map (lambda _ (term dummy)) (term (any ...)))])
+   ,(variables-not-in (term (any ...))
+                      (map (lambda _ (term gsym)) (term (any ...))))])
+
+(define-metafunction REDEX
+  gensym : any variable -> variable
+  [(gensym any variable)
+   ,(variable-not-in (term any) (term variable))])
 
 ;; We could add these to the base LC, but just for testing 
 

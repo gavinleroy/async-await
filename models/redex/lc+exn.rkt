@@ -2,8 +2,7 @@
 
 (require redex "lc.rkt")
 
-(provide (all-from-out "lc.rkt")
-         (all-defined-out))
+(provide LC+Exn -->exn/core -->exn in-handler?)
 
 (define-extended-language LC+Exn LC
   (e ::= ....              
@@ -19,10 +18,10 @@
 ;; Operational Semantics
 ;; -----------------------------------------------------------------------------
 
-(define -->exn
-  (extend-reduction-relation
-   -->lc LC+Exn
-   
+(define -->exn/core
+  (reduction-relation
+   LC+Exn #:domain (H L e)
+
    [--> (H L (in-hole E (catch v_handler (in-hole E_inner (throw v))))) 
         (H L (in-hole E (v_handler v)))
 
@@ -32,6 +31,12 @@
    [--> (H L (in-hole E (catch v_handler v)))
         (H L (in-hole E v))
         "catch"]))
+
+(define -->lc/base
+  (extend-reduction-relation -->lc LC+Exn))
+
+(define -->exn
+  (union-reduction-relations -->lc/base -->exn/core))
 
 ;; -----------------------------------------------------------------------------
 ;; Metafunctions
@@ -50,12 +55,10 @@
 
 (module+ test
   (require (submod "lc.rkt" test))
-  (provide (all-from-out (submod "lc.rkt" test))
-           main/exn)
+  (provide main/exn)
 
   (define-metafunction/extension main LC+Exn
-    main/exn : e -> (H L e)
-    )
+    main/exn : e -> (H L e))
   
   (define-syntax-rule (exn-->>= e v)
     (test-->> -->exn #:equiv prog/equiv (term (main/exn e)) v))
