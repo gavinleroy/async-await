@@ -340,6 +340,7 @@
 ;; -----------------------------------------------------------------------------
 
 (module+ test
+  (require "utils.rkt")
 
   (define-metafunction AsyncIO
     main/aio : e -> (t σ Q P)
@@ -360,9 +361,9 @@
   (define-syntax-rule (aio-->>= e v)
     (test-->> -->aio #:equiv prog/equiv (term (main/aio e)) v))
 
-  (define-syntax-rule (aio-->>E e v)
-    (test-->>E #:steps 40 -->aio (term (main/aio e)) (lambda (p)
-                                                       (prog/equiv p v))))
+  (define-syntax-rule (aio-->>∈ e results)
+    (evaluates-in-set -->aio (term (main/aio e)) results
+                      #:extract-result final-value))
 
   (aio-->>=
    (resume! ((async/lambda (x) 42) 0) (void))
@@ -405,39 +406,6 @@
             (block (main))))
    "whoops")
 
-  (aio-->>E
-   (let* ([work (async/lambda ()
-                  (catch (lambda (e) 42)
-                         (await (os/io 4 0))))]
-          [t (spawn (work))]
-          [main (async/lambda ()
-                  (begin (cancel t)
-                         (await t)))])
-     (block (main)))
-   42)
-
-  (aio-->>E
-   (let* ([work (async/lambda ()
-                  (catch (lambda (e) 42)
-                         (await (os/io 4 0))))]
-          [t (spawn (work))]
-          [main (async/lambda ()
-                  (begin (cancel t)
-                         (await t)))])
-     (block (main)))
-   0)
-  
-  (aio-->>E
-   (let* ([work (async/lambda ()
-                  (catch (lambda (e) 42)
-                         (await (os/io 4 0))))]
-          [t (spawn (work))]
-          [main (async/lambda ()
-                  (begin (cancel t)
-                         (await t)))])
-     (block (main)))
-   0)
-  
   (aio-->>=
    (trace-stdout (print)
                  (let* ([append-it (async/lambda () (print "A"))]
@@ -447,7 +415,31 @@
                    (block (transparent))))
    "BA")
 
-  (aio-->>E 
+  (aio-->>∈
+   (let* ([work (async/lambda ()
+                  (catch (lambda (e) 42)
+                         (await (os/io 4 0))))]
+          [t (spawn (work))]
+          [main (async/lambda ()
+                  (begin (cancel t)
+                         (await t)))])
+     (block (main)))
+   '(42 0))
+
+  (aio-->>= 
+   (trace-stdout (print)
+                 (let* ([work (async/lambda (msg)
+                                (print (await (os/io 1 msg))))]
+                        [main (async/lambda ()
+                                (let ([t1 (work "A")]
+                                      [t2 (work "B")])
+                                  (begin (print "C")
+                                         (await t1)
+                                         (await t2))))])
+                   (block (main))))
+   "CAB")
+
+  (aio-->>∈ 
    (trace-stdout (print)
                  (let* ([work (async/lambda (msg)
                                 (print (await (os/io 1 msg))))]
@@ -458,4 +450,6 @@
                                          (await t1)
                                          (await t2))))])
                    (block (main))))
-   "CBA"))
+   ; 'C' must *always* come before 'A'
+   (filter (lambda (s) (before s #\C #\A))
+           (string-permutations "ABC"))))

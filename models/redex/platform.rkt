@@ -35,17 +35,42 @@
 (define (async? t)
   (not (sync? t)))
 
+(define (reduce rule term
+                #:deterministic? [det? #false]
+                #:max-steps [max-steps #false])
+  (define iterator (if (real? max-steps)
+                       (in-range max-steps)
+                       (in-naturals)))
+  (for/fold ([term term]
+             [iterated? #false]
+             #:result (and iterated? term))
+            ([i iterator]
+             #:do [(define next-progs (apply-reduction-relation rule term))]
+             #:break (empty? next-progs))
+    (match next-progs
+      [(list reduced) (values reduced #true)]
+      [many
+       (if det?
+           (error 'reduce "apply-reduction-relation returned multiple values. prog: ~a, results: ~a" term many)
+           (values (car (shuffle many)) #true))])))
+
 (define-syntax-rule (define-big-step bs ss lang)
   (define-metafunction lang
     bs : σ e -> (σ e) or stuck
     [(bs σ_0 e_0)
      (σ_1 e_1)
-     (where ((σ_1 e_1)) 
-            ,(apply-reduction-relation*
-              ss (term (σ_0 e_0))
-              #:error-on-multiple? #true))
-     (side-condition (not (equal? (term e_0) (term e_1))))]
+     (where (σ_1 e_1) 
+            ,(reduce ss (term (σ_0 e_0))
+                     #:deterministic? #true
+                     #:max-steps 50))]
     [(⇓base _ _) stuck]))
+
+(define (evaluates-in-set rule term results #:iterations [iters 50] #:extract-result extract #:equiv? [equiv? equal?])
+  (for ([_ (in-range iters)])
+    (define final (reduce rule term #:deterministic? #false))
+    (define result (extract final))
+    (unless (and result (member result results equiv?))
+      (error 'evaluates-in-set "program reduced outside of the set: ~a" result))))
 
 (define-syntax (define-event-loop stx)
   (syntax-case stx ()

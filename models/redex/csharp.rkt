@@ -192,6 +192,7 @@
 ;; -----------------------------------------------------------------------------
 
 (module+ test
+  (require "utils.rkt")
   
   (define-metafunction C#
     main/c# : e -> (t σ Q P)
@@ -212,9 +213,9 @@
   (define-syntax-rule (c#-->>= e v)
     (test-->> -->c# #:equiv prog/equiv (term (main/c# e)) v))
 
-  (define-syntax-rule (c#-->>E e v)
-    (test-->>E #:steps 40 -->c# (term (main/c# e)) (lambda (p)
-                                                     (prog/equiv p v))))
+  (define-syntax-rule (c#-->>∈ e results)
+    (evaluates-in-set -->c# (term (main/c# e)) results
+                      #:extract-result final-value))
   
   (c#-->>=
    (block ((async/lambda () 42)))
@@ -259,10 +260,10 @@
                    (block (work "A"))))
    "AA")
 
-  (c#-->>E
+  (c#-->>∈
    (trace-stdout (print)
                  (let* ([work (async/lambda (msg)
-                                (begin (await (os/io 1 (void)))
+                                (begin (await (os/io 5 (void)))
                                        (print msg)))]
                         [main (async/lambda ()
                                 (let ([task0 (work "A")]
@@ -271,19 +272,4 @@
                                          (await task0)
                                          (await task1))))])
                    (block (main))))
-   "CAB")
-
-  #;
-  (c#-->>E
-   (trace-stdout (print)
-                 (let* ([work (async/lambda (msg)
-                                (begin (await (os/io 1 (void)))
-                                       (print msg)))]
-                        [main (async/lambda ()
-                                (let ([task0 (work "A")]
-                                      [task1 (work "B")])
-                                  (begin (print "C")
-                                         (await task0)
-                                         (await task1))))])
-                   (block (main))))
-   "CBA"))
+   (string-permutations "ABC")))
