@@ -20,16 +20,16 @@
 
 (define -->exn/core
   (reduction-relation
-   LC+Exn #:domain (H L e)
+   LC+Exn #:domain (σ e)
 
-   [--> (H L (in-hole E (catch v_handler (in-hole E_inner (throw v))))) 
-        (H L (in-hole E (v_handler v)))
+   [--> (σ (in-hole E (catch v_handler (in-hole E_inner (throw v))))) 
+        (σ (in-hole E (v_handler v)))
 
         (side-condition (not (term (in-handler? E_inner))))
         "catch-exception"]
 
-   [--> (H L (in-hole E (catch v_handler v)))
-        (H L (in-hole E v))
+   [--> (σ (in-hole E (catch v_handler v)))
+        (σ (in-hole E v))
         "catch"]))
 
 (define -->lc/base
@@ -58,7 +58,7 @@
   (provide main/exn)
 
   (define-metafunction/extension main LC+Exn
-    main/exn : e -> (H L e))
+    main/exn : e -> (σ e))
   
   (define-syntax-rule (exn-->>= e v)
     (test-->> -->exn #:equiv prog/equiv (term (main/exn e)) v))
@@ -94,7 +94,7 @@
 
   (exn-->>=
    (catch (lambda (e) 0)
-          (if0 1
-               (throw "nope")
-               (+ 21 21)))
+          (if #false
+              (throw "nope")
+              (+ 21 21)))
    42))

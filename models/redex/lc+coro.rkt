@@ -27,32 +27,33 @@
 
 (define -->coro/core
   (reduction-relation
-   LC+Coro #:domain (H L e)
+   LC+Coro #:domain (σ e) 
 
-   [--> (H L_0 (in-hole E (coro v)))
-        (H L_1 (in-hole E (tag x_tag)))
+   [--> (σ_0 (in-hole E (coro v)))
+        (σ_1 (in-hole E (tag x_tag)))
 
-        (where x_tag (gensym L_0 ctag))
-        (where L_1 (ext1 L_0 (x_tag (coroutine v))))
+        (where x_tag (gensym σ_0 ctag))
+        (where σ_1 (ext1 σ_0 (x_tag (coroutine v))))
         "create"]
 
-   [--> (H L_0 (in-hole E (resume! (tag x_tag) v ..._1)))
-        (H L_1 (in-hole E (tagged x_tag ((lambda (x ...) e_body) v ...))))
+   [--> (σ_0 (in-hole E (resume! (tag x_tag) v ..._1)))
+        (σ_1 (in-hole E (tagged x_tag ((lambda (x ...) e_body) v ...))))
 
-        (where/error (coroutine (lambda (x ..._1) e_body)) (lookup L_0 x_tag))
-        (where L_1 (ext1 L_0 (x_tag (void)))) ;; remove the binding for x_tag
+        (where/error (coroutine (lambda (x ..._1) e_body)) (lookup σ_0 x_tag))
+        (where σ_1 (ext1 σ_0 (x_tag "in coroutine")))
         "resume!"]
 
-   [--> (H L_0 (in-hole E (tagged x_tag (in-hole E_inner (yield v)))))
-        (H L_1 (in-hole E v))
+   [--> (σ_0 (in-hole E (tagged x_tag (in-hole E_inner (yield v)))))
+        (σ_1 (in-hole E v))
 
         ;; Asymmetric transfer goes from the inner-most nested coroutine to it's caller
         (side-condition (not (term (in-tag? E_inner))))
-        (where L_1 (ext1 L_0 (x_tag (coroutine (lambda (x) (in-hole E_inner x))))))
+        (where x_send (gensym σ_0 send))
+        (where σ_1 (ext1 σ_0 (x_tag (coroutine (lambda (x_send) (in-hole E_inner x_send))))))
         "yield"]
 
-   [--> (H L (in-hole E (tagged x_tag v)))
-        (H L (in-hole E v))
+   [--> (σ (in-hole E (tagged x_tag v)))
+        (σ (in-hole E v))
         "tagged"]))
 
 (define -->lc/base
@@ -86,16 +87,28 @@
   (provide main/coro)
 
   (define-metafunction/extension main LC+Coro
-    main/coro : e -> (H L e))
+    main/coro : e -> (σ e))
   
   (define-syntax-rule (coro-->>= e v)
     (test-->> -->coro #:equiv prog/equiv (term (main/coro e)) v))
 
   (coro-->>=
+   (let ([c (coro (lambda (x y z)
+                    (+ (yield x)
+                       (yield y)
+                       (yield z))))])
+     (let ([a (resume! c 2 4 6)]
+           [b (resume! c 2)]
+           [c (resume! c 4)]
+           [d (resume! c 6)])
+       (+ a b c d)))
+   24)
+  
+  (coro-->>=
    (let ([c (coro (lambda (x)
-                     (begin (yield (+ x 1))
-                            (yield (+ x 2))
-                            (+ x 3))))])
+                    (begin (yield (+ x 1))
+                           (yield (+ x 2))
+                           (+ x 3))))])
      (let ([a (resume! c 0)]
            [b (resume! c 0)]
            [c (resume! c 0)])
@@ -105,9 +118,9 @@
   (coro-->>=
    (let* ([genint-coro (let* ([counter 0]
                               [c (coro (lambda (_)
-                                         (while-0!= -1
-                                           (set! counter (+ counter 1))
-                                           (yield counter))))])
+                                         (while0< 1
+                                                  (set! counter (+ counter 1))
+                                                  (yield counter))))])
              
                          (lambda ()
                            (resume! c (void))))]
@@ -117,12 +130,12 @@
                              c)))]
           [n 50])
      (letrec ([loop (lambda ()
-                      (if0 n
-                           42
-                           (if0 (- (genint) (genint-coro))
-                                (begin (set! n (- n 1))
-                                       (loop))
-                                0)))])
+                      (if (= 0 n)
+                          42
+                          (if (= (genint) (genint-coro))
+                              (begin (set! n (- n 1))
+                                     (loop))
+                              0)))])
        (loop)))
    42)
 
@@ -163,10 +176,10 @@
                         (letrec ([loop (lambda ()
                                          (begin
                                            (set! curr (next))
-                                           (if0 n
-                                                curr
-                                                (begin (set! n (+ n -1))
-                                                       (loop)))))])
+                                           (if (= 0 n)
+                                               curr
+                                               (begin (set! n (+ n -1))
+                                                      (loop)))))])
                           (loop))))])
      (n-th-fib 12))
    144))

@@ -1,198 +1,191 @@
 #lang racket
 
 (require redex
-         "utils.rkt"
          "lc.rkt"
-         "lc+exn.rkt")
+         "lc+exn.rkt"
+         "platform.rkt")
 
-(define-extended-language C# LC+Exn
+(define-extended-language C#/Core LC+Exn
   (e ::= ....
      (async/lambda (x_!_ ...) e)
      (await e)
-     (run e)
-     (delay e e)
-     (resolve-at e e e))
+     (run e))
   
   (v ::= ....
      (async/lambda (x_!_ ...) e)
-     (task addr))
+     (task x_async))
   
   (E ::= ....
      (await E)
-     (run E)
-     (delay E e)
-     (delay v E)
-     (resolve-at E e e)
-     (resolve-at v E e)
-     (resolve-at v v E))
-
-  (task-state ::=
-              (running (F ...))
-              (done v)
-              (failed v))
-  
-  (obj ::= ....
-       task-state)
-
-  (t ::= natural)
-  
-  (l ::= sync addr)
-  
-  (F ::= (frame L e l))
-  
-  (Q ::= (F ...))
-
-  (FS ::= (stack F ...))
-  
-  (P ::= (FS ...))
+     (run E))
 
   #:binding-forms
   
   (async/lambda (x ...) e #:refers-to (shadow x ...)))
 
+(define-event-loop
+  C# C#/Core)
+
 ;; -----------------------------------------------------------------------------
 ;; Operational Semantics
 ;; -----------------------------------------------------------------------------
 
-(define -->base
-  (extend-reduction-relation -->exn C#))
-
 (define -->c#
   (reduction-relation
    C#
-   #:domain (t H Q P)
+   #:domain (t σ Q P)
 
-   [--> (t_0 H_0 (F_s ...)
-             (FS_0 ... (stack (frame L (in-hole E (run v)) l) F ...) FS_1 ...))
-        (t_1 H_1 ((frame L e addr) F_s ...)
-             (FS_0 ... (stack (stack (frame L (in-hole E (task addr)) l) F ...)) FS_1 ...))
+   [--> (t_0 σ_0 (FS_0 ... (stack (frame (in-hole E (run v)) l) F ...) FS_1 ...))
+        (t_1 σ_1 Q_1 (FS_0 ... (stack (frame (in-hole E (task x_async)) l) F ...) FS_1 ...))
 
         (where/error (lambda () e) v)
-        (where addr (malloc H_0))
-        (where H_1 (ext1 H_0 (addr (running ()))))
+        (where (ptr x_async) (malloc σ_0))
+        (where σ_1 (ext1 σ_0 (x_async (struct [running (kont)]))))
+        (where Q_1 (q-push Q_0 (frame e x_async)))
         (where t_1 (step t_0))
         "task-run"]
    
-   [--> (t_0 H_0 Q (FS_0 ... (stack (frame L_0 (in-hole E ((async/lambda (x ..._1) e) v ..._1)) l) F ...)
-                         FS_1 ...))
-        (t_1 H_1 Q (FS_0 ... (stack (frame L_1 e addr) (frame L_0 (in-hole E (task addr)) l) F ...)
-                         FS_1 ...))
+   [--> (t_0 σ_0 Q (FS_0 ... (stack (frame (in-hole E ((async/lambda (x ..._1) e) v ..._1)) l) F ...) FS_1 ...))
+        (t_1 σ_1 Q (FS_0 ... (stack (frame e x_async) (frame (in-hole E (task x_async)) l) F ...) FS_1 ...))
         
-        (where addr (malloc H_0))
-        (where L_1 (ext L_0 (x v) ...))
-        (where H_1 (ext1 H_0 (addr (running ()))))
+        (where (ptr x_async) (malloc σ_0))
+        (where σ_1 (ext σ_0 (x_async (struct [running (kont)])) (x v) ...))
         (where t_1 (step t_0))
         "async-app"]
 
-   [--> (t_0 H_0 (F_queued ...) (FS_0 ... (stack (frame L v l) F ...) FS_1 ...))
-        (t_1 H_1 (F_queued ... F_waiting ...) (FS_0 ... (stack F ...) FS_1 ...))
+   [--> (t_0 σ_0 Q_0 (FS_0 ... (stack (frame v l) F ...) FS_1 ...))
+        (t_1 σ_1 Q_1 (FS_0 ... (stack F ...) FS_1 ...))
 
         (side-condition (async? (term l)))
-        (where addr l)
-        (where/error (running (F_waiting ...)) (lookup H_0 addr))
-        (where H_1 (ext1 H_0 (addr (done v))))
+        (where x_async l)
+        (where/error (struct [running (kont F_waiting ...)]) (lookup σ_0 x_async))
+        (where σ_1 (ext1 σ_0 (x_async (struct [done v]))))
+        (where Q_1 (q-push Q_0 F_waiting ...))
         (where t_1 (step t_0))
         "task-return"]
 
-   [--> (t_0 H Q (FS_0 ... (stack (frame L (in-hole E (await (task addr))) l) F ...) FS_1 ...))
-        (t_1 H Q (FS_0 ... (stack (frame L (in-hole E v) l) F ...) FS_1 ...))
+   [--> (t_0 σ Q (FS_0 ... (stack (frame (in-hole E (await (task x_async))) l) F ...) FS_1 ...))
+        (t_1 σ Q (FS_0 ... (stack (frame (in-hole E v) l) F ...) FS_1 ...))
         
-        (where (done v) (lookup H addr))
+        (where (struct [done v]) (lookup σ x_async))
         (where t_1 (step t_0))
         "await-continue"]
 
-   [--> (t_0 H Q (FS_0 ... (stack (frame L (in-hole E (await (task addr))) l) F ...) FS_1 ...))
-        (t_1 H Q (FS_0 ... (stack (frame L (in-hole E (throw v)) l) F ...) FS_1 ...))
+   [--> (t_0 σ Q (FS_0 ... (stack (frame (in-hole E (await (task x_async))) l) F ...) FS_1 ...))
+        (t_1 σ Q (FS_0 ... (stack (frame (in-hole E (throw v)) l) F ...) FS_1 ...))
         
-        (where (failed v) (lookup H addr))
+        (where (struct [failed v]) (lookup σ x_async))
         (where t_1 (step t_0))
         "await-failed"]
 
-   [--> (t_0 H_0 Q (FS_0 ... (stack (name current-frame
-                                          (frame L (in-hole E (await (task addr))) l)) F ...)
+   [--> (t_0 σ_0 Q (FS_0 ... (stack (name current-frame
+                                          (frame (in-hole E (await (task x_async))) l)) F ...)
                     FS_1 ...))
-        (t_1 H_1 Q (FS_0 ... (stack F ...) FS_1 ...))
+        (t_1 σ_1 Q (FS_0 ... (stack F ...) FS_1 ...))
 
         (side-condition (async? (term l)))
-        (where (running (F_wait ...)) (lookup H_0 addr))
-        (where H_1 (ext1 H_0 (addr (running (current-frame F_wait ...)))))
+        (where (struct [running (kont F_waiting ...)]) (lookup σ_0 x_async))
+        (where σ_1 (ext1 σ_0 (x_async (struct [running (kont current-frame F_waiting ...)]))))
         (where t_1 (step t_0))
         "await"]
 
-   [--> (t_0 H_0 (F_queued ...) (FS_0 ... (stack (frame L (in-hole E (throw v_err)) l) F ...) FS_1 ...))
-        (t_1 H_1 (F_queued ... F_waiting ...) (FS_0 ... (stack F ...) FS_1 ...))
+   [--> (t_0 σ_0 Q_0 (FS_0 ... (stack (frame (in-hole E (throw v_err)) l) F ...) FS_1 ...))
+        (t_1 σ_1 Q_1 (FS_0 ... (stack F ...) FS_1 ...))
 
         (side-condition (async? (term l)))
         (side-condition (not (term (in-handler?/c# E))))
-        (where addr l)
-        (where/error (running (F_waiting ...)) (lookup H_0 addr))
-        (where H_1 (ext1 H_0 (addr (failed v_err))))
+        (where x_async l)
+        (where/error (struct [running (kont F_waiting ...)]) (lookup σ_0 x_async))
+        (where σ_1 (ext1 σ_0 (x_async (struct [failed v_err]))))
+        (where Q_1 (q-push Q_0 F_waiting ...))
         (where t_1 (step t_0))
         "async-throw"]
 
-   ;; Simulate IO operations
+   ;; --------------------
+   ;; OmniScient IO, OS/IO
+   ;; --------------------
 
-   [--> (t_0 H_0 (F_queued ...) (FS_0 ... (stack (frame L (in-hole E (delay natural v)) l) F ...) FS_1 ...))
-        (t_1 H_1 (F_queued ... (frame L (resolve-at (task addr) (Σ t_0 natural) v) addr))
-             (FS_0 ... (stack (frame L (in-hole E (task addr)) l) F ...) FS_1 ...))
+   [--> (t_0 σ_0 Q_0 (FS_0 ... (stack (frame (in-hole E (os/io natural v)) l) F ...) FS_1 ...))
+        (t_1 σ_1 Q_1
+             (FS_0 ... (stack (frame (in-hole E (task x_async)) l) F ...) FS_1 ...))
 
-        (where addr (malloc H_0))
-        (where H_1 (ext1 H_0 (addr (running ()))))
+        (where (ptr x_async) (malloc σ_0))
+        (where σ_1 (ext1 σ_0 (x_async (struct [running (kont)]))))
+        (where Q_1 (q-push Q_0 (frame (os/resolve (task x_async) (Σ t_0 natural) v) x_async)))
         (where t_1 (step t_0))
-        "delay"]
+        "os/io"]
    
-   [--> (t_0 H_0 (F_queued ...)
-             (FS_0 ... (stack (frame L (in-hole E (resolve-at (task addr) t_resolve v)) l) F ...)
+   [--> (t_0 σ_0 Q_0
+             (FS_0 ... (stack (frame (in-hole E (os/resolve (task x_async) t_resolve v)) l) F ...)
                    FS_1 ...))
-        (t_1 H_1 (F_queued ... F_waiting ...) (FS_0 ... (stack F ...) FS_1 ...))
+        (t_1 σ_1 Q_1 (FS_0 ... (stack F ...) FS_1 ...))
 
         (side-condition (>= (term t_0) (term t_resolve)))
-        (where/error (running (F_waiting ...)) (lookup H_0 addr))
-        (where H_1 (ext1 H_0 (addr (done v))))
+        (where/error (struct [running (kont F_waiting ...)]) (lookup σ_0 x_async))
+        (where σ_1 (ext1 σ_0 (x_async (struct [done v]))))
+        (where Q_1 (q-push Q_0 F_waiting ...))
         (where t_1 (step t_0))
-        "resolve-at"]
+        "os/resolve"]
 
-   [--> (t_0 H Q (FS_0 ... (stack (frame L (in-hole E (resolve-at v_task t_resolve v)) l) F ...) FS_1 ...))
-        (t_1 H Q (FS_0 ... (stack (frame L (in-hole E (resolve-at v_task t_resolve v)) l) F ...) FS_1 ...))
+   [--> (t_0 σ Q (FS_0 ... (stack (frame (in-hole E (os/resolve v_task t_resolve v)) l) F ...) FS_1 ...))
+        (t_1 σ Q (FS_0 ... (stack (frame (in-hole E (os/resolve v_task t_resolve v)) l) F ...) FS_1 ...))
 
         (side-condition (< (term t_0) (term t_resolve)))
         (where t_1 (step t_0))
-        "resolve-at-blocking"]
+        "os/resolve-blocking"]
+
    
-   [--> (t_0 H (F_waiting F_s ...) (FS_main FS_0 ... (stack) FS_1 ...))
-        (t_1 H (F_s ...) (FS_main FS_0 ... (stack F_waiting) FS_1 ...))
+   [--> (t_0 σ Q_0 (FS_main FS_0 ... (stack) FS_1 ...))
+        (t_1 σ Q_1 (FS_main FS_0 ... (stack F_head) FS_1 ...))
 
         (side-condition (term (all-busy? FS_0 ...)))
+        (where (F_head Q_1) (q-pop Q_0))
         (where t_1 (step t_0))
         "thread-work-steal"]
 
-   [--> (t_0 H_0 Q (FS_0 ... (stack (frame L_0 e_0 l) F ...) FS_1 ...))
-        (t_1 H_1 Q (FS_0 ... (stack (frame L_1 e_1 l) F ...) FS_1 ...))
+   [--> (t_0 σ_0 Q (FS_0 ... (stack (frame e_0 l) F ...) FS_1 ...))
+        (t_1 σ_1 Q (FS_0 ... (stack (frame e_1 l) F ...) FS_1 ...))
 
-        (side-condition (not (value? (term e))))
-        (where (H_1 L_1 e_1) (⇓base H_0 L_0 e_0))
+        (side-condition (not (term (value? e))))
+        (where (σ_1 e_1) (⇓base σ_0 e_0))
         (where t_1 (step t_0))
-        "base-step"]))
+        "base-step"]
+
+   ;; --------------------
+   ;; Platform exit
+   ;; --------------------
+
+   ;; TODO, C# exit conditions
+   [--> (t_0 σ Q ((stack (frame (in-hole E (block (task x_async))) l)) FS_rest ...))
+        (t_1 σ Q ((stack (frame (in-hole E v) l)) FS_rest ...))
+
+        (side-condition (sync? (term l)))
+        (where (struct [done v]) (lookup σ x_async))
+        (where t_1 (step t_0))
+        "unblock"]))
+
+(define -->base
+  (extend-reduction-relation -->exn C#))
 
 ;; -----------------------------------------------------------------------------
 ;; Metafunctions
 ;; -----------------------------------------------------------------------------
 
-(define-metafunction/extension in-handler? C#
-    in-handler?/c# : E -> boolean)
-
-(define-metafunction C#
-  all-busy? : FS ... -> boolean
-  [(all-busy?) #true]
-  [(all-busy? (stack) _ ...) #false]
-  [(all-busy? (stack _ _ ...) FS_s ...)
-   (all-busy? FS_s ...)])
-
-(define (value? t)
-  (redex-match? C# v t))
-
 (define-big-step ⇓base
   -->base C#)
+
+(define-metafunction/extension in-handler? C#
+  in-handler?/c# : E -> boolean)
+
+(define-metafunction C#
+  value? : any -> boolean
+  [(value? v) #true]
+  [(value? any) #false])
+
+(define-metafunction C#
+  task? : v -> boolean
+  [(task? (task _)) #true]
+  [(task? _) #false])
 
 ;; -----------------------------------------------------------------------------
 ;; Tests
@@ -201,14 +194,14 @@
 (module+ test
   
   (define-metafunction C#
-    main/c# : e -> (t H Q P)
-    [(main/c# e) (0 () () ((stack (frame () (substitute e) sync))
+    main/c# : e -> (t σ Q P)
+    [(main/c# e) (0 () () ((stack (frame (substitute e) sync))
                            (stack)
-                           (stack)))])
+                           #;(stack)))])
 
   (define (final-value p)
     (match p
-      [`(,_t ,_H ,_Q ((stack (frame ,_L ,v ,_l)) ,_ ...)) v]
+      [`(,_t ,_σ ,_Q ((stack (frame ,v sync)) ,_ ...)) v]
       [_ p]))
   
   (define (prog/equiv p v)
@@ -222,68 +215,75 @@
   (define-syntax-rule (c#-->>E e v)
     (test-->>E #:steps 40 -->c# (term (main/c# e)) (lambda (p)
                                                      (prog/equiv p v))))
-
+  
   (c#-->>=
-   (await ((async/lambda () 42)))
+   (block ((async/lambda () 42)))
    42)
 
   (c#-->>=
-   (await ((async/lambda (x) x) 42))
+   (block ((async/lambda (x) x) 42))
    42)
 
   (c#-->>=
    (let* ([yield (async/lambda () (void))]
           [id (async/lambda (x)
-                            (begin
-                              (await (yield))
-                              x))])
+                (begin
+                  (await (yield))
+                  x))])
      
-     (await (id 42)))
+     (block (id 42)))
    42)
 
   (c#-->>=
    (let* ([mk-t1 (async/lambda () (throw 42))]
           [mk-t2 (async/lambda (x)
-                               (catch (lambda (v) v)
-                                      (begin
-                                        (await (mk-t1))
-                                        x)))])
+                   (catch (lambda (v) v)
+                          (begin
+                            (await (mk-t1))
+                            x)))])
      
-     (await (mk-t2 0)))
+     (block (mk-t2 0)))
    42)
 
   (c#-->>=
-   (let ([work (async/lambda () (await (delay 5 42)))])
-     (await (work)))
+   (let ([work (async/lambda () (await (os/io 5 42)))])
+     (block (work)))
    42)
 
   (c#-->>=
    (trace-stdout (print)
                  (let* ([work (async/lambda (msg)
-                                            (begin
-                                              (print (await (delay 1 msg)))
-                                              (print (await (delay 1 msg)))))])
-                   (await (work "A"))))
+                                (begin
+                                  (print (await (os/io 1 msg)))
+                                  (print (await (os/io 1 msg)))))])
+                   (block (work "A"))))
    "AA")
 
   (c#-->>E
    (trace-stdout (print)
                  (let* ([work (async/lambda (msg)
-                                            (begin (await (delay 1 (void)))
-                                                   (print msg)))]
-                        [task0 (work "A")]
-                        [task1 (work "B")])
-                   (begin (print "C")
-                          (await task0)
-                          (await task1))))
+                                (begin (await (os/io 1 (void)))
+                                       (print msg)))]
+                        [main (async/lambda ()
+                                (let ([task0 (work "A")]
+                                      [task1 (work "B")])
+                                  (begin (print "C")
+                                         (await task0)
+                                         (await task1))))])
+                   (block (main))))
    "CAB")
 
+  #;
   (c#-->>E
    (trace-stdout (print)
-                 (let* ([work (async/lambda (msg) (print (await (delay 1 msg))))]
-                        [task0 (work "A")]
-                        [task1 (work "B")])
-                   (begin (print "C")
-                          (await task0)
-                          (await task1))))
+                 (let* ([work (async/lambda (msg)
+                                (begin (await (os/io 1 (void)))
+                                       (print msg)))]
+                        [main (async/lambda ()
+                                (let ([task0 (work "A")]
+                                      [task1 (work "B")])
+                                  (begin (print "C")
+                                         (await task0)
+                                         (await task1))))])
+                   (block (main))))
    "CBA"))

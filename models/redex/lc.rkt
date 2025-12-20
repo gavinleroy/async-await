@@ -8,14 +8,9 @@
   (e ::=
      x
      v
-     (void)
      (set! x e)
-     (+ e ...)
-     (- e ...)
-     (num->string e)
-     (append e e ...)
      (e e ...)               
-     (if0 e e e)
+     (if e e e)
      (fix e)
      (let ([x_!_ e] ...) e)
      (lambda (x_!_ ...) e)
@@ -23,43 +18,60 @@
      (slot x e)
      (box e)
      (unbox e)
-     (set-box! e e))
+     (set-box! e e)
+
+     ;; numeric operators
+
+     (+ e ...)
+     (- e ...)
+     (num->string e)
+     (= e e)
+     (< e e)
+     (> e e)
+     (<= e e)
+     (>= e e)
+    
+     ;; string operators
+
+     (append e e ...))
 
   (v ::=
      number
      string
+     boolean
+     addr
      (void)
      (fix v)
      (lambda (x_!_ ...) e)
-     (struct [x_!_ v] ...)
-     (ptr addr))
+     (struct [x_!_ v] ...))
 
   (E ::=
      hole
      (+ v ... E e ...)
      (- v ... E e ...)
+     (= v ... E e ...)
+     (< v ... E e ...)
+     (> v ... E e ...)
+     (<= v ... E e ...)
+     (>= v ... E e ...)
      (append v ... E e ...)
      (num->string E)
      (v ... E e ...)
      (fix E)
      (set! x E)
      (let ([x_0 v] ... [x E] [x_1 e] ...) e)
-     (if0 E e e)
+     (if E e e)
      (struct [x_0 v] ... [x E] [x_s e] ...)
      (slot x E)
      (box E)
      (unbox E)
      (set-box! E e)
      (set-box! v E))
-  
-  (L ::= ((x v) ...))  
 
-  (addr ::= natural)
+  (addr ::= (ptr x))
 
-  (obj ::= (box v))
-  
-  (H ::= ((addr obj) ...))
-  
+  (σ ::= ((x v) ...))  
+
   (x ::= variable-not-otherwise-mentioned)
        
   #:binding-forms
@@ -75,93 +87,114 @@
 (define -->lc
   (reduction-relation
    LC
-   #:domain (H L e)
+   #:domain (σ e)
    
-   [--> (H L (in-hole E x))
-        (H L (in-hole E v))
+   [--> (σ (in-hole E x))
+        (σ (in-hole E v))
         
-        (where v (lookup L x))
+        (where v (lookup σ x))
         "var"]
    
-   (--> (H L (in-hole E (if0 0 e_1 e_2)))
-        (H L (in-hole E e_1))
-        "if0-true")
+   (--> (σ (in-hole E (if #false e_1 e_2)))
+        (σ (in-hole E e_2))
+        "if-false")
    
-   (--> (H L (in-hole E (if0 v e_1 e_2)))
-        (H L (in-hole E e_2))
+   (--> (σ (in-hole E (if v e_1 e_2)))
+        (σ (in-hole E e_1))
         
-        (side-condition (not (equal? 0 (term v))))
-        "if0-false")
+        (side-condition (not (equal? #false (term v))))
+        "if-true")
       
-   [--> (H L_0 (in-hole E (set! x v)))
-        (H L_1 (in-hole E (void)))
+   [--> (σ_0 (in-hole E (set! x v)))
+        (σ_1 (in-hole E (void)))
         
-        (where L_1 (ext1 L_0 (x v)))
+        (where σ_1 (ext1 σ_0 (x v)))
         "set!"]
 
-   [--> (H L (in-hole E ((fix v_rec) v_arg ...)))
-        (H L (in-hole E ((v_rec (fix v_rec)) v_arg ...)))
+   [--> (σ (in-hole E ((fix v_rec) v_arg ...)))
+        (σ (in-hole E ((v_rec (fix v_rec)) v_arg ...)))
+
+        (where (lambda (x ...) e) v_rec)
         "fix"]
    
-   [--> (H L_0 (in-hole E ((lambda (x ..._1) e) v ..._1)))
-        (H L_1 (in-hole E e))
+   [--> (σ_0 (in-hole E ((lambda (x ..._1) e) v ..._1)))
+        (σ_1 (in-hole E e))
         
-        (where L_1 (ext L_0 (x v) ...))
+        (where σ_1 (ext σ_0 (x v) ...))
         "app"]   
    
-   [--> (H L_0 (in-hole E (let ([x v] ...) e_body)))
-        (H L_1 (in-hole E e_body))
+   [--> (σ_0 (in-hole E (let ([x v] ...) e_body)))
+        (σ_1 (in-hole E e_body))
         
-        (where L_1 (ext L_0 (x v) ...))
+        (where σ_1 (ext σ_0 (x v) ...))
         "let"]
 
-   [--> (H L (in-hole E (slot x_field v_struct)))
-        (H L (in-hole E v))
+   [--> (σ (in-hole E (slot x_field v_struct)))
+        (σ (in-hole E v))
         
 
         (where/error (struct [x_s v_s] ...) v_struct)
         (where v (lookup ((x_s v_s) ...) x_field))
         "slot"]
 
-   [--> (H_0 L (in-hole E (box v)))
-        (H_1 L (in-hole E (ptr addr)))
+   [--> (σ_0 (name prog (in-hole E (box v))))
+        (σ_1 (in-hole E (ptr x)))
         
-        (where addr (malloc H_0))
-        (where H_1 (ext1 H_0 (addr (box v))))
+        (where/error (ptr x) (malloc σ_0))
+        (where σ_1 (ext1 σ_0 (x v)))
         "box"]
 
-   [--> (H L (in-hole E (unbox v)))
-        (H L (in-hole E v_unboxed))
+   [--> (σ (in-hole E (unbox v)))
+        (σ (in-hole E v_unboxed))
 
-        (where/error (ptr addr) v)
-        (where/error (box v_unboxed) (lookup H addr))
+        (where/error (ptr x) v)
+        (where/error v_unboxed (lookup σ x))
         "unbox"]
 
-   [--> (H_0 L (in-hole E (set-box! v_ptr v_new)))
-        (H_1 L (in-hole E (void)))
+   [--> (σ_0 (in-hole E (set-box! v_ptr v_new)))
+        (σ_1 (in-hole E (void)))
 
-        (where/error (ptr addr) v_ptr)
-        (where/error (box _) (lookup H_0 addr))
-        (where H_1 (ext1 H_0 (addr (box v_new))))
+        (where/error (ptr x_addr) v_ptr)
+        (where σ_1 (ext1 σ_0 (x_addr v_new)))
         "set-box!"]
 
    ;; Operations
    
-   [--> (H L (in-hole E (+ number ...)))
-        (H L (in-hole E (Σ number ...)))
+   [--> (σ (in-hole E (+ number ...)))
+        (σ (in-hole E (Σ number ...)))
         "add"]
 
-   [--> (H L (in-hole E (- number ...)))
-        (H L (in-hole E ,(apply - (term (number ...)))))
+   [--> (σ (in-hole E (- number ...)))
+        (σ (in-hole E ,(apply - (term (number ...)))))
         "subtract"]
 
-   [--> (H L (in-hole E (append string ...)))
-        (H L (in-hole E (^ string ...)))
-        "append"]
+   [--> (σ (in-hole E (num->string number)))
+        (σ (in-hole E ,(number->string (term number))))
+        "num->string"]
 
-   [--> (H L (in-hole E (num->string number)))
-        (H L (in-hole E ,(number->string (term number))))
-        "num->string"]))
+   [--> (σ (in-hole E (= number ...)))
+        (σ (in-hole E ,(apply = (term (number ...)))))
+        "num="]
+
+   [--> (σ (in-hole E (< number ...)))
+        (σ (in-hole E ,(apply < (term (number ...)))))
+        "num<"]
+
+   [--> (σ (in-hole E (> number ...)))
+        (σ (in-hole E ,(apply > (term (number ...)))))
+        "num>"]
+
+   [--> (σ (in-hole E (<= number ...)))
+        (σ (in-hole E ,(apply <= (term (number ...)))))
+        "num<="]
+
+   [--> (σ (in-hole E (>= number ...)))
+        (σ (in-hole E ,(apply >= (term (number ...)))))
+        "num>="]
+
+   [--> (σ (in-hole E (append string ...)))
+        (σ (in-hole E (^ string ...)))
+        "append"]))
    
 ;; -----------------------------------------------------------------------------
 ;; Metafunctions
@@ -177,10 +210,9 @@
   [(step natural_0) ,(+ 1 (term natural_0))])
 
 (define-metafunction REDEX
-  malloc : ((natural any) ...) -> natural
-  [(malloc ()) 0]
-  [(malloc ((natural any) ...))
-   ,(+ 1 (apply max (term (natural ...))))])
+  malloc : ((any any) ...) -> any
+  [(malloc any)
+   (ptr (gensym any p))])
 
 (define-metafunction REDEX
   Σ : number ... -> number
@@ -191,11 +223,39 @@
   [(^ string ...) ,(apply string-append (term (string ...)))])
 
 (define-metafunction REDEX
+  && : any ... -> any
+  [(&&) #true]
+  [(&& any_0 any_s ...)
+   (if any_0 (and any_s ...) #false)])
+
+(define-metafunction REDEX
+  || : any ... -> any
+  [(||) #false]
+  [(|| any_0 any_s ...)
+   (if any_0 #true (or any_s ...))])
+
+(define-metafunction REDEX
+  ~ : any -> any
+  [(~ any) (if any #false #true)])
+
+(define-metafunction REDEX
+  gensyms : any ... -> (variable ...)
+  [(gensyms any ...)
+   ,(variables-not-in (term (any ...))
+                      (map (lambda _ (term g)) (term (any ...))))])
+
+(define-metafunction REDEX
+  gensym : any variable -> variable
+  [(gensym any variable)
+   ,(variable-not-in (term any) (term variable))])
+
+(define-metafunction REDEX
   lookup : ((any any) ...) any -> any or not-found
   [(lookup (any_prefix ... (any any_0) _ ...) any)
    any_0
    (side-condition (not (member (term any) (term (any_prefix ...)))))]
-  [(lookup any _) not-found])
+  [(lookup any_store any_el)
+   ,(error 'lookup "~e not found in store: ~e" (term any_el) (term any_store))])
 
 (define-metafunction REDEX
   ext1 : ((any any) ...) (any any) -> ((any any) ...)
@@ -208,18 +268,7 @@
   ext : ((any any) ...) (any any) ... -> ((any any) ...)
   [(ext any) any]
   [(ext any any_0 any_1 ...)
-   (ext1 (ext any any_1 ...) any_0)])          
-   
-(define-metafunction REDEX
-  gensyms : any ... -> (variable ...)
-  [(gensyms any ...)
-   ,(variables-not-in (term (any ...))
-                      (map (lambda _ (term gsym)) (term (any ...))))])
-
-(define-metafunction REDEX
-  gensym : any variable -> variable
-  [(gensym any variable)
-   ,(variable-not-in (term any) (term variable))])
+   (ext1 (ext any any_1 ...) any_0)])
 
 ;; We could add these to the base LC, but just for testing 
 
@@ -243,23 +292,28 @@
      any_body)])
 
 (define-metafunction REDEX
-  while-0!= : any any ... -> any
-  [(while-0!= any_n any_rest ...)
+  while : any any ... -> any
+  [(while any_t any_rest ...)
    (letrec ([any_loop (lambda ()
-                        (if0 any_n
-                             (void)
-                             (begin any_rest ... (any_loop))))])
+                        (if any_t
+                            (begin any_rest ... (any_loop))
+                            (void)))])
      (any_loop))
-   (where any_loop ,(variable-not-in (term (any_n any_rest ...)) 'loop))])
+   (where any_loop ,(variable-not-in (term (any_t any_rest ...)) 'loop))])
+
+(define-metafunction REDEX
+  while0< : any any ... -> any
+  [(while0< any_n any_rest ...)
+   (while (< 0 any_n) any_rest ...)])
 
 (define-metafunction REDEX
   trace-stdout : (any_print) any ... -> any
   [(trace-stdout (any_print) any_s ...)
-    (let* ([any_stdout (box "")]
+    (let* ([any_stdout ""]
            [any_print (lambda (s)
-                        (set-box! any_stdout (append (unbox any_stdout) s)))])
-      (begin any_s ... (unbox any_stdout)))
-   (where any_stdout ,(variable-not-in (term any) 'stdout))])
+                        (set! any_stdout (append any_stdout s)))])
+      (begin any_s ... any_stdout))
+   (where any_stdout (gensym (any_s ...) stdout))])
 
 ;; -----------------------------------------------------------------------------
 ;; Tests
@@ -269,12 +323,12 @@
   (provide final-value prog/equiv main)
 
   (define-metafunction LC
-    main : e -> (H L e)
-    [(main e) (() () (substitute e))])
+    main : e -> (σ e)
+    [(main e) (() (substitute e))])
   
   (define (final-value p)
     (match p
-      [`(,_H ,_L ,v) v]
+      [`(,_σ ,v) v]
       [_ p]))
   
   (define (prog/equiv p v)
@@ -290,23 +344,27 @@
    42)
 
   (lc-->>=
-    (- 42 0)
-    42)
+   (- 42 0)
+   42)
 
   (lc-->>=
-    (- 42 42)
-    0)
+   (- 42 42)
+   0)
 
   (lc-->>=
-    (- 42 42 42)
-    -42)
+   (- 42 42 42)
+   -42)
+
+  (lc-->>=
+   (if (= 0 0) 42 21)
+   42)
   
   (lc-->>=
    (let ([counter 42] [times 0])
      (begin
-       (while-0!= counter
-                  (set! counter (- counter 1))
-                  (set! times (+ times 1)))
+       (while (< 0 counter)
+              (set! counter (- counter 1))
+              (set! times (+ times 1)))
        times))
    42)
    
@@ -332,12 +390,12 @@
           [c 0]
           [loop (fix (lambda (loop)
                        (lambda ()
-                         (if0 x
-                              (void)
-                              (begin
-                                (set! c (+ c 1))
-                                (set! x (+ x -1))
-                                (loop))))))])
+                         (if (= 0 x)
+                             (void)
+                             (begin
+                               (set! c (+ c 1))
+                               (set! x (+ x -1))
+                               (loop))))))])
      (begin (loop) c))
    42)
 
@@ -345,12 +403,12 @@
    (let* ([x 42]
           [c 0])
      (letrec ([loop (lambda ()
-                      (if0 x
-                           (void)
-                           (begin
-                             (set! c (+ c 1))
-                             (set! x (+ x -1))
-                             (loop))))])
+                      (if (= 0 x)
+                          (void)
+                          (begin
+                            (set! c (+ c 1))
+                            (set! x (+ x -1))
+                            (loop))))])
        (begin (loop) c)))
    42)
    
@@ -375,30 +433,30 @@
   (lc-->>= 
    (let* ([x 10] [c ""])
      (letrec ([loop (lambda ()
-                      (if0 x
-                           (void)
-                           (begin
-                             (set! x (+ x -1))
-                             (set! c (append c (num->string  x)))
-                             (loop))))])
+                      (if (= 0 x)
+                          (void)
+                          (begin
+                            (set! x (+ x -1))
+                            (set! c (append c (num->string  x)))
+                            (loop))))])
        (begin (loop) c)))
    "9876543210")
 
   (lc-->>= 
    (let* ([x 10] [c (box "")])
      (letrec ([loop (lambda ()
-                      (if0 x
-                           (void)
-                           (begin
-                             (set! x (+ x -1))
-                             (set-box! c (append (unbox c) (num->string  x)))
-                             (loop))))])
+                      (if (= 0 x)
+                          (void)
+                          (begin
+                            (set! x (+ x -1))
+                            (set-box! c (append (unbox c) (num->string  x)))
+                            (loop))))])
        (begin (loop) (unbox c))))
    "9876543210")
 
   (lc-->>=
    (slot x (struct [x 42] [y 0]))
-  42)
+   42)
 
   (lc-->>=
    (let ([s (struct [x (- 42 21)] [y 21])])
@@ -408,6 +466,6 @@
 
   (lc-->>=
    (trace-stdout (print)
-     (print "hello")
-     (print ", world"))
+                 (print "hello")
+                 (print ", world"))
    "hello, world"))
