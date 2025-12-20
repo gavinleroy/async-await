@@ -405,8 +405,7 @@
             (block (main))))
    "whoops")
 
-  #;
-  (aio-->>=
+  (aio-->>E
    (let* ([work (async/lambda ()
                   (catch (lambda (e) 42)
                          (await (os/io 4 0))))]
@@ -416,6 +415,17 @@
                          (await t)))])
      (block (main)))
    42)
+
+  (aio-->>E
+   (let* ([work (async/lambda ()
+                  (catch (lambda (e) 42)
+                         (await (os/io 4 0))))]
+          [t (spawn (work))]
+          [main (async/lambda ()
+                  (begin (cancel t)
+                         (await t)))])
+     (block (main)))
+   0)
   
   (aio-->>E
    (let* ([work (async/lambda ()
