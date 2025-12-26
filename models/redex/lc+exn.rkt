@@ -79,15 +79,15 @@
 
   (exn-->>=
    (let ([throwing! (lambda () (throw 0))]
-          [with-default (lambda (d thunk)
-                          (catch (lambda (e) d)
-                                 (thunk)))])
+         [with-default (lambda (d thunk)
+                         (catch (lambda (e) d)
+                                (thunk)))])
      (with-default 42 throwing!))
    42)
 
   (exn-->>=
    (let ([thirty-eight (lambda (_e) 38)]
-          [add1 (lambda (n) (+ n 1))])
+         [add1 (lambda (n) (+ n 1))])
      (add1 (add1 (add1 (add1 (catch thirty-eight
                                     (add1 (add1 (add1 (throw 0))))))))))
    42)

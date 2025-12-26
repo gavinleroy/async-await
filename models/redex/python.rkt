@@ -122,38 +122,38 @@
   
   (py-->>= 
    (trace-stdout (print)
-                 (let* ([suspend (async/lambda () (void))]
-                        [work (async/lambda (msg)
-                                (begin (await (suspend))
-                                       (print msg)))]
-                        [c (work "A")])
-                   (begin (resume! c (void))
-                          (resume! c (void)))))
+     (let* ([suspend (async/lambda () (void))]
+            [work (async/lambda (msg)
+                    (begin (await (suspend))
+                           (print msg)))]
+            [c (work "A")])
+       (begin (resume! c (void))
+              (resume! c (void)))))
    "A")
 
   (py-->>= 
    (trace-stdout (print)
-                 (let* ([suspend (async/lambda () (void))]
-                        [work (async/lambda (msg)
-                                (begin (await (suspend))
-                                       (print msg)
-                                       (await (suspend))
-                                       (print msg)
-                                       (await (suspend))
-                                       (print msg)))]
-                        [c (work "A")])
-                   (begin (resume! c (void))
-                          (resume! c (void))
-                          (resume! c (void))
-                          (resume! c (void)))))
+     (let* ([suspend (async/lambda () (void))]
+            [work (async/lambda (msg)
+                    (begin (await (suspend))
+                           (print msg)
+                           (await (suspend))
+                           (print msg)
+                           (await (suspend))
+                           (print msg)))]
+            [c (work "A")])
+       (begin (resume! c (void))
+              (resume! c (void))
+              (resume! c (void))
+              (resume! c (void)))))
    "AAA")
 
   (py-->>=
    (trace-stdout (print)
-                 (let* ([append-it (async/lambda () (print "A"))]
-                        [transparent (async/lambda ()
-                                       (let ([ret (append-it)])
-                                         (begin (print "B") ret)))])
-                   (resume! (resume! (transparent) (void))
-                            (void))))
+     (let* ([append-it (async/lambda () (print "A"))]
+            [transparent (async/lambda ()
+                           (let ([ret (append-it)])
+                             (begin (print "B") ret)))])
+       (resume! (resume! (transparent) (void))
+                (void))))
    "BA"))

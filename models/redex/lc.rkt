@@ -307,12 +307,27 @@
    (while (< 0 any_n) any_rest ...)])
 
 (define-metafunction REDEX
+  when : any any ... -> any
+  [(when any_cond any_rest ...)
+   (if any_cond
+       (begin any_rest ...)
+       (void))])
+
+(define-metafunction REDEX
+  dotimes : (variable natural) any ... -> any
+  [(dotimes (variable natural) any_rest ...)
+   (let ([variable natural])
+     (while0< variable
+              any_rest ...
+              (set! variable (- variable 1))))])
+
+(define-metafunction REDEX
   trace-stdout : (any_print) any ... -> any
   [(trace-stdout (any_print) any_s ...)
-    (let* ([any_stdout ""]
-           [any_print (lambda (s)
-                        (set! any_stdout (append any_stdout s)))])
-      (begin any_s ... any_stdout))
+   (let* ([any_stdout ""]
+          [any_print (lambda (s)
+                       (set! any_stdout (append any_stdout s)))])
+     (begin any_s ... any_stdout))
    (where any_stdout (gensym (any_s ...) stdout))])
 
 ;; -----------------------------------------------------------------------------
@@ -466,6 +481,6 @@
 
   (lc-->>=
    (trace-stdout (print)
-                 (print "hello")
-                 (print ", world"))
+     (print "hello")
+     (print ", world"))
    "hello, world"))

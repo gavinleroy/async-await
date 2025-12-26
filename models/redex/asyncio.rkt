@@ -265,11 +265,11 @@
                   [value _]
                   [x_2 v_2] ...) v)
    (struct
-    [x_0 v_0] ...
-    [status "done"]
-    [x_1 v_1] ...
-    [value v]
-    [x_2 v_2] ...)])
+     [x_0 v_0] ...
+     [status "done"]
+     [x_1 v_1] ...
+     [value v]
+     [x_2 v_2] ...)])
 
 (define-metafunction AsyncIO
   task-fail : v v -> v
@@ -371,12 +371,12 @@
   
   (aio-->>= 
    (trace-stdout (print)
-                 (let* ([suspend (async/lambda () (void))]
-                        [work (async/lambda (msg)
-                                (begin (await (suspend))
-                                       (print msg)))]
-                        [c (work "A")])
-                   (block c)))
+     (let* ([suspend (async/lambda () (void))]
+            [work (async/lambda (msg)
+                    (begin (await (suspend))
+                           (print msg)))]
+            [c (work "A")])
+       (block c)))
    "A")
 
   (aio-->>= 
@@ -408,11 +408,11 @@
 
   (aio-->>=
    (trace-stdout (print)
-                 (let* ([append-it (async/lambda () (print "A"))]
-                        [transparent (async/lambda ()
-                                       (let ([ret (append-it)])
-                                         (begin (print "B") ret)))])
-                   (block (transparent))))
+     (let* ([append-it (async/lambda () (print "A"))]
+            [transparent (async/lambda ()
+                           (let ([ret (append-it)])
+                             (begin (print "B") ret)))])
+       (block (transparent))))
    "BA")
 
   (aio-->>∈
@@ -428,28 +428,28 @@
 
   (aio-->>= 
    (trace-stdout (print)
-                 (let* ([work (async/lambda (msg)
-                                (print (await (os/io 1 msg))))]
-                        [main (async/lambda ()
-                                (let ([t1 (work "A")]
-                                      [t2 (work "B")])
-                                  (begin (print "C")
-                                         (await t1)
-                                         (await t2))))])
-                   (block (main))))
+     (let* ([work (async/lambda (msg)
+                    (print (await (os/io 1 msg))))]
+            [main (async/lambda ()
+                    (let ([t1 (work "A")]
+                          [t2 (work "B")])
+                      (begin (print "C")
+                             (await t1)
+                             (await t2))))])
+       (block (main))))
    "CAB")
 
   (aio-->>∈ 
    (trace-stdout (print)
-                 (let* ([work (async/lambda (msg)
-                                (print (await (os/io 1 msg))))]
-                        [main (async/lambda ()
-                                (let ([t1 (work "A")]
-                                      [t2 (spawn (work "B"))])
-                                  (begin (print "C")
-                                         (await t1)
-                                         (await t2))))])
-                   (block (main))))
+     (let* ([work (async/lambda (msg)
+                    (print (await (os/io 1 msg))))]
+            [main (async/lambda ()
+                    (let ([t1 (work "A")]
+                          [t2 (spawn (work "B"))])
+                      (begin (print "C")
+                             (await t1)
+                             (await t2))))])
+       (block (main))))
    ; 'C' must *always* come before 'A'
    (filter (lambda (s) (before s #\C #\A))
            (string-permutations "ABC"))))
