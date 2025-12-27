@@ -29,6 +29,132 @@
    #true]
   [(any-busy? (stack) any_rest ...) (any-busy? any_rest ...)])
 
+;; =====
+;; TASKS
+
+(define-metafunction REDEX
+  new-task : any ... -> any
+  [(new-task) (struct
+                [status "running"]
+                [awaited #false]
+                [cancelled #false]
+                [value (kont)])]
+  [(new-task any_inner)
+   (struct
+     [status "running"]
+     [awaited #false]
+     [cancelled #false]
+     [value (kont)]
+     [inner any_inner])])
+
+(define-metafunction REDEX
+  task-coro : any -> any
+  [(task-coro (struct _ ... [inner any_coro] _ ...)) any_coro]
+  [(task-coro _) none])
+
+(define-metafunction REDEX
+  task-status : any -> (done any) or (failed any) or (pending any) or cancelled
+  [(task-status (struct _ ... [cancelled #true] _ ...))
+   cancelled]
+  [(task-status (struct _ ... [status "done"] _ ... [value any_v] _ ...))
+   (done any_v)]
+  [(task-status (struct _ ... [status "failed"] _ ... [value any_v] _ ...))
+   (failed any_v)]
+  [(task-status (struct _ ... [status "running"] _ ... [value any_kont] _ ...))
+   (pending any_kont)])
+
+(define-metafunction REDEX
+  task-settle : any any -> any
+  [(task-settle (struct
+                  [variable_0 any_0] ...
+                  [status "running"]
+                  [variable_1 any_1] ...
+                  [value _]
+                  [variable_2 any_2] ...) any)
+   (struct
+     [variable_0 any_0] ...
+     [status "done"]
+     [variable_1 any_1] ...
+     [value any]
+     [variable_2 any_2] ...)])
+
+(define-metafunction REDEX
+  task-fail : any any -> any
+  [(task-fail (struct
+                [variable_0 any_0] ...
+                [status "running"]
+                [variable_1 any_1] ...
+                [value _]
+                [variable_2 any_2] ...) any)
+   (struct
+     [variable_0 any_0] ...
+     [status "failed"]
+     [variable_1 any_1] ...
+     [value any]
+     [variable_2 any_2] ...)])
+
+(define-metafunction REDEX
+  task-awaited : any -> any
+  [(task-awaited (struct [variable_0 any_0] ... [awaited _] [variable_s any_s] ...))
+   (struct [variable_0 any_0] ... [awaited #true] [variable_s any_s] ...)])
+
+(define-metafunction REDEX
+  task-coro-eq? : any any -> boolean
+  [(task-coro-eq? any_struct any_coro) #true
+                                   (where any_real (task-coro any_struct))
+                                   (side-condition (equal? (term any_real) (term any_coro)))]
+  [(task-coro-eq? _ _) #false])
+
+(define-metafunction REDEX
+  task-cancel : any -> any
+  [(task-cancel (struct [variable_0 any_0] ... [cancelled _] [variable_s any_s] ...))
+   (struct [variable_0 any_0] ... [cancelled #true] [variable_s any_s] ...)])
+
+(define-metafunction REDEX
+  task-uncancel : any -> any
+  [(task-uncancel (struct [variable_0 any_0] ... [cancelled _] [variable_s any_s] ...))
+   (struct [variable_0 any_0] ... [cancelled #false] [variable_s any_s] ...)])
+
+(define-metafunction REDEX
+  task-ready? : any -> boolean
+  [(task-ready? any)
+   ,(match (term (task-status any))
+     [`(done ,_) #true]
+     [`(failed ,_) #true]
+     [else #false])])
+
+(define-metafunction REDEX
+  task-push-waiting : any any -> any
+  [(task-push-waiting (struct
+                        [variable_0 any_0] ...
+                        [status "running"]
+                        [variable_1 any_1] ...
+                        [value (kont any_frames ...)]
+                        [variable_2 any_2] ...) any_frame)
+   (struct
+     [variable_0 any_0] ...
+     [status "running"]
+     [variable_1 any_1] ...
+     [value (kont any_frames ... any_frame)]
+     [variable_2 any_2] ...)]
+  [(task-push-waiting any _)
+   ,(error 'task-push-waiting "task object not pending ~a" (term any))])
+
+;; ================
+;; STORE PREDICATES
+
+(define-metafunction REDEX
+  find-unawaited-error : ((variable any) ...) -> (some any) or none
+  [(find-unawaited-error ((variable_0 any_0) ...
+                          (variable (struct _ ...
+                                      [status "failed"] _ ...
+                                      [awaited #false] _ ...
+                                      [value any] _ ...)) (variable_1 any_1) ...))
+   (some any)]
+  [(find-unawaited-error _) none])
+
+;; =======
+
 (define (sync? t)
   (eq? t 'sync))
 
@@ -70,7 +196,7 @@
     (define final (reduce rule term #:deterministic? #false))
     (define result (extract final))
     (unless (and result (member result results equiv?))
-      (error 'evaluates-in-set "program reduced outside of the set: ~a" result))))
+      (error 'evaluates-in-set "final program reduced outside of the set~%got: ~a~%expected: ~a~%" final results))))
 
 (define-syntax (define-event-loop stx)
   (syntax-case stx ()

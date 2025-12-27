@@ -40,7 +40,7 @@
 
         (where/error (lambda () e) v)
         (where (ptr x_async) (malloc σ_0))
-        (where σ_1 (ext1 σ_0 (x_async (struct [running (kont)]))))
+        (where σ_1 (ext1 σ_0 (x_async (new-task))))
         (where Q_1 (q-push Q_0 (frame e x_async)))
         (where t_1 (step t_0))
         "task-run"]
@@ -49,7 +49,7 @@
         (t_1 σ_1 Q (FS_0 ... (stack (frame e x_async) (frame (in-hole E (task x_async)) l) F ...) FS_1 ...))
         
         (where (ptr x_async) (malloc σ_0))
-        (where σ_1 (ext σ_0 (x_async (struct [running (kont)])) (x v) ...))
+        (where σ_1 (ext σ_0 (x_async (new-task)) (x v) ...))
         (where t_1 (step t_0))
         "async-app"]
 
@@ -58,23 +58,24 @@
 
         (side-condition (async? (term l)))
         (where x_async l)
-        (where/error (struct [running (kont F_waiting ...)]) (lookup σ_0 x_async))
-        (where σ_1 (ext1 σ_0 (x_async (struct [done v]))))
+        (where/error v_obj (lookup σ_0 x_async))
+        (where/error (pending (kont F_waiting ...)) (task-status v_obj))
+        (where σ_1 (ext1 σ_0 (x_async (task-settle v_obj v))))
         (where Q_1 (q-push Q_0 F_waiting ...))
         (where t_1 (step t_0))
         "task-return"]
 
    [--> (t_0 σ Q (FS_0 ... (stack (frame (in-hole E (await (task x_async))) l) F ...) FS_1 ...))
         (t_1 σ Q (FS_0 ... (stack (frame (in-hole E v) l) F ...) FS_1 ...))
-        
-        (where (struct [done v]) (lookup σ x_async))
+
+        (where (done v) (task-status (lookup σ x_async)))
         (where t_1 (step t_0))
         "await-continue"]
 
    [--> (t_0 σ Q (FS_0 ... (stack (frame (in-hole E (await (task x_async))) l) F ...) FS_1 ...))
         (t_1 σ Q (FS_0 ... (stack (frame (in-hole E (throw v)) l) F ...) FS_1 ...))
-        
-        (where (struct [failed v]) (lookup σ x_async))
+
+        (where (failed v) (task-status (lookup σ x_async)))
         (where t_1 (step t_0))
         "await-failed"]
 
@@ -84,9 +85,10 @@
         (t_1 σ_1 Q (FS_0 ... (stack F ...) FS_1 ...))
 
         (side-condition (async? (term l)))
-        (where (struct [running (kont F_waiting ...)]) (lookup σ_0 x_async))
-        (where σ_1 (ext1 σ_0 (x_async (struct [running (kont current-frame F_waiting ...)]))))
-        (where t_1 (step t_0))
+        (where v_obj (lookup σ_0 x_async))
+        (where (pending _) (task-status v_obj))
+        (where/error σ_1 (ext1 σ_0 (x_async (task-push-waiting v_obj current-frame))))
+        (where/error t_1 (step t_0))
         "await"]
 
    [--> (t_0 σ_0 Q_0 (FS_0 ... (stack (frame (in-hole E (throw v_err)) l) F ...) FS_1 ...))
@@ -95,10 +97,11 @@
         (side-condition (async? (term l)))
         (side-condition (not (term (in-handler?/c# E))))
         (where x_async l)
-        (where/error (struct [running (kont F_waiting ...)]) (lookup σ_0 x_async))
-        (where σ_1 (ext1 σ_0 (x_async (struct [failed v_err]))))
-        (where Q_1 (q-push Q_0 F_waiting ...))
-        (where t_1 (step t_0))
+        (where v_obj (lookup σ_0 x_async))
+        (where/error (pending (kont F_waiting ...)) (task-status v_obj))
+        (where/error σ_1 (ext1 σ_0 (x_async (task-fail v_obj v_err))))
+        (where/error Q_1 (q-push Q_0 F_waiting ...))
+        (where/error t_1 (step t_0))
         "async-throw"]
 
    ;; --------------------
@@ -110,7 +113,7 @@
              (FS_0 ... (stack (frame (in-hole E (task x_async)) l) F ...) FS_1 ...))
 
         (where (ptr x_async) (malloc σ_0))
-        (where σ_1 (ext1 σ_0 (x_async (struct [running (kont)]))))
+        (where σ_1 (ext1 σ_0 (x_async (new-task))))
         (where Q_1 (q-push Q_0 (frame (os/resolve (task x_async) (Σ t_0 natural) v) x_async)))
         (where t_1 (step t_0))
         "os/io"]
@@ -121,17 +124,18 @@
         (t_1 σ_1 Q_1 (FS_0 ... (stack F ...) FS_1 ...))
 
         (side-condition (>= (term t_0) (term t_resolve)))
-        (where/error (struct [running (kont F_waiting ...)]) (lookup σ_0 x_async))
-        (where σ_1 (ext1 σ_0 (x_async (struct [done v]))))
-        (where Q_1 (q-push Q_0 F_waiting ...))
-        (where t_1 (step t_0))
+        (where v_obj (lookup σ_0 x_async))
+        (where/error (pending (kont F_waiting ...)) (task-status v_obj))
+        (where/error σ_1 (ext1 σ_0 (x_async (task-settle v_obj v))))
+        (where/error Q_1 (q-push Q_0 F_waiting ...))
+        (where/error t_1 (step t_0))
         "os/resolve"]
 
    [--> (t_0 σ Q (FS_0 ... (stack (frame (in-hole E (os/resolve v_task t_resolve v)) l) F ...) FS_1 ...))
         (t_1 σ Q (FS_0 ... (stack (frame (in-hole E (os/resolve v_task t_resolve v)) l) F ...) FS_1 ...))
 
         (side-condition (< (term t_0) (term t_resolve)))
-        (where t_1 (step t_0))
+        (where/error t_1 (step t_0))
         "os/resolve-blocking"]
 
    
@@ -160,8 +164,8 @@
         (t_1 σ Q ((stack (frame (in-hole E v) l)) FS_rest ...))
 
         (side-condition (sync? (term l)))
-        (where (struct [done v]) (lookup σ x_async))
-        (where t_1 (step t_0))
+        (where (done v) (task-status (lookup σ x_async)))
+        (where/error t_1 (step t_0))
         "unblock"]))
 
 (define -->base
