@@ -327,19 +327,18 @@
    "B")
   
   (aio-->>∈
-   (let* ([work (async/lambda () (await (os/io 4 0)))]
+   (let* ([work (async/lambda () (await (os/io 20 0)))]
           [main (async/lambda ()
                   (let ([t (spawn (work))])
                     (cancel t)))])
      (catch (lambda (e) "cancelled")
             (block (main))))
    '("cancelled" 0))
-
-  #;
+ 
   (aio-->>∈
    (let* ([work (async/lambda ()
                   (catch (lambda (e) 42)
-                         (await (os/io 4 0))))]
+                         (await (os/io 10 0))))]
           [t (spawn (work))]
           [main (async/lambda ()
                   (begin (cancel t)

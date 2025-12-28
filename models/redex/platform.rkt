@@ -54,12 +54,12 @@
 
 (define-metafunction REDEX
   task-status : any -> (done any) or (failed any) or (pending any) or cancelled
-  [(task-status (struct _ ... [cancelled #true] _ ...))
-   cancelled]
   [(task-status (struct _ ... [status "done"] _ ... [value any_v] _ ...))
    (done any_v)]
   [(task-status (struct _ ... [status "failed"] _ ... [value any_v] _ ...))
    (failed any_v)]
+  [(task-status (struct _ ... [cancelled #true] _ ...))
+   cancelled]
   [(task-status (struct _ ... [status "running"] _ ... [value any_kont] _ ...))
    (pending any_kont)])
 
