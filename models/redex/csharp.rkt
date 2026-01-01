@@ -182,16 +182,6 @@
 (define-metafunction/extension in-handler? C#
   in-handler?/c# : E -> boolean)
 
-(define-metafunction C#
-  value? : any -> boolean
-  [(value? v) #true]
-  [(value? any) #false])
-
-(define-metafunction C#
-  task? : v -> boolean
-  [(task? (task _)) #true]
-  [(task? _) #false])
-
 ;; -----------------------------------------------------------------------------
 ;; Tests
 ;; -----------------------------------------------------------------------------
@@ -200,28 +190,12 @@
   (require (submod "lc.rkt" niceties)
            "utils.rkt")
   
-  (define-metafunction C#
-    main/c# : e -> (t σ Q P)
-    [(main/c# e) (0 () () ((stack (frame (substitute e) sync))
-                           (stack)
-                           #;(stack)))])
-
-  (define (final-value p)
-    (match p
-      [`(,_t ,_σ ,_Q ((stack (frame ,v sync)) ,_ ...)) v]
-      [_ p]))
-  
-  (define (prog/equiv p v)
-    ((default-equiv)
-     (final-value p)
-     v))
-  
   (define-syntax-rule (c#-->>= e v)
-    (test-->> -->c# #:equiv prog/equiv (term (main/c# e)) v))
+    (test-->> -->c# #:equiv prog/equiv (async/main #:threads 2 e) v))
 
   (define-syntax-rule (c#-->>∈ e results)
-    (evaluates-in-set -->c# (term (main/c# e)) results
-                      #:extract-result final-value))
+    (evaluates-in-set -->c# (async/main #:threads 2 e) results
+                      #:extract-result program-output))
   
   (c#-->>=
    (block ((async/lambda () 42)))
@@ -270,7 +244,7 @@
    (trace-stdout (print)
      (let* ([get-truth (async/lambda () #true)]
             [work (async/lambda (msg)
-                    (dotimes (_i 3)
+                    (dotimes (i 3)
                              (when (await (get-truth))
                                (print msg))))]
             [main (async/lambda ()

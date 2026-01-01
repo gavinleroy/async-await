@@ -202,11 +202,6 @@
 ;; Metafunctions
 ;; -----------------------------------------------------------------------------
 
-(define-metafunction Tokio
-  value? : any -> boolean
-  [(value? v) #true]
-  [(value? any) #false])
-
 (define-big-step ⇓base
   -->base Tokio)
 
@@ -217,29 +212,13 @@
 (module+ test
   (require (submod "lc.rkt" niceties)
            "utils.rkt")
-
-  (define-metafunction Tokio
-    main/aio : e -> (t σ Q P)
-    [(main/aio e) (0 () () ((stack (frame (substitute e) sync))
-                            (stack) #;(stack)))])
-
-  (define (final-value p)
-    (match p
-      [`(,_t ,_H ,_Q ((stack (frame ,v sync)) ,_ ...)) v]
-      [_ p]))
-  
-  (define (prog/equiv p v)
-    ((default-equiv)
-     (final-value p)
-     v))
   
   (define-syntax-rule (tokio-->>= e v)
-    (test-->> -->tokio #:equiv prog/equiv (term (main/aio e)) v))
+    (test-->> -->tokio #:equiv prog/equiv (async/main #:threads 2 e) v))
 
   (define-syntax-rule (tokio-->>∈ e results)
-    (evaluates-in-set -->tokio (term (main/aio e)) results
-                      #:extract-result final-value))
- 
+    (evaluates-in-set -->tokio (async/main #:threads 1 e) results
+                      #:extract-result program-output))
 
   (tokio-->>=
    (resume! ((async/lambda (x) 42) 0) (void))

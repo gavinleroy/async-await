@@ -1,7 +1,9 @@
 #lang racket
 
 (require redex/reduction-semantics
-         (for-syntax racket/syntax))
+         (for-syntax racket/syntax)
+         (for-syntax syntax/parse)
+         (for-syntax racket/base))
 
 (define-language LC
   (e ::=
@@ -12,21 +14,18 @@
      (+ e ...))
   (x ::= variable-not-otherwise-mentioned))
 
-(begin-for-syntax
-  (define-syntax-rule (with-unhygenic srcloc (name ...) body)
-    (with-syntax ([name (datum->syntax srcloc 'name srcloc)] ...)
-      body)))
-
-(define-syntax (deflang stx)
+(define-syntax (make-language stx)
   (syntax-case stx ()
-    [(_ name)
-     (with-unhygenic #'name (lambda?)
-       #'(begin
-         (define-extended-language name LC)
+    [(_ Lang main)
+     #'(begin
+         (define-syntax (main stx)
+           (syntax-parse stx
+             [(_ n:nat e)
+              (define nums (for/list ([i (in-range (syntax-e #'n))]) i))
+              #`(term-let ([(nums (... (... ...))) '#,nums])
+                          (term (+ (substitute e) nums (... (... ...)))
+                                #:lang Lang))])))]))
 
-         (define (lambda? t)
-           (redex-match? name (lambda (x) e) t))))]))
+(make-language LC main)
 
-(deflang Foo)
-
-(lambda? (term (lambda (x) (+ x 1))))
+(main 4 ((lambda (i) 0) 10))

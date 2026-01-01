@@ -233,11 +233,6 @@
 (define-metafunction/extension in-handler? AsyncIO
   in-handler?/aio : E -> boolean)
 
-(define-metafunction AsyncIO
-  value? : any -> boolean
-  [(value? v) #true]
-  [(value? any) #false])
-
 (define-big-step ⇓base
   -->base AsyncIO)
 
@@ -248,28 +243,13 @@
 (module+ test
   (require "utils.rkt"
            (submod "lc.rkt" niceties))
-
-  (define-metafunction AsyncIO
-    main/aio : e -> (t σ Q P)
-    [(main/aio e) (0 () () ((stack (frame (substitute e) sync))
-                            (stack) #;(stack)))])
-
-  (define (final-value p)
-    (match p
-      [`(,_t ,_H ,_Q ((stack (frame ,v sync)) ,_ ...)) v]
-      [_ p]))
-  
-  (define (prog/equiv p v)
-    ((default-equiv)
-     (final-value p)
-     v))
   
   (define-syntax-rule (aio-->>= e v)
-    (test-->> -->aio #:equiv prog/equiv (term (main/aio e)) v))
+    (test-->> -->aio #:equiv prog/equiv (async/main #:threads 2 e) v))
 
   (define-syntax-rule (aio-->>∈ e results)
-    (evaluates-in-set -->aio (term (main/aio e)) results
-                      #:extract-result final-value))
+    (evaluates-in-set -->aio (async/main #:threads 2 e) results
+                      #:extract-result program-output))
 
   (aio-->>=
    (resume! ((async/lambda (x) 42) 0) (void))

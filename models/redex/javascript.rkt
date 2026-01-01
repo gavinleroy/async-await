@@ -185,16 +185,6 @@
 (define-metafunction/extension in-handler? JS
   in-handler?/js : E -> boolean)
 
-(define-metafunction JS
-  value? : any -> boolean
-  [(value? v) #true]
-  [(value? any) #false])
-
-(define-metafunction JS
-  task? : v -> boolean
-  [(task? (task _)) #true]
-  [(task? _) #false])
-
 ;; -----------------------------------------------------------------------------
 ;; Tests
 ;; -----------------------------------------------------------------------------
@@ -203,26 +193,12 @@
   (require "utils.rkt"
            (submod "lc.rkt" niceties))
 
-  (define-metafunction JS
-    main/js : e -> (t σ Q P)
-    [(main/js e) (0 () () ((stack (frame (substitute e) sync))))])
-
-  (define (final-value p)
-    (match p
-      [`(,_t ,_σ ,_Q ((stack (frame ,v sync)))) v]
-      [_ p]))
-
-  (define (prog/equiv p v)
-    ((default-equiv)
-     (final-value p)
-     v))
-
   (define-syntax-rule (js-->>= e v)
-    (test-->> -->js #:equiv prog/equiv (term (main/js e)) v))
+    (test-->> -->js #:equiv prog/equiv (async/main #:threads 1 e) v))
 
   (define-syntax-rule (js-->>∈ e results)
-    (evaluates-in-set -->js (term (main/js e)) results
-                      #:extract-result final-value))
+    (evaluates-in-set -->js (async/main #:threads 1 e) results
+                      #:extract-result program-output))
 
   (js-->>=
    (block ((async/lambda () 42)))
@@ -272,7 +248,7 @@
      (let* ([get-truth (async/lambda () #true)]
             [work (async/lambda (msg)
                     (begin (print msg)
-                           (dotimes (_ 3)
+                           (dotimes (i 3)
                                     (when (await (get-truth))
                                       (print msg)))))]
             [main (async/lambda ()
@@ -289,7 +265,7 @@
      (let* ([get-truth (async/lambda () (throw "T"))]
             [work (async/lambda (msg)
                     (begin (print msg)
-                           (dotimes (_ 3)
+                           (dotimes (i 3)
                                     (when (await (get-truth))
                                       (print msg)))))]
             [main (async/lambda ()

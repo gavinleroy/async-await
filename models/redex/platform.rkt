@@ -1,6 +1,8 @@
 #lang racket
 
-(require redex/reduction-semantics
+(require (for-syntax racket/base)
+         (for-syntax syntax/parse)
+         redex/reduction-semantics
          (only-in "lc.rkt" LC))
 
 (provide (all-defined-out))
@@ -56,7 +58,8 @@
 (define-syntax (define-event-loop stx)
   (syntax-case stx ()
     ((_ Lang Base)
-     (with-unhygenic #'Lang (step
+     (with-unhygenic #'Lang (async/main
+                             step
                              q-pop
                              q-push
                              any-busy?
@@ -74,7 +77,11 @@
                              task-push-waiting
                              find-unawaited-error
                              sync?
-                             async?)
+                             async?
+                             value?
+                             task?
+                             program-output
+                             prog/equiv)
        #'(begin
            (define-extended-language Lang Base
              (e ::= ....
@@ -105,6 +112,14 @@
              (FS ::= (stack F (... ...)))
   
              (P ::= (FS (... ...))))
+
+           (define-syntax (async/main stx)
+             (syntax-parse stx
+               [(_ (~optional (~seq #:threads thrds:integer)) e)
+                (define workers (for/list ([i (in-range 1 (syntax-e #'(~? thrds 1)))]) '(stack)))
+                #`(term-let ([(thrd (... (... ...))) '#,workers])
+                            (term (0 () () ((stack (frame (substitute e) sync)) thrd (... (... ...))))
+                                  #:lang Lang))]))
 
            (define-metafunction Lang
              step : t -> t
@@ -251,9 +266,33 @@
              [(find-unawaited-error _) none])
 
            ;; =======
+           ;; HELPERS
 
            (define (sync? t)
              (eq? t 'sync))
 
            (define (async? t)
-             (not (sync? t))))))))
+             (not (sync? t)))
+
+           (define-metafunction Lang
+             value? : any -> boolean
+             [(value? v) #true]
+             [(value? any) #false])
+
+           (define-metafunction Lang
+             task? : v -> boolean
+             [(task? (task _)) #true]
+             [(task? _) #false])
+
+           ;; =======
+           ;; TESTING
+
+           (define (program-output p)
+             (match p
+               [`(,_t ,_H ,_Q ((stack (frame ,v sync)) ,_ (... ...))) v]
+               [_ p]))
+  
+           (define (prog/equiv p v)
+             ((default-equiv)
+              (program-output p)
+              v)))))))
