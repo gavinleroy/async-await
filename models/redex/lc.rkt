@@ -1,4 +1,4 @@
-#lang racket
+#lang racket/base
 
 (require redex)
 
@@ -161,7 +161,7 @@
    ;; Operations
    
    [--> (σ (in-hole E (+ number ...)))
-        (σ (in-hole E (Σ number ...)))
+        (σ (in-hole E ,(apply + (term (number ...)))))
         "add"]
 
    [--> (σ (in-hole E (- number ...)))
@@ -193,9 +193,8 @@
         "num>="]
 
    [--> (σ (in-hole E (append string ...)))
-        (σ (in-hole E (^ string ...)))
+        (σ (in-hole E ,(apply string-append (term (string ...)))))
         "append"]))
-   
 ;; -----------------------------------------------------------------------------
 ;; Metafunctions
 ;;
@@ -204,50 +203,6 @@
 ;; -----------------------------------------------------------------------------
 
 (define-language REDEX)
-
-(define-metafunction REDEX
-  step : natural -> natural
-  [(step natural_0) ,(+ 1 (term natural_0))])
-
-(define-metafunction REDEX
-  malloc : ((any any) ...) -> any
-  [(malloc any)
-   (ptr (gensym any p))])
-
-(define-metafunction REDEX
-  Σ : number ... -> number
-  [(Σ number ...) ,(apply + (term (number ...)))])
-
-(define-metafunction REDEX
-  ^ : string ... -> string
-  [(^ string ...) ,(apply string-append (term (string ...)))])
-
-(define-metafunction REDEX
-  && : any ... -> any
-  [(&&) #true]
-  [(&& any_0 any_s ...)
-   (if any_0 (and any_s ...) #false)])
-
-(define-metafunction REDEX
-  || : any ... -> any
-  [(||) #false]
-  [(|| any_0 any_s ...)
-   (if any_0 #true (or any_s ...))])
-
-(define-metafunction REDEX
-  ~ : any -> any
-  [(~ any) (if any #false #true)])
-
-(define-metafunction REDEX
-  gensyms : any ... -> (variable ...)
-  [(gensyms any ...)
-   ,(variables-not-in (term (any ...))
-                      (map (lambda _ (term g)) (term (any ...))))])
-
-(define-metafunction REDEX
-  gensym : any variable -> variable
-  [(gensym any variable)
-   ,(variable-not-in (term any) (term variable))])
 
 (define-metafunction REDEX
   lookup : ((any any) ...) any -> any or not-found
@@ -270,73 +225,128 @@
   [(ext any any_0 any_1 ...)
    (ext1 (ext any any_1 ...) any_0)])
 
-;; We could add these to the base LC, but just for testing 
+(define-metafunction REDEX
+  malloc : ((any any) ...) -> any
+  [(malloc any)
+   (ptr (gensym any addr-))])
 
 (define-metafunction REDEX
-  let* : ([any any] ...) any -> any
-  [(let* () any) any]
-  [(let* ([any_x any] [any_x_s any_s] ...) any_body)
-   (let ([any_x any]) (let* ([any_x_s any_s] ...) any_body))])
+  gensym : any variable ... -> variable
+  [(gensym any)
+   ,(variable-not-in (term any) 'g)]
+  [(gensym any variable)
+   ,(variable-not-in (term any) (term variable))])
+   
+;; -----------------------------------------------------------------------------
+;; Niceties, things you'll want eventually, but don't get by default
+;; -----------------------------------------------------------------------------
 
-(define-metafunction REDEX
-  begin : any ...+ -> any
-  [(begin any) any]
-  [(begin any_s ... any_body)
-   (let ([any_vars any_s] ...) any_body)
-   (where (any_vars ...) ,(variables-not-in (term (any_s ...)) (term (gensyms any_s ...))))])
+(module+ niceties
+  (require redex/reduction-semantics)
+  
+  (provide (all-defined-out))
 
-(define-metafunction REDEX
-  letrec : ([any any] ...) any -> any
-  [(letrec ([any_x (lambda (any_x_args ...) any_fbody)] ...) any_body)
-   (let ([any_x (fix (lambda (any_x) (lambda (any_x_args ...) any_fbody)))] ...)
-     any_body)])
+  (define-metafunction REDEX
+    Σ : number ... -> number
+    [(Σ number ...) ,(apply + (term (number ...)))])
 
-(define-metafunction REDEX
-  while : any any ... -> any
-  [(while any_t any_rest ...)
-   (letrec ([any_loop (lambda ()
-                        (if any_t
-                            (begin any_rest ... (any_loop))
-                            (void)))])
-     (any_loop))
-   (where any_loop ,(variable-not-in (term (any_t any_rest ...)) 'loop))])
+  (define-metafunction REDEX
+    ^ : string ... -> string
+    [(^ string ...) ,(apply string-append (term (string ...)))])
 
-(define-metafunction REDEX
-  while0< : any any ... -> any
-  [(while0< any_n any_rest ...)
-   (while (< 0 any_n) any_rest ...)])
+  (define-metafunction REDEX
+    && : any ... -> any
+    [(&&) #true]
+    [(&& any_0 any_s ...)
+     (if any_0 (and any_s ...) #false)])
 
-(define-metafunction REDEX
-  when : any any ... -> any
-  [(when any_cond any_rest ...)
-   (if any_cond
-       (begin any_rest ...)
-       (void))])
+  (define-metafunction REDEX
+    || : any ... -> any
+    [(||) #false]
+    [(|| any_0 any_s ...)
+     (if any_0 #true (or any_s ...))])
 
-(define-metafunction REDEX
-  dotimes : (variable natural) any ... -> any
-  [(dotimes (variable natural) any_rest ...)
-   (let ([variable natural])
-     (while0< variable
-              any_rest ...
-              (set! variable (- variable 1))))])
+  (define-metafunction REDEX
+    ~ : any -> any
+    [(~ any) (if any #false #true)])
 
-(define-metafunction REDEX
-  trace-stdout : (any_print) any ... -> any
-  [(trace-stdout (any_print) any_s ...)
-   (let* ([any_stdout ""]
-          [any_print (lambda (s)
-                       (set! any_stdout (append any_stdout s)))])
-     (begin any_s ... any_stdout))
-   (where any_stdout (gensym (any_s ...) stdout))])
+  (define-metafunction REDEX
+    gensyms : any ... -> (variable ...)
+    [(gensyms any ...)
+     ,(variables-not-in (term (any ...))
+                        (map (lambda _ (term g)) (term (any ...))))])
+
+  ;; We could add these to the base LC, but just for testing 
+
+  (define-metafunction REDEX
+    let* : ([any any] ...) any -> any
+    [(let* () any) any]
+    [(let* ([any_x any] [any_x_s any_s] ...) any_body)
+     (let ([any_x any]) (let* ([any_x_s any_s] ...) any_body))])
+
+  (define-metafunction REDEX
+    begin : any ...+ -> any
+    [(begin any) any]
+    [(begin any_s ... any_body)
+     (let ([any_vars any_s] ...) any_body)
+     (where (any_vars ...) ,(variables-not-in (term (any_s ...)) (term (gensyms any_s ...))))])
+
+  (define-metafunction REDEX
+    letrec : ([any any] ...) any -> any
+    [(letrec ([any_x (lambda (any_x_args ...) any_fbody)] ...) any_body)
+     (let ([any_x (fix (lambda (any_x) (lambda (any_x_args ...) any_fbody)))] ...)
+       any_body)])
+
+  (define-metafunction REDEX
+    while : any any ... -> any
+    [(while any_t any_rest ...)
+     (letrec ([any_loop (lambda ()
+                          (if any_t
+                              (begin any_rest ... (any_loop))
+                              (void)))])
+       (any_loop))
+     (where any_loop ,(variable-not-in (term (any_t any_rest ...)) 'loop))])
+
+  (define-metafunction REDEX
+    while0< : any any ... -> any
+    [(while0< any_n any_rest ...)
+     (while (< 0 any_n) any_rest ...)])
+
+  (define-metafunction REDEX
+    when : any any ... -> any
+    [(when any_cond any_rest ...)
+     (if any_cond
+         (begin any_rest ...)
+         (void))])
+
+  (define-metafunction REDEX
+    dotimes : (variable natural) any ... -> any
+    [(dotimes (variable natural) any_rest ...)
+     (let ([variable natural])
+       (while0< variable
+                any_rest ...
+                (set! variable (- variable 1))))])
+
+  (define-metafunction REDEX
+    trace-stdout : (any_print) any ... -> any
+    [(trace-stdout (any_print) any_s ...)
+     (let* ([any_stdout ""]
+            [any_print (lambda (s)
+                         (set! any_stdout (append any_stdout s)))])
+       (begin any_s ... any_stdout))
+     (where any_stdout (gensym (any_s ...) stdout))]))
+
+
 
 ;; -----------------------------------------------------------------------------
 ;; Tests
 ;; -----------------------------------------------------------------------------
 
 (module+ test
-  (provide final-value prog/equiv main)
-
+  (require racket/match
+           (submod ".." niceties))
+  (provide main final-value prog/equiv)
+  
   (define-metafunction LC
     main : e -> (σ e)
     [(main e) (() (substitute e))])

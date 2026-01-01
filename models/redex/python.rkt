@@ -3,7 +3,8 @@
 (require redex
          "lc.rkt"
          "lc+exn.rkt"
-         "lc+coro.rkt")
+         "lc+coro.rkt"
+         (prefix-in lib: (submod "lc.rkt" niceties)))
 
 (provide Python -->py awaitable?)
 
@@ -46,7 +47,7 @@
 
    [--> (σ_0 (in-hole E ((async/lambda (x ...) e) v ...)))
         (σ_1 (in-hole E (coro (lambda (x_dummy)
-                                (begin x_dummy ;; resume! value is (void)
+                                (lib:begin x_dummy ;; resume! value is (void)
                                        e)))))
 
         (where x_dummy (gensym σ_0 dummy))
@@ -62,7 +63,7 @@
                (coroutine
                 (lambda (x_dummy)
                   (in-hole E_inner
-                           (begin x_dummy
+                           (lib:begin x_dummy
                                   (await (resume! (tag x_coro) (void))))))))
         (where σ_1 (ext1 σ_0 (x_running v_coro)))
         "await-coro"]
@@ -108,7 +109,8 @@
 ;; -----------------------------------------------------------------------------
 
 (module+ test
-  (require (submod "lc.rkt" test))
+  (require (submod "lc.rkt" niceties)
+           (submod "lc.rkt" test))
 
   (define-metafunction/extension main Python
     main/py : e -> (σ e))

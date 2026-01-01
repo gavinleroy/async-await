@@ -83,7 +83,8 @@
 ;; -----------------------------------------------------------------------------
 
 (module+ test
-  (require (submod "lc.rkt" test))
+  (require (submod "lc.rkt" niceties)
+           (submod "lc.rkt" test))
   (provide main/coro)
 
   (define-metafunction/extension main LC+Coro

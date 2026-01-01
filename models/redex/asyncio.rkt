@@ -1,11 +1,12 @@
 #lang racket
 
 (require redex
-         "platform.rkt"
          "lc.rkt"
+         (prefix-in lib: (submod "lc.rkt" niceties))
          "lc+exn.rkt"
          "lc+coro.rkt"
-         "python.rkt")
+         "python.rkt"
+         "platform.rkt")
 
 (define-extended-language AsyncIO/Core Python
 
@@ -72,7 +73,7 @@
         (where/error v_coro
                      (coroutine
                       (lambda (x_dummy)
-                        (in-hole E_inner (begin x_dummy
+                        (in-hole E_inner (lib:begin x_dummy
                                                 (await (task x_async)))))))
         (where/error σ_1 (ext1 σ_0 (x_running v_coro)))
         (where/error t_1 (step t_0))
@@ -105,7 +106,7 @@
         (where x_async l)
         (where v_obj (lookup σ x_async))
         (side-condition (term (task-coro-eq? v_obj v_coro)))
-        (where (pending _) (task-status v_obj))
+        (where (pending _ ...) (task-status v_obj))
         (where/error Q_1 (q-push Q_0 (frame (resume! v_coro (void)) l)))
         (where/error t_1 (step t_0))
         "task-reschedule"]
@@ -162,10 +163,10 @@
    [--> (t_0 σ_0 Q (FS_0 ... (stack (frame (in-hole E (os/io natural v)) l) F ...) FS_1 ...))
         (t_1 σ_1 Q (FS_0 ... (stack (frame (in-hole E (spawn (tag x_tag))) l) F ...) FS_1 ...))
         
-        (where (x_dummy x_tag) (gensyms σ_0 σ_0))
+        (where (x_dummy x_tag) (lib:gensyms σ_0 σ_0))
         (where σ_1 (ext1 σ_0 (x_tag (coroutine (lambda (x_dummy)
-                                                 (begin x_dummy
-                                                        (while (<= (os/time) (Σ t_0 natural))
+                                                 (lib:begin x_dummy
+                                                        (lib:while (<= (os/time) (lib:Σ t_0 natural))
                                                                (yield (tag x_tag)))
                                                         v))))) )
         (where/error t_1 (step t_0))
@@ -245,7 +246,8 @@
 ;; -----------------------------------------------------------------------------
 
 (module+ test
-  (require "utils.rkt")
+  (require "utils.rkt"
+           (submod "lc.rkt" niceties))
 
   (define-metafunction AsyncIO
     main/aio : e -> (t σ Q P)
@@ -268,7 +270,6 @@
   (define-syntax-rule (aio-->>∈ e results)
     (evaluates-in-set -->aio (term (main/aio e)) results
                       #:extract-result final-value))
- 
 
   (aio-->>=
    (resume! ((async/lambda (x) 42) 0) (void))

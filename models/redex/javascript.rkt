@@ -3,7 +3,8 @@
 (require redex
          "lc.rkt"
          "lc+exn.rkt"
-         "platform.rkt")
+         "platform.rkt"
+         (prefix-in lib: (submod "lc.rkt" niceties)))
 
 (define-extended-language JS/Core LC+Exn
   (e ::= ....
@@ -47,7 +48,7 @@
         (side-condition (async? (term l)))
         (where x_async l)
         (where v_obj (lookup σ_0 x_async))
-        (where/error (pending (kont F_waiting ...)) (task-status v_obj))
+        (where/error (pending F_waiting ...) (task-status v_obj))
         (where/error σ_1 (ext1 σ_0 (x_async (task-settle v_obj v))))
         (where/error Q_1 (q-push Q_0 F_waiting ...))
         (where/error t_1 (step t_0))
@@ -73,9 +74,8 @@
                                  (frame (in-hole E (await (task x_async))) l)) F ...)))
         (t_1 σ_1 Q ((stack F ...)))
 
-        (side-condition (async? (term l)))
         (where v_obj (lookup σ_0 x_async))
-        (where (pending _) (task-status v_obj))
+        (where (pending _ ...) (task-status v_obj))
         (where/error σ_1 (ext1 σ_0 (x_async (task-push-waiting v_obj current-frame))))
         (where/error t_1 (step t_0))
         "await"]
@@ -87,7 +87,7 @@
         (side-condition (not (term (in-handler?/js E))))
         (where x_async l)
         (where v_obj (lookup σ_0 x_async))
-        (where/error (pending (kont F_waiting ...))  (task-status v_obj))
+        (where/error (pending F_waiting ...)  (task-status v_obj))
         (where/error σ_1 (ext1 σ_0 (x_async (task-fail v_obj v_err))))
         (where/error Q_1 (q-push Q_0 F_waiting ...))
         (where/error t_1 (step t_0))
@@ -102,7 +102,7 @@
 
         (where (ptr x_async) (malloc σ_0))
         (where/error σ_1 (ext1 σ_0 (x_async (new-task))))
-        (where/error Q_1 (q-push Q_0 (frame (os/resolve (task x_async) (Σ t_0 natural) v) x_async)))
+        (where/error Q_1 (q-push Q_0 (frame (os/resolve (task x_async) (lib:Σ t_0 natural) v) x_async)))
         (where/error t_1 (step t_0))
         "os/io"]
 
@@ -111,7 +111,7 @@
 
         (side-condition (>= (term t_0) (term t_resolve)))
         (where v_obj (lookup σ_0 x_async))
-        (where/error (pending (kont F_waiting ...)) (task-status v_obj))
+        (where/error (pending F_waiting ...) (task-status v_obj))
         (where/error σ_1 (ext1 σ_0 (x_async (task-settle v_obj v))))
         (where/error Q_1 (q-push Q_0 F_waiting ...))
         (where/error t_1 (step t_0))
@@ -151,7 +151,7 @@
         (t_1 σ Q_1 ((stack)))
 
         (side-condition (sync? (term l)))
-        (where (pending _) (task-status (lookup σ x_async)))
+        (where (pending _ ...) (task-status (lookup σ x_async)))
         (where/error Q_1 (q-push Q_0 current-frame))
         (where/error t_1 (step t_0))
         "block"]
@@ -200,7 +200,8 @@
 ;; -----------------------------------------------------------------------------
 
 (module+ test
-  (require "utils.rkt")
+  (require "utils.rkt"
+           (submod "lc.rkt" niceties))
 
   (define-metafunction JS
     main/js : e -> (t σ Q P)

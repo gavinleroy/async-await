@@ -2,6 +2,7 @@
 
 (require redex
          "lc.rkt"
+         (prefix-in lib: (submod "lc.rkt" niceties))
          "lc+exn.rkt"
          "platform.rkt")
 
@@ -59,7 +60,7 @@
         (side-condition (async? (term l)))
         (where x_async l)
         (where/error v_obj (lookup σ_0 x_async))
-        (where/error (pending (kont F_waiting ...)) (task-status v_obj))
+        (where/error (pending F_waiting ...) (task-status v_obj))
         (where σ_1 (ext1 σ_0 (x_async (task-settle v_obj v))))
         (where Q_1 (q-push Q_0 F_waiting ...))
         (where t_1 (step t_0))
@@ -86,7 +87,7 @@
 
         (side-condition (async? (term l)))
         (where v_obj (lookup σ_0 x_async))
-        (where (pending _) (task-status v_obj))
+        (where (pending _ ...) (task-status v_obj))
         (where/error σ_1 (ext1 σ_0 (x_async (task-push-waiting v_obj current-frame))))
         (where/error t_1 (step t_0))
         "await"]
@@ -98,7 +99,7 @@
         (side-condition (not (term (in-handler?/c# E))))
         (where x_async l)
         (where v_obj (lookup σ_0 x_async))
-        (where/error (pending (kont F_waiting ...)) (task-status v_obj))
+        (where/error (pending F_waiting ...) (task-status v_obj))
         (where/error σ_1 (ext1 σ_0 (x_async (task-fail v_obj v_err))))
         (where/error Q_1 (q-push Q_0 F_waiting ...))
         (where/error t_1 (step t_0))
@@ -114,7 +115,7 @@
 
         (where (ptr x_async) (malloc σ_0))
         (where σ_1 (ext1 σ_0 (x_async (new-task))))
-        (where Q_1 (q-push Q_0 (frame (os/resolve (task x_async) (Σ t_0 natural) v) x_async)))
+        (where Q_1 (q-push Q_0 (frame (os/resolve (task x_async) (lib:Σ t_0 natural) v) x_async)))
         (where t_1 (step t_0))
         "os/io"]
    
@@ -125,7 +126,7 @@
 
         (side-condition (>= (term t_0) (term t_resolve)))
         (where v_obj (lookup σ_0 x_async))
-        (where/error (pending (kont F_waiting ...)) (task-status v_obj))
+        (where/error (pending F_waiting ...) (task-status v_obj))
         (where/error σ_1 (ext1 σ_0 (x_async (task-settle v_obj v))))
         (where/error Q_1 (q-push Q_0 F_waiting ...))
         (where/error t_1 (step t_0))
@@ -196,7 +197,8 @@
 ;; -----------------------------------------------------------------------------
 
 (module+ test
-  (require "utils.rkt")
+  (require (submod "lc.rkt" niceties)
+           "utils.rkt")
   
   (define-metafunction C#
     main/c# : e -> (t σ Q P)

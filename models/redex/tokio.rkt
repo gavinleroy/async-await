@@ -1,11 +1,12 @@
 #lang racket
 
 (require redex
-         "platform.rkt"
          "lc.rkt"
+         (prefix-in lib: (submod "lc.rkt" niceties))
          "lc+exn.rkt"
          "lc+coro.rkt"
-         "rust.rkt")
+         "rust.rkt"
+         "platform.rkt")
 
 (define-extended-language Tokio/Core Rust
 
@@ -72,30 +73,27 @@
         (where/error v_coro
                      (coroutine
                       (lambda (x_dummy)
-                        (in-hole E_inner (begin x_dummy
+                        (in-hole E_inner (lib:begin x_dummy
                                                 (await (task x_async)))))))
         (where/error σ_1 (ext1 σ_0 (x_running v_coro)))
         (where/error t_1 (step t_0))
         "await-task-pending"]
    
-   [--> (t_0 σ_0 Q (FS_0 ... (stack (frame (in-hole E (await (task x_async))) l) F ...) FS_1 ...))
-        (t_1 σ_1 Q (FS_0 ... (stack (frame (in-hole E v) l) F ...) FS_1 ...))
+   [--> (t_0 σ Q (FS_0 ... (stack (frame (in-hole E (await (task x_async))) l) F ...) FS_1 ...))
+        (t_1 σ Q (FS_0 ... (stack (frame (in-hole E v) l) F ...) FS_1 ...))
 
-        (where/error v_obj (lookup σ_0 x_async))
+        (where/error v_obj (lookup σ x_async))
         (where (done v) (task-status v_obj))
-        (where/error σ_1 (ext1 σ_0 (x_async (task-awaited v_obj))))
         (where/error t_1 (step t_0))
         "task-await-done"]
 
-   #; ;; TODO, there should be no failures in Rust (no exceptions)
-   [--> (t_0 σ_0 Q (FS_0 ... (stack (frame (in-hole E (await (task x_async))) l) F ...) FS_1 ...))
-        (t_1 σ_1 Q (FS_0 ... (stack (frame (in-hole E (throw v)) l) F ...) FS_1 ...))
+   [--> (t_0 σ Q (FS_0 ... (stack (frame (in-hole E (await (task x_async))) l) F ...) FS_1 ...))
+        (t_1 σ Q (FS_0 ... (stack (frame (in-hole E (struct)) l) F ...) FS_1 ...))
 
-        (where v_obj (lookup σ_0 x_async))
-        (where (failed v) (task-status v_obj))
-        (where/error σ_1 (ext1 σ_0 (x_async (task-awaited v_obj))))
+        (where v_obj (lookup σ x_async))
+        (where cancelled (task-status v_obj))
         (where/error t_1 (step t_0))
-        "task-await-failed"]
+        "task-await-cancelled"]
 
    ;; Task finishing/rescheduling
 
@@ -106,22 +104,19 @@
         (where x_async l)
         (where v_obj (lookup σ x_async))
         (side-condition (term (task-coro-eq? v_obj v_coro)))
-        (where (pending _) (task-status v_obj))
+        (where (pending _ ...) (task-status v_obj))
         (where/error Q_1 (q-push Q_0 (frame (resume! v_coro (void)) l)))
         (where/error t_1 (step t_0))
         "task-reschedule"]
 
-   #; ;; TODO, you can cancel a task, but it will just get thrown away
-   [--> (t_0 σ_0 Q_0 (FS_0 ... (stack (frame v_coro l) F ...) FS_1 ...))
-        (t_1 σ_1 Q_1 (FS_0 ... (stack F ...) FS_1 ...))
+   [--> (t_0 σ Q (FS_0 ... (stack (frame v_coro l) F ...) FS_1 ...))
+        (t_1 σ Q (FS_0 ... (stack F ...) FS_1 ...))
 
         (side-condition (async? (term l)))
         (where x_async l)
-        (where v_obj (lookup σ_0 x_async))
+        (where v_obj (lookup σ x_async))
         (side-condition (term (task-coro-eq? v_obj v_coro)))
         (where cancelled (task-status v_obj))
-        (where/error σ_1 (ext1 σ_0 (x_async (task-uncancel v_obj))))
-        (where/error Q_1 (q-push Q_0 (frame (throw-in! v_coro "cancelled!") l)))
         (where/error t_1 (step t_0))
         "task-reschedule-cancelled"]
 
@@ -153,10 +148,10 @@
    [--> (t_0 σ_0 Q (FS_0 ... (stack (frame (in-hole E (os/io natural v)) l) F ...) FS_1 ...))
         (t_1 σ_1 Q (FS_0 ... (stack (frame (in-hole E (spawn (tag x_tag))) l) F ...) FS_1 ...))
         
-        (where (x_dummy x_tag) (gensyms σ_0 σ_0))
+        (where (x_dummy x_tag) (lib:gensyms σ_0 σ_0))
         (where σ_1 (ext1 σ_0 (x_tag (coroutine (lambda (x_dummy)
-                                                 (begin x_dummy
-                                                        (while (<= (os/time) (Σ t_0 natural))
+                                                 (lib:begin x_dummy
+                                                        (lib:while (<= (os/time) (lib:Σ t_0 natural))
                                                                (yield (tag x_tag)))
                                                         v))))) )
         (where/error t_1 (step t_0))
@@ -195,17 +190,13 @@
         (where/error t_1 (step t_0))
         "block"]
 
-   ;; TODO what are Tokio's exist conditions?
-
-   [--> (t_0 σ () ((stack (frame (in-hole E (block (task x_async))) l)) FS_rest ...))
-        (t_1 σ () ((stack (frame (in-hole E v) l)) FS_rest ...))
+   [--> (t_0 σ Q ((stack (frame (in-hole E (block (task x_async))) l)) FS_rest ...))
+        (t_1 σ Q ((stack (frame (in-hole E v) l)) FS_rest ...))
 
         (where/error sync l)
         (where (done v) (task-status (lookup σ x_async)))
-        (side-condition (not (term (any-busy? FS_rest ...))))
-        (where none (find-unawaited-error σ))
         (where/error t_1 (step t_0))
-        "unblock-value"]))
+        "unblock"]))
 
 ;; -----------------------------------------------------------------------------
 ;; Metafunctions
@@ -224,7 +215,8 @@
 ;; -----------------------------------------------------------------------------
 
 (module+ test
-  (require "utils.rkt")
+  (require (submod "lc.rkt" niceties)
+           "utils.rkt")
 
   (define-metafunction Tokio
     main/aio : e -> (t σ Q P)
@@ -295,17 +287,18 @@
        (block (transparent))))
    "B")
 
-  #; ;; TODO, rewrite using Rust semantics
   (tokio-->>∈
-   (let* ([work (async/lambda ()
-                  (catch (lambda (e) 42)
-                         (await (os/io 4 0))))]
-          [t (spawn (work))]
-          [main (async/lambda ()
-                  (begin (cancel t)
-                         (await t)))])
-     (block (main)))
-   '(42 0))
+   (trace-stdout (print)
+     (let* ([work (async/lambda ()
+                    (while #true
+                           (await (os/io 1 (print "A")))))]
+            [t (spawn (work))]
+            [main (async/lambda ()
+                    (begin (await (os/io 2 (void)))
+                           (cancel t)))])
+       (block (main))))
+   (for/list ([i (in-range 100)])
+     (make-string i #\A)))
 
   (tokio-->>= 
    (trace-stdout (print)
