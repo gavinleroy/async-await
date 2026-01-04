@@ -3,7 +3,7 @@
 (require (for-syntax racket/base)
          (for-syntax syntax/parse)
          redex/reduction-semantics
-         (only-in "lc.rkt" LC))
+         (only-in "lc.rkt" LC lookup))
 
 (provide (all-defined-out))
 
@@ -41,14 +41,19 @@
   (for ([_ (in-range iters)])
     (define final (reduce rule term #:deterministic? #false))
     (define result (extract final))
-    (unless (and result (member result results equiv?))
+    (unless (and result (member result results equal?))
       (error 'evaluates-in-set "final program reduced outside of the set~%got: ~a~%expected: ~a~%" final results))))
 
 (define (struct-slot-set s slot v)
+  (unless (pair? s)
+    (error 'struct-slot-set "expected a pair but got ~a" s))
   (cons 'struct (dict-update (cdr s) slot (lambda _ (list v)))))
 
 (define (struct-slot-get s slot)
-  (second (assoc slot (cdr s))))
+  (when (and (list? s) (eq? 'struct (car s)))
+    (let* ([pairs (filter pair? (cdr s))]
+           [res (assoc slot (cdr s))])
+      (when res (cadr res)))))
 
 (begin-for-syntax
   (define-syntax-rule (with-unhygenic srcloc (name ...) body)
@@ -75,6 +80,10 @@
                              task-uncancel
                              task-ready?
                              task-push-waiting
+                             task-tree-owner
+                             task-tree-cancelled?
+                             task-tree-running-child
+                             task-tree-children
                              find-unawaited-error
                              sync?
                              async?
@@ -99,6 +108,7 @@
                 (os/resolve v v E))
 
              (v ::= ....
+                (task-owner l)
                 (kont F (... ...)))
   
              (t ::= natural)
@@ -163,7 +173,14 @@
                 [awaited #false]
                 [cancelled #false]
                 [value (kont)]
-                [inner coro])])
+                [inner coro])]
+             [(new-task (name p (task-owner _)))
+              (struct
+                [status "running"]
+                [awaited #false]
+                [cancelled #false]
+                [value (kont)]
+                [owner p])])
 
            (define-metafunction Lang
              task-coro : v -> (some v) or none
@@ -173,6 +190,45 @@
              [(task-coro _)
               none])
 
+           (define-metafunction Lang
+             task-tree-owner : v -> (some l) or none
+             [(task-tree-owner v)
+              (some l)
+              (where (task-owner l) ,(struct-slot-get (term v) 'owner))]
+             [(task-tree-owner _)
+              none])
+
+           (define-metafunction Lang
+             task-tree-cancelled? : σ x -> boolean
+             [(task-tree-cancelled? σ x)
+              #true ;; cancelled, return true
+              (where/error v_obj (lookup σ x))
+              (side-condition (struct-slot-get (term v_obj) 'cancelled))]
+             [(task-tree-cancelled? σ x)
+              (task-tree-cancelled? σ x_owner) ;; recurse to owner
+              (where/error v_obj (lookup σ x))
+              (where (task-owner x_owner) ,(struct-slot-get (term v_obj) 'owner))]
+             [(task-tree-cancelled? σ x)
+              #false])
+
+           (define-metafunction Lang
+             task-tree-running-child : σ x -> (some x) or none
+             [(task-tree-running-child σ x)
+              (some x_running)
+              (where (x_child (... ...)) (task-tree-children σ x))
+              (where x_running ,(findf (lambda (child)
+                                         (term-let ([x_child child])
+                                                   (term (task-ready? σ x_child))))
+                                       (term (x_child (... ...)))))]
+             [(task-tree-running-child _ _) none])
+
+           (define-metafunction Lang
+             task-tree-children : σ x -> (x (... ...))
+             [(task-tree-children σ x)
+              ,(for/list ([p (term σ)]
+                          #:when (eq? (term x) (struct-slot-get (cadr p) 'owner)))
+                 (car p))])
+           
            (define-metafunction Lang
              task-status : v -> (done v) or (failed v) or (pending F (... ...)) or cancelled
              [(task-status (struct _ (... ...) [status "done"] _ (... ...) [value v] _ (... ...)))
@@ -228,12 +284,13 @@
               ,(struct-slot-set (term v_struct) 'cancelled #false)])
 
            (define-metafunction Lang
-             task-ready? : v -> boolean
-             [(task-ready? v)
+             task-ready? : σ x -> boolean
+             [(task-ready? σ x)
               ,(match (term (task-status v))
                  [`(done ,_) #true]
                  [`(failed ,_) #true]
-                 [else #false])])
+                 [else #false])
+              (where/error v (lookup σ x))])
 
            (define-metafunction Lang
              task-push-waiting : v F -> v

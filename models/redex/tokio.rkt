@@ -68,7 +68,7 @@
         (t_1 σ_1 Q (FS_0 ... (stack (frame (in-hole E (tag x_running)) l) F ...) FS_1 ...))
 
         (side-condition (not (term (in-tag? E_inner))))
-        (side-condition (not (term (task-ready? (lookup σ_0 x_async)))))        
+        (side-condition (not (term (task-ready? σ_0 x_async))))        
         (where/error x_dummy (gensym σ_0 dummy))
         (where/error v_coro
                      (coroutine
@@ -217,7 +217,7 @@
     (test-->> -->tokio #:equiv prog/equiv (async/main #:threads 2 e) v))
 
   (define-syntax-rule (tokio-->>∈ e results)
-    (evaluates-in-set -->tokio (async/main #:threads 1 e) results
+    (evaluates-in-set -->tokio (async/main #:threads 2 e) results
                       #:extract-result program-output))
 
   (tokio-->>=
@@ -278,7 +278,7 @@
        (block (main))))
    (for/list ([i (in-range 100)])
      (make-string i #\A)))
-
+  
   (tokio-->>= 
    (trace-stdout (print)
      (let* ([work (async/lambda (msg)

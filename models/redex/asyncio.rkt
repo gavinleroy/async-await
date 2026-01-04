@@ -68,7 +68,7 @@
         (t_1 σ_1 Q (FS_0 ... (stack (frame (in-hole E (tag x_running)) l) F ...) FS_1 ...))
 
         (side-condition (not (term (in-tag? E_inner))))
-        (side-condition (not (term (task-ready? (lookup σ_0 x_async)))))        
+        (side-condition (not (term (task-ready? σ_0 x_async))))        
         (where/error x_dummy (gensym σ_0 dummy))
         (where/error v_coro
                      (coroutine
