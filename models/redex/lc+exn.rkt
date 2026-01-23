@@ -2,7 +2,7 @@
 
 (require redex "lc.rkt")
 
-(provide LC+Exn -->exn/core -->exn in-handler?)
+(provide LC+Exn -->exn/core -->exn)
 
 (define-extended-language LC+Exn LC
   (e ::= ....              
@@ -12,7 +12,12 @@
   (E ::= ....
      (throw E)
      (catch E e)
-     (catch v E)))
+     (catch v E))
+
+  (G ::= 
+     ;; Evaluation context `E` without a `catch` term
+     (side-condition (name ctx E)
+                     (false? (member 'catch (flatten (term ctx)))))))
 
 ;; -----------------------------------------------------------------------------
 ;; Operational Semantics
@@ -22,32 +27,26 @@
   (reduction-relation
    LC+Exn #:domain (σ e)
 
-   [--> (σ (in-hole E (catch v_handler (in-hole E_inner (throw v))))) 
-        (σ (in-hole E (v_handler v)))
+   [--> (σ (in-hole E (in-hole G (throw v)))) 
+        (σ (in-hole E (throw v)))
+        
+        (side-condition (not (equal? (term hole)
+                                     (term G))))
+        "throw"]
+   
+   [--> (σ (in-hole E (catch (lambda (x) e) (throw v)))) 
+        (σ (in-hole E ((lambda (x) e) v)))
+        "catch-exn"]
 
-        (side-condition (not (term (in-handler? E_inner))))
-        "catch-exception"]
-
-   [--> (σ (in-hole E (catch v_handler v)))
+   [--> (σ (in-hole E (catch _ v)))
         (σ (in-hole E v))
-        "catch"]))
+        "catch-value"]))
 
 (define -->lc/base
   (extend-reduction-relation -->lc LC+Exn))
 
 (define -->exn
   (union-reduction-relations -->lc/base -->exn/core))
-
-;; -----------------------------------------------------------------------------
-;; Metafunctions
-;; -----------------------------------------------------------------------------
-
-(define-metafunction LC+Exn
-  in-handler? : E -> boolean
-  [(in-handler? E)
-   ,(not (false? (member (term catch) (flatten (term E)))))
-   (side-condition (list? (term E)))]
-  [(in-handler? any) #false])
 
 ;; -----------------------------------------------------------------------------
 ;; Tests
@@ -62,6 +61,21 @@
   
   (define-syntax-rule (exn-->>= e v)
     (test-->> -->exn #:equiv prog/equiv (term (main/exn e)) v))
+
+  (test--> -->exn
+           (term (() (+ 1 (+ 2 (+ 3 (+ (throw "what?") 4))))))
+           (term (() (throw "what?"))))
+
+  (test--> -->exn
+           (term (() (catch (lambda (e) 0)
+                            (+ 1 (+ 2 (+ 3 (+ (throw "what?") 4)))))))
+           (term (() (catch (lambda (e) 0)
+                            (throw "what?")))))
+
+  (exn-->>=
+   (+ 1 (catch (lambda (e) 41)
+               (throw "nope")))
+   42)
   
   (exn-->>=
    (+ 1 (catch (lambda (e) 41)
@@ -91,6 +105,11 @@
      (add1 (add1 (add1 (add1 (catch thirty-eight
                                     (add1 (add1 (add1 (throw 0))))))))))
    42)
+  
+  (exn-->>=
+   (+ 0 ((lambda ()
+                  (+ 1 (+ 2 (+ 3 (+ (throw "what?") 4)))))))
+   (term (throw "what?")))
 
   (exn-->>=
    (catch (lambda (e) 0)

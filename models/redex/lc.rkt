@@ -14,15 +14,13 @@
      (fix e)
      (let ([x_!_ e] ...) e)
      (lambda (x_!_ ...) e)
+     (begin e ...+)
      (struct [x_!_ e] ...)
      (slot x e)
      (box e)
      (unbox e)
      (set-box! e e)
-
-     ;; numeric operators
-
-     (+ e ...)
+     (+ e ...) ;; numeric operators
      (- e ...)
      (num->string e)
      (= e e)
@@ -30,10 +28,8 @@
      (> e e)
      (<= e e)
      (>= e e)
-    
-     ;; string operators
-
-     (append e e ...))
+     (append e e ...) ;; string operators
+     )
 
   (v ::=
      number
@@ -60,6 +56,7 @@
      (fix E)
      (set! x E)
      (let ([x_0 v] ... [x E] [x_1 e] ...) e)
+     (begin v ... E e ...)
      (if E e e)
      (struct [x_0 v] ... [x E] [x_s e] ...)
      (slot x E)
@@ -128,6 +125,14 @@
         
         (where σ_1 (ext σ_0 (x v) ...))
         "let"]
+
+   [--> (σ (in-hole E (begin v_0 v_1 v_ns ...)))
+        (σ (in-hole E (begin v_1 v_ns ...)))
+        "begin"]
+
+   [--> (σ (in-hole E (begin v)))
+        (σ (in-hole E v))
+        "begin0"]
 
    [--> (σ (in-hole E (slot x_field v_struct)))
         (σ (in-hole E v))
@@ -283,13 +288,6 @@
     [(let* () any) any]
     [(let* ([any_x any] [any_x_s any_s] ...) any_body)
      (let ([any_x any]) (let* ([any_x_s any_s] ...) any_body))])
-
-  (define-metafunction REDEX
-    begin : any ...+ -> any
-    [(begin any) any]
-    [(begin any_s ... any_body)
-     (let ([any_vars any_s] ...) any_body)
-     (where (any_vars ...) ,(variables-not-in (term (any_s ...)) (term (gensyms any_s ...))))])
 
   (define-metafunction REDEX
     letrec : ([any any] ...) any -> any

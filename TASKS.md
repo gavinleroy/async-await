@@ -33,7 +33,7 @@ Some quick terminology:
 
 The languages that will be used in each of the benchmarks
 
-- C++ (cppcoro)
+- C++ (libcoro)
 - Rust (tokio)
 - Rust (smol)
 - Python (asyncio)
@@ -42,19 +42,24 @@ The languages that will be used in each of the benchmarks
 - Swift
 - JavaScript
 
-<!-- ## Call async function, await it -->
-<!---->
-<!-- ## Start computation, do sync work, then get the result -->
-<!---->
-<!-- - IO bound -->
-<!-- - comp bound -->
+## Small Tasks
 
-## Wait for N concurrent computations to finish (`wait-n`)
+### Call async function and immediately await it (`call`)
 
-## Race N computations against each other (race-n)
+### Run IO bound work (`io-bound`)
 
-## Cancel task (`cancel`)
+### Run computation bound work (`comp-bound`)
 
-## Spawn a task on thread T (`spawn-on`)
+### Wait for N concurrent computations to finish (`wait-n`)
 
-## Call async from sync code (`from-sync`)
+### Race N computations against each other (race-n)
+
+### Cancel task (`cancel`)
+
+### Run work not on the main thread
+
+### Call async from sync code (`from-sync`)
+
+## Larger Program Tasks
+
+### Hash file(s) contents

@@ -6,10 +6,13 @@
          "lc+exn.rkt"
          "platform.rkt")
 
+(provide Swift/Core Swift -->swift)
+
 (define-extended-language Swift/Core LC+Exn
   (e ::= ....
      (async/lambda (x_!_ ...) e)
      (await e)
+     (cancel e)
      (cancelled?))
   
   (v ::= ....
@@ -18,6 +21,7 @@
   
   (E ::= ....
      (await E)
+     (cancel E)
      (run E))
 
   #:binding-forms
@@ -31,7 +35,21 @@
 ;; Operational Semantics
 ;; -----------------------------------------------------------------------------
 
-(define -->swift
+(define -->swift/sync
+  (reduction-relation
+   Swift
+   #:domain (t σ Q P)
+   
+   [--> (t_0 σ_0 Q (FS_0 ... (stack (frame e_0 l) F ...) FS_1 ...))
+        (t_1 σ_1 Q (FS_0 ... (stack (frame e_1 l) F ...) FS_1 ...))
+
+        (side-condition (not (term (value? e))))
+        (where (σ_1 e_1) (⇓base σ_0 e_0))
+        (where t_1 (step t_0))
+        "⇓base"]))
+
+
+(define -->swift/task
   (reduction-relation
    Swift
    #:domain (t σ Q P)
@@ -45,6 +63,31 @@
         (where/error t_1 (step t_0))
         "async-app"]
 
+   [--> (t_0 σ_0 Q_0 (FS_0 ... (stack (frame v l) F ...) FS_1 ...))
+        (t_1 σ_1 Q_1 (FS_0 ... (stack F ...) FS_1 ...))
+        
+        (side-condition (async? (term l)))
+        (where x_async l)
+        (where none (task-tree-running-child σ_0 x_async))
+        (where/error v_obj (lookup σ_0 x_async))
+        (where/error (pending F_waiting ...) (task-state v_obj))
+        (where/error σ_1 (ext1 σ_0 (x_async (task-settle v_obj v))))
+        (where/error Q_1 (q-push Q_0 F_waiting ...))
+        (where/error t_1 (step t_0))
+        "task-return"]
+
+   [--> (t_0 σ_0 Q_0 (FS_0 ... (stack (frame (throw v_err) l) F ...) FS_1 ...))
+        (t_1 σ_1 Q_1 (FS_0 ... (stack F ...) FS_1 ...))
+
+        (side-condition (async? (term l)))
+        (where x_async l)
+        (where v_obj (lookup σ_0 x_async))
+        (where/error (pending F_waiting ...) (task-state v_obj))
+        (where/error σ_1 (ext1 σ_0 (x_async (task-fail v_obj v_err))))
+        (where/error Q_1 (q-push Q_0 F_waiting ...))
+        (where/error t_1 (step t_0))
+        "task-failed"]
+
    [--> (t_0 σ_0 Q (FS_0 ... (stack (name parent-frame (frame v l)) F ...) FS_1 ...))
         (t_1 σ_1 Q (FS_0 ... (stack F ...) FS_1 ...))
         
@@ -55,30 +98,26 @@
         (where/error t_1 (step t_0))
         "task-return-await-children"]
 
-   [--> (t_0 σ_0 Q_0 (FS_0 ... (stack (frame v l) F ...) FS_1 ...))
-        (t_1 σ_1 Q_1 (FS_0 ... (stack F ...) FS_1 ...))
-        
-        (side-condition (async? (term l)))
-        (where x_async l)
-        (where none (task-tree-running-child σ_0 x_async))
-        (where/error v_obj (lookup σ_0 x_async))
-        (where/error (pending F_waiting ...) (task-status v_obj))
-        (where/error σ_1 (ext1 σ_0 (x_async (task-settle v_obj v))))
-        (where/error Q_1 (q-push Q_0 F_waiting ...))
-        (where/error t_1 (step t_0))
-        "task-return"]
+   ;; TODO, what happens for task-exn-trap
+   ))
+
+
+(define -->swift/await
+  (reduction-relation
+   Swift
+   #:domain (t σ Q P)
 
    [--> (t_0 σ Q (FS_0 ... (stack (frame (in-hole E (await (task x_async))) l) F ...) FS_1 ...))
         (t_1 σ Q (FS_0 ... (stack (frame (in-hole E v) l) F ...) FS_1 ...))
 
-        (where (done v) (task-status (lookup σ x_async)))
+        (where (done v) (task-state (lookup σ x_async)))
         (where/error t_1 (step t_0))
         "await-continue"]
 
    [--> (t_0 σ Q (FS_0 ... (stack (frame (in-hole E (await (task x_async))) l) F ...) FS_1 ...))
         (t_1 σ Q (FS_0 ... (stack (frame (in-hole E (throw v)) l) F ...) FS_1 ...))
 
-        (where (failed v) (task-status (lookup σ x_async)))
+        (where (failed v) (task-state (lookup σ x_async)))
         (where/error t_1 (step t_0))
         "await-failed"]
 
@@ -89,38 +128,39 @@
 
         (side-condition (async? (term l)))
         (where v_obj (lookup σ_0 x_async))
-        (where (pending _ ...) (task-status v_obj))
+        (where (pending _ ...) (task-state v_obj))
         (where/error σ_1 (ext1 σ_0 (x_async (task-push-waiting v_obj current-frame))))
         (where/error t_1 (step t_0))
-        "await"]
+        "await-suspend"]))
 
-   [--> (t_0 σ_0 Q_0 (FS_0 ... (stack (frame (in-hole E (throw v_err)) l) F ...) FS_1 ...))
-        (t_1 σ_1 Q_1 (FS_0 ... (stack F ...) FS_1 ...))
 
-        (side-condition (async? (term l)))
-        (side-condition (not (term (in-handler?/swift E))))
-        (where x_async l)
-        (where v_obj (lookup σ_0 x_async))
-        (where/error (pending F_waiting ...) (task-status v_obj))
-        (where/error σ_1 (ext1 σ_0 (x_async (task-fail v_obj v_err))))
-        (where/error Q_1 (q-push Q_0 F_waiting ...))
+(define -->swift/cancel
+  (reduction-relation
+   Swift
+   #:domain (t σ Q P)
+
+   [--> (t_0 σ_0 Q (FS_0 ... (stack (frame (in-hole E (cancel (task x_async))) l) F ...) FS_1 ...))
+        (t_1 σ_1 Q (FS_0 ... (stack (frame (in-hole E (void)) l) F ...) FS_1 ...))
+
+        (where/error σ_1 (ext1 σ_0 (x_async (task-cancel (lookup σ_0 x_async)))))
         (where/error t_1 (step t_0))
-        "async-throw"]
+        "cancel"]
 
    [--> (t_0 σ Q (FS_0 ... (stack (frame (in-hole E (cancelled?)) l) F ...) FS_1 ...))
-        (t_1 σ Q (FS_0 ... (stack (frame (in-hole E is-cancelled?) l) F ...) FS_1 ...))
+        (t_1 σ Q (FS_0 ... (stack (frame (in-hole E boolean) l) F ...) FS_1 ...))
 
         (side-condition (async? (term l)))
         (where x_async l)
-        (where is-cancelled? (task-ancestor-cancelled? σ_0 x_async))
+        (where/error boolean (task-tree-cancelled? σ x_async))
         (where/error t_1 (step t_0))
-        "cancelled?"]
+        "cancelled?"]))
 
-   ;; --------------------
-   ;; OmniScient IO, OS/IO
-   ;; --------------------
 
-   ;; TODO, is cancelled check
+(define -->swift/io
+  (reduction-relation
+   Swift
+   #:domain (t σ Q P)
+
    [--> (t_0 σ_0 Q_0 (FS_0 ... (stack (frame (in-hole E (os/io natural v)) l) F ...) FS_1 ...))
         (t_1 σ_1 Q_1
              (FS_0 ... (stack (frame (in-hole E (task x_async)) l) F ...) FS_1 ...))
@@ -130,7 +170,7 @@
         (where Q_1 (q-push Q_0 (frame (os/resolve (task x_async) (lib:Σ t_0 natural) v) x_async)))
         (where t_1 (step t_0))
         "os/io"]
-   
+
    [--> (t_0 σ_0 Q_0
              (FS_0 ... (stack (frame (in-hole E (os/resolve (task x_async) t_resolve v)) l) F ...)
                    FS_1 ...))
@@ -138,61 +178,60 @@
 
         (side-condition (>= (term t_0) (term t_resolve)))
         (where v_obj (lookup σ_0 x_async))
-        (where/error (pending F_waiting ...) (task-status v_obj))
+        (where/error (pending F_waiting ...) (task-state v_obj))
         (where/error σ_1 (ext1 σ_0 (x_async (task-settle v_obj v))))
         (where/error Q_1 (q-push Q_0 F_waiting ...))
         (where/error t_1 (step t_0))
         "os/resolve"]
 
-   [--> (t_0 σ Q (FS_0 ... (stack (frame (in-hole E (os/resolve v_task t_resolve v)) l) F ...) FS_1 ...))
-        (t_1 σ Q (FS_0 ... (stack (frame (in-hole E (os/resolve v_task t_resolve v)) l) F ...) FS_1 ...))
+   [--> (t_0 σ Q_0 (FS_0 ... (stack (name current-frame (frame (in-hole E (os/resolve v_task t_resolve v)) l)) F ...) FS_1 ...))
+        (t_1 σ Q_1 (FS_0 ... (stack F ...) FS_1 ...))
 
         (side-condition (< (term t_0) (term t_resolve)))
+        (where/error Q_1 (q-push Q_0 current-frame))
         (where/error t_1 (step t_0))
-        "os/resolve-blocking"]
+        "os/resolve-suspend"]))
 
-   
+
+(define -->swift/sys
+  (reduction-relation
+   Swift
+   #:domain (t σ Q P)
+
    [--> (t_0 σ Q_0 (FS_main FS_0 ... (stack) FS_1 ...))
         (t_1 σ Q_1 (FS_main FS_0 ... (stack F_head) FS_1 ...))
 
         (side-condition (term (all-busy? FS_0 ...)))
         (where (F_head Q_1) (q-pop Q_0))
         (where t_1 (step t_0))
-        "thread-work-steal"]
+        "dequeue"]
 
-   [--> (t_0 σ_0 Q (FS_0 ... (stack (frame e_0 l) F ...) FS_1 ...))
-        (t_1 σ_1 Q (FS_0 ... (stack (frame e_1 l) F ...) FS_1 ...))
-
-        (side-condition (not (term (value? e))))
-        (where (σ_1 e_1) (⇓base σ_0 e_0))
-        (where t_1 (step t_0))
-        "base-step"]
-
-   ;; --------------------
-   ;; Platform exit
-   ;; --------------------
-
-   ;; TODO, Swift exit conditions
    [--> (t_0 σ Q ((stack (frame (in-hole E (block (task x_async))) l)) FS_rest ...))
         (t_1 σ Q ((stack (frame (in-hole E v) l)) FS_rest ...))
 
         (side-condition (sync? (term l)))
-        (where (done v) (task-status (lookup σ x_async)))
+        (side-condition (not (term (any-busy? FS_rest ...))))
+        (where (done v) (task-state (lookup σ x_async)))
         (where/error t_1 (step t_0))
-        "unblock"]))
+        "block"]))
+
+
+(define -->swift
+  (union-reduction-relations
+   -->swift/sync
+   -->swift/task
+   -->swift/await
+   -->swift/cancel
+   -->swift/io
+   -->swift/sys))
+
 
 (define -->base
   (extend-reduction-relation -->exn Swift))
 
-;; -----------------------------------------------------------------------------
-;; Metafunctions
-;; -----------------------------------------------------------------------------
 
 (define-big-step ⇓base
   -->base Swift)
-
-(define-metafunction/extension in-handler? Swift
-  in-handler?/swift : E -> boolean)
 
 ;; -----------------------------------------------------------------------------
 ;; Tests
@@ -251,6 +290,27 @@
                       (print (await (os/io 1 msg)))))])
        (block (work "A"))))
    "AA")
+
+  (swift-->>=
+   (let* ([work (async/lambda () (cancelled?))])
+       (block (work)))
+   #false)
+  
+  (swift-->>∈
+   (trace-stdout (print)
+     (let* ([worker (async/lambda ()
+                      (dotimes (i 3)
+                        (if (cancelled?)
+                            (throw "cancelled")
+                            (await (os/io 1 (print "A"))))))]
+            [main (async/lambda ()
+                    (let ([w (worker)])
+                      (begin (await (os/io 1 (void)))
+                             (cancel w)
+                             (catch (lambda (e) (print "C"))
+                                    (await w)))))])
+       (block (main))))
+   '("C" "AC" "AAC" "AAAC" "AAA"))
 
   (swift-->>∈
    (trace-stdout (print)

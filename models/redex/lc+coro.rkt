@@ -2,7 +2,7 @@
 
 (require redex "lc.rkt")
 
-(provide LC+Coro -->coro/core -->coro in-tag? tag?)
+(provide LC+Coro -->coro/core -->coro tag?)
 
 (define-extended-language LC+Coro LC
   (e ::= ....              
@@ -19,7 +19,11 @@
      (coro E)
      (tagged x E)
      (resume! v ... E e ...)
-     (yield E)))
+     (yield E))
+
+  (J ::=
+     (side-condition (name ctx E)
+                     (false? (member 'tagged (flatten (term ctx)))))))
 
 ;; -----------------------------------------------------------------------------
 ;; Operational Semantics
@@ -43,14 +47,12 @@
         (where σ_1 (ext1 σ_0 (x_tag "in coroutine")))
         "resume!"]
 
-   [--> (σ_0 (in-hole E (tagged x_tag (in-hole E_inner (yield v)))))
+   [--> (σ_0 (in-hole E (tagged x_tag (in-hole J (yield v)))))
         (σ_1 (in-hole E v))
 
-        ;; Asymmetric transfer goes from the inner-most nested coroutine to it's caller
-        (side-condition (not (term (in-tag? E_inner))))
         (where x_send (gensym σ_0 send))
-        (where σ_1 (ext1 σ_0 (x_tag (coroutine (lambda (x_send) (in-hole E_inner x_send))))))
-        "yield"]
+        (where σ_1 (ext1 σ_0 (x_tag (coroutine (lambda (x_send) (in-hole J x_send))))))
+        "yield-asymmetric"]
 
    [--> (σ (in-hole E (tagged x_tag v)))
         (σ (in-hole E v))
@@ -65,13 +67,6 @@
 ;; -----------------------------------------------------------------------------
 ;; Metafunctions
 ;; -----------------------------------------------------------------------------
-
-(define-metafunction LC+Coro
-  in-tag? : any -> boolean
-  [(in-tag? any)
-   ,(not (false? (member (term tagged) (flatten (term any)))))
-   (side-condition (list? (term any)))]
-  [(in-tag? any) #false])
 
 (define (tag? t)
   (match t

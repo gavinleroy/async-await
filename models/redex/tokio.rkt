@@ -8,6 +8,8 @@
          "rust.rkt"
          "platform.rkt")
 
+(provide Tokio/Core Tokio -->tokio)
+
 (define-extended-language Tokio/Core Rust
 
   (e ::= ....
@@ -73,7 +75,7 @@
         (where/error v_coro
                      (coroutine
                       (lambda (x_dummy)
-                        (in-hole E_inner (lib:begin x_dummy
+                        (in-hole E_inner (begin x_dummy
                                                 (await (task x_async)))))))
         (where/error σ_1 (ext1 σ_0 (x_running v_coro)))
         (where/error t_1 (step t_0))
@@ -150,7 +152,7 @@
         
         (where (x_dummy x_tag) (lib:gensyms σ_0 σ_0))
         (where σ_1 (ext1 σ_0 (x_tag (coroutine (lambda (x_dummy)
-                                                 (lib:begin x_dummy
+                                                 (begin x_dummy
                                                         (lib:while (<= (os/time) (lib:Σ t_0 natural))
                                                                (yield (tag x_tag)))
                                                         v))))) )

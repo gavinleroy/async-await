@@ -47,39 +47,26 @@
 
    [--> (σ_0 (in-hole E ((async/lambda (x ...) e) v ...)))
         (σ_1 (in-hole E (coro (lambda (x_dummy)
-                                (lib:begin x_dummy ;; resume! value is (void)
-                                       e)))))
+                                (begin x_dummy e)))))
 
-        (where x_dummy (gensym σ_0 dummy))
-        (where σ_1 (ext σ_0 (x v) ...))
+        (where/error x_dummy (gensym σ_0 dummy))
+        (where/error σ_1 (ext σ_0 (x v) ...))
         "async-app"]
 
-   [--> (σ_0 (in-hole E (tagged x_running (in-hole E_inner (await (tag x_coro))))))
-        (σ_1 (in-hole E (tag x_running)))
+   [--> (σ (in-hole E (await (tag x_coro))))
+        (σ (in-hole E ((lambda (x) e) (void))))
 
-        (side-condition (not (term (in-tag? E_inner))))
-        (where x_dummy (gensym σ_0 dummy))
-        (where v_coro
-               (coroutine
-                (lambda (x_dummy)
-                  (in-hole E_inner
-                           (lib:begin x_dummy
-                                  (await (resume! (tag x_coro) (void))))))))
-        (where σ_1 (ext1 σ_0 (x_running v_coro)))
+        (where/error (coroutine (lambda (x) e))
+                     (lookup σ x_coro))
         "await-coro"]
-
-   [--> (σ (in-hole E (await v)))
-        (σ (in-hole E v))
-
-        (side-condition (not (term (awaitable? v))))
-        "await-continue"]
 
    [--> (σ_0 (in-hole E (throw-in! (tag x_tag) v)))
         (σ_1 (in-hole E (resume! (tag x_tag) (void))))
 
         (where/error (coroutine (lambda (x_send) (in-hole E_coro x_send)))
                      (lookup σ_0 x_tag))
-        (where σ_1 (ext1 σ_0 (x_tag (coroutine (lambda (x_send) (in-hole E_coro (throw v)))))))
+        (where/error σ_1 (ext1 σ_0 (x_tag (coroutine (lambda (x_send)
+                                                       (in-hole E_coro (throw v)))))))
         "throw-in!"]))
 
 ;; -----------------------------------------------------------------------------
@@ -100,9 +87,6 @@
   [(awaitable? (tag _)) #true]
   [(awaitable? (task _)) #true]
   [(awaitable? _) #false])
-
-(define-metafunction/extension in-tag? Python
-  in-tag?/py : E -> boolean)
 
 ;; -----------------------------------------------------------------------------
 ;; Tests
@@ -129,8 +113,7 @@
                     (begin (await (suspend))
                            (print msg)))]
             [c (work "A")])
-       (begin (resume! c (void))
-              (resume! c (void)))))
+       (resume! c (void))))
    "A")
 
   (py-->>= 
@@ -144,10 +127,7 @@
                            (await (suspend))
                            (print msg)))]
             [c (work "A")])
-       (begin (resume! c (void))
-              (resume! c (void))
-              (resume! c (void))
-              (resume! c (void)))))
+       (resume! c (void))))
    "AAA")
 
   (py-->>=

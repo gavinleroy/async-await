@@ -6,6 +6,8 @@
          "platform.rkt"
          (prefix-in lib: (submod "lc.rkt" niceties)))
 
+(provide JS/Core JS -->js)
+
 (define-extended-language JS/Core LC+Exn
   (e ::= ....
      (async/lambda (x_!_ ...) e)
@@ -29,7 +31,21 @@
 ;; Operational Semantics
 ;; -----------------------------------------------------------------------------
 
-(define -->js
+(define -->js/sync
+  (reduction-relation
+   JS
+   #:domain (t σ Q P)
+
+   [--> (t_0 σ_0 Q ((stack (frame e_0 l) F ...)))
+        (t_1 σ_1 Q ((stack (frame e_1 l) F ...)))
+
+        (side-condition (not (term (value? e))))
+        (where (σ_1 e_1) (⇓base σ_0 e_0))
+        (where/error t_1 (step t_0))
+        "⇓base"]))
+
+
+(define -->js/task
   (reduction-relation
    JS
    #:domain (t σ Q P)
@@ -54,6 +70,34 @@
         (where/error t_1 (step t_0))
         "task-return"]
 
+   [--> (t_0 σ_0 Q_0 ((stack (frame (throw v_err) l) F ...)))
+        (t_1 σ_1 Q_1 ((stack F ...)))
+
+        (side-condition (async? (term l)))
+        (where x_async l)
+        (where v_obj (lookup σ_0 x_async))
+        (where/error (pending F_waiting ...)  (task-status v_obj))
+        (where/error σ_1 (ext1 σ_0 (x_async (task-fail v_obj v_err))))
+        (where/error Q_1 (q-push Q_0 F_waiting ...))
+        (where/error t_1 (step t_0))
+        "task-failed"]))
+
+
+(define -->js/await
+  (reduction-relation
+   JS
+   #:domain (t σ Q P)
+
+   [--> (t_0 σ_0 Q ((stack (name current-frame
+                                 (frame (in-hole E (await (task x_async))) l)) F ...)))
+        (t_1 σ_1 Q ((stack F ...)))
+
+        (where v_obj (lookup σ_0 x_async))
+        (where (pending _ ...) (task-status v_obj))
+        (where/error σ_1 (ext1 σ_0 (x_async (task-push-waiting v_obj current-frame))))
+        (where/error t_1 (step t_0))
+        "await-suspend"]
+
    [--> (t_0 σ Q_0 ((stack (frame (in-hole E (await (task x_async))) l) F ...)))
         (t_1 σ Q_1 ((stack F ...)))
 
@@ -68,34 +112,13 @@
         (where (failed v) (task-status (lookup σ x_async)))
         (where/error Q_1 (q-push Q_0 (frame (in-hole E (throw v)) l)))
         (where/error t_1 (step t_0))
-        "await-failed"]
+        "await-failed"]))
 
-   [--> (t_0 σ_0 Q ((stack (name current-frame
-                                 (frame (in-hole E (await (task x_async))) l)) F ...)))
-        (t_1 σ_1 Q ((stack F ...)))
 
-        (where v_obj (lookup σ_0 x_async))
-        (where (pending _ ...) (task-status v_obj))
-        (where/error σ_1 (ext1 σ_0 (x_async (task-push-waiting v_obj current-frame))))
-        (where/error t_1 (step t_0))
-        "await"]
-
-   [--> (t_0 σ_0 Q_0 ((stack (frame (in-hole E (throw v_err)) l) F ...)))
-        (t_1 σ_1 Q_1 ((stack F ...)))
-
-        (side-condition (async? (term l)))
-        (side-condition (not (term (in-handler?/js E))))
-        (where x_async l)
-        (where v_obj (lookup σ_0 x_async))
-        (where/error (pending F_waiting ...)  (task-status v_obj))
-        (where/error σ_1 (ext1 σ_0 (x_async (task-fail v_obj v_err))))
-        (where/error Q_1 (q-push Q_0 F_waiting ...))
-        (where/error t_1 (step t_0))
-        "async-throw"]
-
-   ;; --------------------
-   ;; OmniScient IO, OS/IO
-   ;; --------------------
+(define -->js/io
+  (reduction-relation
+   JS
+   #:domain (t σ Q P)
 
    [--> (t_0 σ_0 Q_0 ((stack (frame (in-hole E (os/io natural v)) l) F ...)))
         (t_1 σ_1 Q_1 ((stack (frame (in-hole E (task x_async)) l) F ...)))
@@ -124,66 +147,42 @@
         (side-condition (< (term t_0) (term t_resolve)))
         (where/error Q_1 (q-push Q_0 current-frame))
         (where/error t_1 (step t_0))
-        "os/resolve-blocking"]
+        "os/resolve-requeue"]))
 
+
+(define -->js/sys
+  (reduction-relation
+   JS
+   #:domain (t σ Q P)
 
    [--> (t_0 σ Q_0 ((stack)))
         (t_1 σ Q_1 ((stack F_head)))
 
         (where (F_head Q_1) (q-pop Q_0))
         (where/error t_1 (step t_0))
-        "thread-work-steal"]
-
-   [--> (t_0 σ_0 Q ((stack (frame e_0 l) F ...)))
-        (t_1 σ_1 Q ((stack (frame e_1 l) F ...)))
-
-        (side-condition (not (term (value? e))))
-        (where (σ_1 e_1) (⇓base σ_0 e_0))
-        (where/error t_1 (step t_0))
-        "base-step"]
-
-   ;; --------------------
-   ;; Platform exit
-   ;; --------------------
-
-   [--> (t_0 σ Q_0 ((stack (name current-frame
-                                 (frame (in-hole E (block (task x_async))) l)))))
-        (t_1 σ Q_1 ((stack)))
-
-        (side-condition (sync? (term l)))
-        (where (pending _ ...) (task-status (lookup σ x_async)))
-        (where/error Q_1 (q-push Q_0 current-frame))
-        (where/error t_1 (step t_0))
-        "block"]
-   
-   [--> (t_0 σ Q ((stack (frame (in-hole E (block (task x_async))) l))))
-        (t_1 σ Q ((stack (frame (in-hole E v) l))))
-
-        (side-condition (sync? (term l)))
-        (where (done v) (task-status (lookup σ x_async)))
-        (where/error t_1 (step t_0))
-        "unblock"]
+        "dequeue"]
 
    [--> (t_0 σ Q ((stack (frame (in-hole E (block (task x_async))) l))))
-        (t_1 σ Q ((stack (frame (in-hole E (throw v)) l))))
+        (t_1 σ Q ((stack (frame (in-hole E (await (task x_async))) l))))
 
-        (side-condition (sync? (term l)))
-        (where (failed v) (task-status (lookup σ x_async)))
         (where/error t_1 (step t_0))
-        "unblock-failed"]))
+        "block"]))
+
+
+
+(define -->js
+  (union-reduction-relations
+   -->js/sync
+   -->js/task
+   -->js/await
+   -->js/io
+   -->js/sys))
 
 (define -->base
   (extend-reduction-relation -->exn JS))
 
-;; -----------------------------------------------------------------------------
-;; Metafunctions
-;; -----------------------------------------------------------------------------
-
 (define-big-step ⇓base
   -->base JS)
-
-(define-metafunction/extension in-handler? JS
-  in-handler?/js : E -> boolean)
 
 ;; -----------------------------------------------------------------------------
 ;; Tests

@@ -23,7 +23,7 @@
       [(list reduced) (values reduced #true)]
       [many
        (if det?
-           (error 'reduce "apply-reduction-relation returned multiple values. prog: ~a, results: ~a" term many)
+           (error 'reduce "apply-reduction-relation returned multiple values:~%~%prog: ~a~%~%results: ~a" term many)
            (values (car (shuffle many)) #true))])))
 
 (define-syntax-rule (define-big-step bs ss lang)
@@ -33,7 +33,7 @@
      (σ_1 e_1)
      (where (σ_1 e_1) 
             ,(reduce ss (term (σ_0 e_0))
-                     #:deterministic? #true
+                     ;#:deterministic? #true
                      #:max-steps 50))]
     [(⇓base _ _) stuck]))
 
@@ -70,20 +70,26 @@
                              any-busy?
                              all-busy?
                              new-task
+                             
                              task-coro
                              task-status
+                             task-state
                              task-settle
                              task-fail
-                             task-awaited
-                             task-coro-eq?
                              task-cancel
                              task-uncancel
-                             task-ready?
+                             task-awaited
                              task-push-waiting
+                             
+                             task-coro-eq?
+                             task-ready?
+                             task-cancelled?
+                             
                              task-tree-owner
                              task-tree-cancelled?
                              task-tree-running-child
                              task-tree-children
+                             
                              find-unawaited-error
                              sync?
                              async?
@@ -96,8 +102,8 @@
              (e ::= ....
                 (block e)
                 (os/time)
-                (os/io e e)
-                (os/resolve e e e))
+                (os/io e_time e_to)
+                (os/resolve e_handle e_time e_to))
 
              (E ::= ....
                 (block E)
@@ -191,6 +197,11 @@
               none])
 
            (define-metafunction Lang
+             task-cancelled? : v -> boolean
+             [(task-cancelled? v)
+              ,(struct-slot-get (term v) 'cancelled)])
+           
+           (define-metafunction Lang
              task-tree-owner : v -> (some l) or none
              [(task-tree-owner v)
               (some l)
@@ -229,6 +240,16 @@
                           #:when (eq? (term x) (struct-slot-get (cadr p) 'owner)))
                  (car p))])
            
+           (define-metafunction Lang
+             task-state : v -> (done v) or (failed v) or (pending F (... ...))
+             [(task-state (struct _ (... ...) [status "done"] _ (... ...) [value v] _ (... ...)))
+              (done v)]
+             [(task-state (struct _ (... ...) [status "failed"] _ (... ...) [value v] _ (... ...)))
+              (failed v)]
+             [(task-state (struct _ (... ...) [status "running"] _ (... ...) [value v_kont] _ (... ...)))
+              (pending F (... ...))
+              (where/error (kont F (... ...)) v_kont)])
+
            (define-metafunction Lang
              task-status : v -> (done v) or (failed v) or (pending F (... ...)) or cancelled
              [(task-status (struct _ (... ...) [status "done"] _ (... ...) [value v] _ (... ...)))

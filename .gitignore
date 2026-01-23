@@ -1,0 +1,6 @@
+.direnv/
+.envrc
+target/
+__pycache__/
+compiled/
+*.rkt~
