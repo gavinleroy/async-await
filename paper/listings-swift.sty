@@ -1,0 +1,24 @@
+\NeedsTeXFormat{LaTeX2e}[1994/06/01]
+\ProvidesPackage{listings-swift}[2018/01/23 Custom Package]
+
+\RequirePackage{listings}
+
+\lstdefinelanguage{swift}
+{
+  morekeywords={
+    open,catch,@escaping,nil,throws,async,await,func,if,then,else,for,in,while,do,switch,case,default,where,break,continue,fallthrough,return,
+    typealias,struct,class,enum,protocol,var,func,let,get,set,willSet,didSet,inout,init,deinit,extension,
+    subscript,prefix,operator,infix,postfix,precedence,associativity,left,right,none,convenience,dynamic,
+    final,lazy,mutating,nonmutating,optional,override,required,static,unowned,safe,weak,internal,
+    private,public,is,as,self,unsafe,dynamicType,true,false,nil,Type,Protocol,
+  },
+  morecomment=[l]{//}, % l is for line comment
+  morecomment=[s]{/*}{*/}, % s is for start and end delimiter
+  morestring=[b]", % defines that strings are enclosed in double quotes
+  breaklines=true,
+  escapeinside={\%*}{*)},
+  numbers=left,
+  captionpos=b,
+  breakatwhitespace=true,
+  basicstyle=\linespread{1.0}\ttfamily\footnotesize, % https://tex.stackexchange.com/a/102728/129441
+}

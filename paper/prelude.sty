@@ -1,0 +1,184 @@
+\usepackage{xargs}                      % Use more than one optional parameter in a new commands
+\usepackage[dvipsnames]{xcolor}
+\usepackage{
+    listings, 
+    listings-rust, 
+    listings-js, 
+    listings-swift, 
+    listings-kotlin, 
+    listings-csharp
+}
+\usepackage[listings,skins]{tcolorbox}
+\usepackage{cprotect}
+\usepackage{xhfill}
+\usepackage{cleveref}
+\usepackage{mathpartir}
+\usepackage{framed}
+\usepackage{wrapfig}
+\usepackage{xstring}
+\usepackage{mathtools}
+\usepackage{enumitem}
+\usepackage{csquotes}
+\usepackage{caption}
+\usepackage{tcolorbox}
+
+\setenumerate{leftmargin=*%,itemsep=-1ex
+}
+\setitemize{leftmargin=*%,itemsep=-1ex
+}
+
+%% NOTES, these should all get removed eventually
+\tcbuselibrary{skins}
+\newtcolorbox{notebox}[2]{%
+  enhanced,
+  sharp corners,
+  boxrule=0.8pt,
+  colframe=#2!70!black,
+  colback=#2!5!white,
+  coltitle=#2!80!black,
+  fonttitle=\bfseries\sffamily\tiny,
+  attach boxed title to top left={xshift=12pt, yshift=-2pt},
+  boxed title style={size=minimal, colback=white},
+  title={Note -- #1},
+}
+
+\newcommand{\ggnote}[1]{\begin{notebox}{GG}{Plum}#1\end{notebox}}
+\newcommand{\sknote}[1]{\begin{notebox}{SK}{BrickRed}#1\end{notebox}}
+\newcommand{\wcnote}[1]{\begin{notebox}{WC}{OliveGreen}#1\end{notebox}}
+
+\newlength{\enumerateparindent}
+
+\newcommandx{\unsure}[2][1=]{\estimate{#2}}
+\newcommandx{\change}[2][1=]{\estimate{#2}}
+\newcommandx{\info}[2][1=]{\estimate{#2}}
+\newcommandx{\improvement}[2][1=]{\estimate{#2}}
+\newcommandx{\thiswillnotshow}[2][1=]{\todo[disable,#1]{#2}}
+
+%% FIXME: only for writing purposes, remove when publishing and all TODO notes are done.
+% \geometry{right=1.5in}
+% \setlength\marginparwidth{1.0in}
+
+\newcommand{\estimate}[1]{\textcolor{WildStrawberry}{#1}}
+\newcommand{\willdo}[1]{\textcolor{WildStrawberry}{#1}}
+% \newcommand{\estimate}[1]{#1}
+
+%% FIXME: to avoid paragraph indents for now
+% \setlength{\parindent}{0pt}
+
+%% Setting a research question
+\newcommand{\RQ}[1]{\noindent\textbf{#1}}
+
+\lstdefinestyle{grayish}{
+    language=Rust,
+    basicstyle=\ttfamily\footnotesize,
+    stringstyle=\color{gray},
+    commentstyle=\color{gray},
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=b,                    
+    keepspaces=true,                 
+    numbers=left,
+    columns=fullflexible,
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,                  
+    tabsize=2,
+    numberstyle=\tiny, 
+    numbersep=8pt,
+    xleftmargin=12pt,
+    % aboveskip=1em,
+    % belowskip=0pt,
+    % aboveskip=4pt,
+    % belowskip=4pt,
+}
+
+\lstset{
+    escapeinside={(*@}{@*)},
+    style=grayish
+}
+
+\newcommand{\NumParticipants}{25\xspace}
+
+\definecolor{codeborder}{RGB}{240, 240, 240}
+
+
+\NewTotalTCBox{\code}{ s v }
+{verbatim,colback=white,colframe=codeborder,boxsep=0mm,left=2pt,right=2pt,top=1pt,bottom=1pt}
+{\lstinline^#2^}
+
+\NewTotalTCBox{\rs}{ s v }
+{verbatim,colback=white,colframe=codeborder,boxsep=0mm,left=2pt,right=2pt,top=1pt,bottom=1pt}
+{\lstinline^#2^}
+
+
+\NewTotalTCBox{\rss}{ s v }
+{verbatim,colback=white,colframe=codeborder,boxsep=0mm,left=2pt,right=2pt,top=1pt,bottom=1pt}
+{\lstinline[basicstyle=\ttfamily\scriptsize]^#2^}
+
+\newcommand{\boxf}[1]%{\tcbox[colframe=codeborder,size=tight]{#1}}
+{#1}
+
+\newtcblisting{filelisting}[1]{%
+    enhanced,
+    listing only,
+    title={\texttt{#1}},
+    attach boxed title to top right,
+    listing options={style=grayish}
+}
+
+\definecolor{AttentionColor}{RGB}{211, 211, 211}
+\NewTotalTCBox{\highlight}{ O{white} v}
+{on line,colback=AttentionColor!50!white,colframe=white,boxsep=0mm,left=3pt,right=3pt,top=2pt,bottom=2pt}{\tiny #2}
+
+\newcommand{\sectionbox}[1] {
+\begin{tcolorbox}
+                 [
+                  colback=purple!100,% background
+                  colframe=purple,% frame colour
+                  coltext=white, % text color
+                  width=\linewidth,%
+                  % height=0.7cm, 
+                  % halign=center,
+                  % valign=center,
+                  % fontupper=\large\bfseries,
+                  arc=0mm, auto outer arc,
+                 ]
+    {#1}
+\end{tcolorbox} 
+} %
+
+\newcommand{\citeurlwith}[2]{%
+    (\href{#1}{#2})%
+}
+\newcommand{\citegithub}[1]{%
+    \citeurlwith{#1}{\StrBehind{#1}{github.com/}}%
+}
+
+%%% START UNIQUE DEFS
+
+\newcommand{\semrule}[1]{\textsf{[#1]}}
+
+\newcommand{\Comp}{\textsc{Computation}}
+\newcommand{\Task}{\textsc{Task}}
+\newcommand{\Coro}{\textsc{Coro}}
+\newcommand{\SMoL}{\textsc{SMoL}}
+
+\newcommand{\CSharp}{\textsc{C\#}}
+\newcommand{\JS}{\textsc{JavaScript}}
+\newcommand{\Python}{\textsc{Python}}
+\newcommand{\Rust}{\textsc{Rust}}
+\newcommand{\Swift}{\textsc{Swift}}
+\newcommand{\AsyncIO}{\textsc{AsyncIO}}
+\newcommand{\Tokio}{\textsc{Tokio}}
+
+\newcommand{\EEXN}{\textsc{eexn}}
+\newcommand{\ERUN}{\textsc{erun}}
+\newcommand{\ETERM}{\textsc{eterm}}
+\newcommand{\APARENT}{\textsc{aown}}
+\newcommand{\MPAR}{\textsc{mpar}}
+
+\newif\ifcameraready
+%\camerareadytrue
+\camerareadyfalse
+
+%%%
