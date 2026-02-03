@@ -19,17 +19,24 @@
             scheme-medium
             latexmk
             collection-latexextra
+            collection-fontsextra
             acmart
             libertine
             libertinus
+            libertinus-fonts
             newtx
             inconsolata
             ;
         };
 
+        buildLuaScript = pkgs.writeShellScriptBin "build-lua" ''
+          mkdir -p build
+          exec ${texEnv}/bin/latexmk -pdflua -view=none -outdir=build main.tex "$@"
+        '';
+
         buildScript = pkgs.writeShellScriptBin "build" ''
           mkdir -p build
-          exec ${texEnv}/bin/latexmk -view=non -outdir=build main.tex "$@"
+          exec ${texEnv}/bin/latexmk -pdf -view=none -outdir=build main.tex "$@"
         '';
 
         watchScript = pkgs.writeShellScriptBin "watch" ''
@@ -44,12 +51,13 @@
             buildInputs = [
               skimpdf
               texEnv
+              buildLuaScript
               buildScript
               watchScript
               python3
             ];
             # You'll need to set this if you want to use lualatex
-            #OSFONTDIR = "${texEnv}/share/texmf/fonts/opentype/public;${texEnv}/share/texmf/fonts/truetype/public";
+            OSFONTDIR = "${texEnv}/share/texmf/fonts/";
             PYTHON = python3;
           };
       }

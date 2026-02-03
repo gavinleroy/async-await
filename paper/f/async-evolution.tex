@@ -1,0 +1,87 @@
+\begin{figure}
+  \begin{minipage}[t]{0.5\textwidth}
+    \begin{minipage}{\textwidth}%top left
+\begin{lstlisting}[language=JavaScript]
+// synchronous version
+function sumPageSizes(uris) {
+  let total = 0;
+  for (const uri of uris) {
+    statusText.innerText = `${total} bytes`;
+    const data = downloadDataSync(uri);
+    total += data.length;
+  }
+  statusText.innerText =
+    `${total} bytes total`;
+  return total;
+}
+\end{lstlisting}
+      \vspace{1em}
+    \end{minipage}
+    \begin{minipage}{\textwidth}%bottom left
+\begin{lstlisting}[language=JavaScript]
+// callback based
+function sumPageSizes(uris, kont) {
+  let total = 0;
+
+  function processNext(idx) {
+    if (idx >= uris.length) {
+      statusText.innerText = 
+        `${total} bytes total`;
+      return kont(total);
+    }
+
+    statusText.innerText = `${total} bytes`;
+
+    downloadData(uris[idx], (data) => {
+      total += data.length;
+      processNext(idx + 1);
+    });
+  }
+  processNext(0);
+}
+\end{lstlisting}
+    \end{minipage}
+  \end{minipage}\hfill%
+  \begin{minipage}[t]{0.5\textwidth}
+    \begin{minipage}{\textwidth}%top right
+\begin{lstlisting}[language=JavaScript]
+// with async/await
+async function sumPageSizes(uris) {
+  let total = 0;
+  for (const uri of uris) {
+    statusText.innerText = 
+      `Found ${total} bytes ...`;
+    const data = await downloadData(uri);
+    total += data.length;
+  }
+  statusText.innerText = 
+    `Found ${total} bytes total`;
+  return total;
+}
+\end{lstlisting}
+      \vspace{1em}
+    \end{minipage}
+    \begin{minipage}{\textwidth}%bottom right
+\begin{lstlisting}[language=JavaScript]
+// promise based
+function sumPageSizes(uris) {
+  let total = 0;
+  return uris.reduce((acc, uri) => {
+    return acc.then(() => {
+      statusText.innerText = 
+        `${total} bytes`;
+      return downloadData(uri).then((data) => {
+        total += data.length;
+      });
+    });
+  }, Promise.resolve())
+  .then(() => {
+    statusText.innerText = `${total} bytes total`;
+    return total;
+  });
+}
+\end{lstlisting}
+    \end{minipage}
+  \end{minipage}
+  \cprotect\caption{The \code{sumPageSizes} function downloads a number of \abbr{URI}'s, totaling their sizes and updating a status text along the way. (Top Left) The asynchronous version of the function that blocks the main thread. (Bottom Left) The callback version of the function is incredibly verbose and makes the control flow hard to follow. (Bottom Right) The \code{Promise}-based version of the code makes the control flow more explicit than the callback version, but there's still quite a bit of boilerplate and control flow inversion. (Top Right) The async/await version is syntactically almost equivalent to the synchronous version but does not block the main thread.}\label{fig:motivation:evolution}
+\end{figure}

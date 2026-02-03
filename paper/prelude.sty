@@ -1,4 +1,5 @@
 \usepackage{xargs}                      % Use more than one optional parameter in a new commands
+\usepackage{graphicx}
 \usepackage[dvipsnames]{xcolor}
 \usepackage{
     listings, 
@@ -21,6 +22,7 @@
 \usepackage{csquotes}
 \usepackage{caption}
 \usepackage{tcolorbox}
+\usepackage{lstlinebgrd}
 
 \setenumerate{leftmargin=*%,itemsep=-1ex
 }
@@ -54,16 +56,9 @@
 \newcommandx{\improvement}[2][1=]{\estimate{#2}}
 \newcommandx{\thiswillnotshow}[2][1=]{\todo[disable,#1]{#2}}
 
-%% FIXME: only for writing purposes, remove when publishing and all TODO notes are done.
-% \geometry{right=1.5in}
-% \setlength\marginparwidth{1.0in}
-
 \newcommand{\estimate}[1]{\textcolor{WildStrawberry}{#1}}
 \newcommand{\willdo}[1]{\textcolor{WildStrawberry}{#1}}
 % \newcommand{\estimate}[1]{#1}
-
-%% FIXME: to avoid paragraph indents for now
-% \setlength{\parindent}{0pt}
 
 %% Setting a research question
 \newcommand{\RQ}[1]{\noindent\textbf{#1}}
@@ -97,8 +92,6 @@
     style=grayish
 }
 
-\newcommand{\NumParticipants}{25\xspace}
-
 \definecolor{codeborder}{RGB}{240, 240, 240}
 
 
@@ -115,9 +108,6 @@
 {verbatim,colback=white,colframe=codeborder,boxsep=0mm,left=2pt,right=2pt,top=1pt,bottom=1pt}
 {\lstinline[basicstyle=\ttfamily\scriptsize]^#2^}
 
-\newcommand{\boxf}[1]%{\tcbox[colframe=codeborder,size=tight]{#1}}
-{#1}
-
 \newtcblisting{filelisting}[1]{%
     enhanced,
     listing only,
@@ -126,41 +116,38 @@
     listing options={style=grayish}
 }
 
-\definecolor{AttentionColor}{RGB}{211, 211, 211}
-\NewTotalTCBox{\highlight}{ O{white} v}
-{on line,colback=AttentionColor!50!white,colframe=white,boxsep=0mm,left=3pt,right=3pt,top=2pt,bottom=2pt}{\tiny #2}
 
 \newcommand{\sectionbox}[1] {
-\begin{tcolorbox}
-                 [
-                  colback=purple!100,% background
-                  colframe=purple,% frame colour
-                  coltext=white, % text color
-                  width=\linewidth,%
-                  % height=0.7cm, 
-                  % halign=center,
-                  % valign=center,
-                  % fontupper=\large\bfseries,
-                  arc=0mm, auto outer arc,
-                 ]
-    {#1}
-\end{tcolorbox} 
-} %
+\begin{tcolorbox}[
+  colback=purple!100,% background
+  colframe=purple,% frame colour
+  coltext=white, % text color
+  width=\linewidth,%
+  % height=0.7cm, 
+  % halign=center,
+  % valign=center,
+  % fontupper=\large\bfseries,
+  arc=0mm, auto outer arc,
+  ]{#1}
+\end{tcolorbox}
+}%
 
-\newcommand{\citeurlwith}[2]{%
-    (\href{#1}{#2})%
-}
-\newcommand{\citegithub}[1]{%
-    \citeurlwith{#1}{\StrBehind{#1}{github.com/}}%
-}
+\newcommand{\citeurlwith}[2]{(\href{#1}{#2})}
+\newcommand{\citegithub}[1]{\citeurlwith{#1}{\StrBehind{#1}{github.com/}}}
 
-%%% START UNIQUE DEFS
+%%%%
+%% For highlighting code within an lstlisting
+\definecolor{AttentionColor}{RGB}{211, 211, 211}
+\newcommand{\lineEq}[1]{%
+  \ifnum\value{lstnumber}=#1 \color{AttentionColor}\fi}
 
+\newcommand{\ctrlop}[1]{\texttt{#1}}
 \newcommand{\semrule}[1]{\textsf{[#1]}}
 
-\newcommand{\Comp}{\textsc{Computation}}
 \newcommand{\Task}{\textsc{Task}}
-\newcommand{\Coro}{\textsc{Coro}}
+\newcommand{\Coro}{\textsc{Coroutine}}
+
+\newcommand{\Comp}{\textsc{Computation}}
 \newcommand{\SMoL}{\textsc{SMoL}}
 
 \newcommand{\CSharp}{\textsc{C\#}}

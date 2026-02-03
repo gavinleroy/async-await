@@ -72,104 +72,326 @@ Unlike parallel programming with multiple threads, concurrent programming interl
 The design of ``async/await'' systems has organically grown out of the desire for async programs to syntactically resemble synchronous programs and the design constraints of retro-fitting a concurrent system atop a synchronous base. Async systems hide complex control flow and a myriad of design decisions, which impact the developer, behind the facade of familiar syntax. Our goal is to shed light on the design decisions of contemporary async systems, the impact these decisions have on developers, and the semantics of popular systems in use today. We describe the landscape of asynchronous systems in four parts: 
 
 \begin{enumerate}
-  \item \textbf{We motivate the work with case studies about the pitfalls of async/await systems.} We show that developers struggle to understand the behavior of async programs due to inconsistent terminology, mismatched guarantees, and divergent semantics to its syntactic counterpart.
+  \item \textbf{We motivate the work with case studies about the pitfalls of async/await systems.} We show that developers struggle to understand the behavior of async programs due to inconsistent terminology, mismatched guarantees, and divergent semantics between languages.
 
-  \item \textbf{We provide a matrix of terminology equivalences and system guarantees.} Many languages have mixed terminology and guarantees that can lead to misconceptions when developers move between languages. We list a core set of behaviors and the terminology from each language that corresponds to that behavior.
+  \item \textbf{We outline the design dimensions of an asynchronous system.} Adding asynchronous programming to a language natively requires great engineering effort. The language gains new syntactic constructs, compiler transformations, and a runtime system that all work together to provide the desired look and behavior. We find that many of these systems share a common set of architectural components, but differ in how these components are assembled. We outline these decisions and clarify mixed terminology that exists in the wild.
 
-  \item \textbf{We provide operational semantics for several contemporary programming languages' asynchronous systems.} We construct the semantics by incrementally adding features to a core lambda calculus.
+  \item \textbf{We provide operational semantics for several contemporary programming languages' asynchronous systems.} We grow the operational semantics from the $\lambda$-calculus into the complex systems that exist in the wild. We show how the design decisions affect the operational behavior of each language compared to the others.
     
-  \item \textbf{We provide a mapping of design decisions to properties available in resulting programs.} Language designers make trade-offs when designing their async systems. We highlight how these trade-offs impact the resulting programs developers write. This information can help developers understand the behavior of their programs, and inform language designers of the downstream impact of their design decisions. We encourage designers going forward to consider the properties they wish to provide to developers and design their systems accordingly.
+  \item \textbf{We provide a mapping of design decisions to properties of programs in the resulting language.} Language designers make trade-offs when designing their async systems. We highlight how these trade-offs impact the resulting programs developers write. This information can help developers understand the behavior of their programs, and inform language designers of the downstream impact of their design decisions. We encourage designers going forward to consider the properties they wish to provide to developers and design their systems accordingly.
 \end{enumerate}
 
-\section{Grounding}
+\section{Motivation}
 
-\ggnote{
-  SO problems that demonstrate that people struggle with something and what the things they struggle with are (across languages). What do people have difficulties with?
+The design of async/await systems has organically grown out of the desire for async programs to syntactically resemble synchronous programs. Before async/await existed, langauges relied on callbacks, and complicated user-defined objects to model concurrent, even-driven computations. However, all of these approachers were verbose and unsatisfying. \Cref{fig:motivation:evolution} shows the evoluation of a piece of code from synchronous, callback-based, promise-based, and finally with async/await.
 
-\begin{itemize}
-    \item Integration with existing systems, i.e., how can I contain the async virus? What is the cost of running async from sync? What is the lifetime of the runtime event loop?
+%%%%
+%% The JavaScript code in the figure really messes up 
+%% Tex highlighting in Vim
+\input{./f/async-evolution.tex}
 
-    \item What is the lifetime of a concurrency resource? When does concurrency ``start'' and when does it ``end''? Does this cause immediate problems or subtle bugs within larger systems? 
+It's tantilizing to claim that async/await provides a large benefit to developers when you see the the small difference between the synchronous version and async/await version. In fact, many contemporary programming languages have made this claim! (emphasis ours)
 
-    \item How does concurrency interact with exceptional control flow? When are handlers registered? Where can an exception come from?
-    
-    \item What does ``async'' even mean? What does ``supsend'' do? How do these systems relate?
+\begin{displayquote}%python
+  \textbf{(Python)} It is proposed to make coroutines a proper standalone concept in Python, and introduce new supporting syntax. \textit{The ultimate goal is to help establish a common, easily approachable, mental model of asynchronous programming in Python and make it as close to synchronous programming as possible.}~\cite{noauthor_pep_nodate}
+\end{displayquote}
 
-    \item What is the benefit of async/await? How can I demonstrate its utility without needing to port an entire application?
-\end{itemize}
+\begin{displayquote}%rust
+  \textbf{(Rust)} In brief, an asynchronous function returns a future, rather than evaluating immediately when it is called. Inside the function, other futures can be awaited using an await expression, which causes them to yield control while the future is being polled. \textit{From a user's perspective, they can use async/await as if it were synchronous code, and only need to annotate their functions and calls.}~\cite{noauthor_2394-async_await_nodate}
+\end{displayquote}
 
+\begin{displayquote}%swift
+  \textbf{(Swift)} Modern Swift development involves a lot of asynchronous (or "async") programming using closures and completion handlers, but these APIs are hard to use. This gets particularly problematic when many asynchronous operations are used, error handling is required, or control flow between asynchronous calls gets complicated. \textit{This proposal describes a language extension to make this a lot more natural and less error prone.}~\cite{noauthor_swift-evolutionproposals0296-async-awaitmd_nodate}
+\end{displayquote}
+
+\begin{displayquote}%js
+  \textbf{(JavaScript)} With async functions, all the remaining boilerplate is removed, leaving only \textit{the semantically meaningful code in the program text.}~\cite{noauthor_async_nodate-1}
+\end{displayquote}
+
+\begin{displayquote}%c#
+  \textbf{(\CSharp{})} \textit{Notice first how similar it is to the synchronous code.} \ldots The control flow is completely unaltered, and there are no callbacks in sight. That doesn’t mean that there are no callbacks, but the compiler takes care of creating and signing them up \ldots~\cite{torgersen_asynchronous_nodate}
+\end{displayquote}
+
+The shocking reality is that the async/await example provided in \Cref{fig:motivation:evolution} is synchronous, the downloaded \abbr{uri}'s are sequentiaized by the await in the loop body. For each cited language feature proposal, the proposers show examples of synchronous code with async/await keywords sprinkled throughout, the reality is that the code is also altered when concurrency is desired.
+
+In this section we expose the faulty logic that async/await is less complicated because it looks like synchronous code. Time is a dependency that cannot be fully abstracted, by hiding it behind keywords, developers require deeper knowledge of the system implementation than ever before.
+
+\subsection{Rust and the Missing Packets}
+
+\begin{figure}
+  \begin{minipage}[t]{0.49\textwidth}
+\begin{lstlisting}[language=Rust]
+async fn forward_with_timeout(
+  mut rx: mpsc::Receiver<String>,
+  tx: mpsc::Sender<String>
+) -> Option<()> {
+  loop {
+    let msg = match timeout(
+      Duration::from_secs(5), 
+      rx.recv()).await {
+        Ok(msg) => msg?,
+        Err(_) => {
+          println!("no msgs for 5 seconds");
+          continue } };
+
+    tx.send(msg).await.ok()? } }
+\end{lstlisting}
+  \end{minipage}\hfill%
+  \begin{minipage}[t]{0.49\textwidth}
+\begin{lstlisting}[language=Rust]
+async fn forward_with_timeout(
+  mut rx: mpsc::Receiver<String>, 
+  tx: mpsc::Sender<String>
+) -> Option<()> {
+  loop {
+    let msg = rx.recv().await?;
+
+    match timeout(
+      Duration::from_secs(5),
+      tx.send(msg)).await {
+        Ok(done) => done.ok()?,
+        Err(_) => 
+          println!("no space for 5 seconds"),
+    } } } 
+\end{lstlisting}
+  \end{minipage}
+  \cprotect\caption{The Rust function \code{forward_with_timeout} reads from one channel and forwards it to the next. (Left) After observing that the sending channel is empty most of the time, the developer adds a five second timeout to the receive operation. (Right) After observing that the receiving channel is full most of the time, the developer adds a five second timeout to the send operation. Although these changes appear symmetric, the \textbf{right} example is incorrect and the forward operation will not forward all received messages.}
+  \label{fig:wat:rust-drop}
+\end{figure}
+
+
+\subsection{Swift and the Overdrawn Bank Account}
+
+\begin{figure}
+  \begin{lstlisting}[language=Swift]
+struct TransactionData { 
+  amount : Double,
+  /* rest elided */
+}
+actor BankAccount {
+  var balance: Double = 100.0
+
+  func withdraw(trans: TransactionData) async throws {
+    assert(0.0 <= balance, "account balance negative")
+    guard balance >= amount else {
+        throw BankError.insufficientFunds
+    }
+    await verifyTransaction(trans)
+    balance -= trans.amount
+  }
+
+  func deposit(trans: TransactionData) async throws {
+    assert(0.0 <= balance, "account balance negative")
+    await verifyTransaction(trans)
+    balance += trans.amount
+  }
+}
+  \end{lstlisting}
+  \cprotect\caption{Swift actors conform to the \code{Sendable} protocol, meaning it is a ``thread-safe type whose values can be shared across arbitrary concurrent contexts.'' Although a value of \code{BankAccount} is thread safe, as written, a user can \textit{overdraw} from their account breaking the invariant that the balance is non-negative.}
+  \label{fig:wat:swift-reentry}
+\end{figure}
+
+\subsection{\CSharp{} and the ``Exceptional'' Text Editor}
+
+\begin{figure}
+
+  \begin{minipage}[t]{0.49\textwidth}
+\begin{lstlisting}[language=CSharp]
+using System;
+using System.Drawing;
+using System.IO;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+
+static class Program {
+  [STAThread]
+  static void Main() {
+      Application.Run(new TextEdit());
+  }
 }
 
-\section{Terminology}
+public class TextEdit : Form {
+  public TextEdit() { 
+    /* */ 
+    InitializeServices()
+  }
 
-\subsection{Architectural Components} \label{sec:terminology:arch}
+  private void InitializeServices() {
+    /* elided */
+    _autoSaveController.StartAutoSaveTimer();
+  }
+}
+\end{lstlisting}
+  \end{minipage}\hfill%
+  \begin{minipage}[t]{0.49\textwidth}
+\begin{lstlisting}[
+  language=CSharp,%
+  firstnumber=25,%
+  linebackgroundcolor={\lineEq{42},\lineEq{43}},%
+]
+public class AutoSaveController {
+  private DocumentManager _doc;
+  private DiskIO _disk;
+  private Action<string> _uiNotify;
+  private Forms.Timer _timer;
 
-Even though langauges offer a wide variety of semantics, the synchronous substrate of many modern programming languages share a common semantic base \cite{lu_identifying_2024}, which developers can rely on when moving between languages. By designing an async/await syntax resembling this semantic base, designers hope to make their systems intuitive to developers. However, instead of designing a concurrent system with the developer in mind, the design of async/await systems prioritizes retro-fitting a concurrent system atop a synchronous base as unintrusively as possible. %% TODO: cite all the RFCs for adding async/await 
+  public AutoSaveController(
+    DocumentManager doc, DiskIO disk,
+    Action<string> uiNotify) {
+      /* setup elided */
+      _timer.Tick += AutoSaveTimer_Tick;
+  }
 
-We fail to see a standard model of concurrency in contemporary programming languages. There is however, a core set of building blocks that all async/await systems rely on. In this section we will outline what these building blocks are and in \Cref{sec:semantics} we will outline how each language's semantics change as the pieces are assembled.
+  private async void AutoSaveTimer_Tick(
+    object sender, EventArgs e
+  ) {
+    _uiNotify("Auto-saving...");
+    await _disk.SaveFileAsync(
+      )_doc.FilePath, _doc.Content);
+    _doc.MarkSaved();
+    _uiNotify(
+      $"Saved {DateTime.Now:T}");
+  }
+}
+\end{lstlisting}
+  \end{minipage}
+  \cprotect\caption{The above \CSharp{} is a Windows Forms application for the popular TextEdit utility. This provides a simple text editor, which runs a background task that saves the open files periodically. The method \code{AutoSaveTimer_Tick} is \textit{async void}, meaning that any exception raised is placed on the executing thread rather than an enclosing \code{Task} object. If the disk save operation on line 43 raises an exception do to insufficient disk space, the entire application crashes! In fact, this exception is not possible to handle globally if not handled locally.}
+  \label{fig:wat:csharp-exn}
+\end{figure}
 
-\paragraph{Suspension points}
 
-\paragraph{One-shot continuations}
+\subsection{Pedagogic Examples}
 
-\paragraph{State Machine object (SMO)}
+\section{Design Dimensions} \label{sec:designdims}
 
-\paragraph{Runtime objects (RO)}
+The design of async/await systems rely on several key components. These range from language features that provide extra control-flow constructs to the langauge, to user-space objects that coordinate the runtime of the asynchronous code. In this section we will list what each of these constructs and objects are and their role in the larger asynchronous system. We will highlight the design decisions on how to assemble the pieces together and in \Cref{sec:semantics} we provide the operational behahvior of several contemporary programming languages, which assemble th pieces differently.
 
-\paragraph{Scheduler}
+\subsection{Language Features}
 
-\paragraph{Queue}
+To simply \textit{support} concurrent execution, programming languages need to provide advanced control flow that enables functions to suspend themselves for later resumption. The expressive power of a \textit{one-shot delimited continuation} is necessary, however, language designers may choose to not expose this functionality to users by containing this expressivity within compiler transformations. As we will discuss in \Cref{sec:semantics}, several languages need finer-grained control over memory allocation than \code{call/1cc} would provide, and indeed, most do not have direct support for capturing any variant of continuation. Therefore the language feature we present as a building block for concurrency is \textit{the coroutine.}
+
+\subsubsection{Coroutines} As a generalization of the function, the concept of a coroutine has existed since the early 1960's~\cite{conway_design_1963}. Many researchers explored their use as a general control mechanism~\cite{knuth_art_1997,marlin_coroutines_1980,pauli_coroutine_1980,moody_coroutine_1980,wirth_programming_1985,griswold_icon_1983}, but it wasn't until 2009, when~\cite{moura_revisiting_2009} classified coroutine mechanisms and demonstrated their equivalence to one-shot delimited continuations. The design dimensions provided are: asymmetric vs.\ symmetric (e.g., the semantics of \code{yield}), stackful vs.\ stackless (e.g., where a \code{yield} can occur), and first-class vs.\ limited-use coroutines (e.g., are coroutines first class values).
+
+In this section we will use the word coroutine to mean any implementation of coroutines along the three design dimensions. For most programming languages, functions support two operations: \ctrlop{call} and \ctrlop{return} --- here we consider throwing an exception as a \ctrlop{return} operation. A \textit{coroutine} supports three additional operations: \ctrlop{suspend}, \ctrlop{resume}, and \ctrlop{destroy}.
+
+Coroutines contain data that must be preserved across suspension points and they contain data that only needs to be kept while the coroutine is executing. Data that must persist across suspension points is stored on the \textit{coroutine frame} and data that does not can go on the executing \textit{stack frame}. We will refer to the coroutine frame as The \Coro, an object that holds the state necessary to suspend and resume execution of the coroutine body.
+
+The \ctrlop{suspend} operation allows a coroutine to suspend execution in the middle of the function and transfer execution elsewhere. Suspension points within a coroutine are typically identified by usages of a keyword, such as \code{await} or \code{yield}. When a coroutine hits a suspension point it first prepares itself for resumption by (1) ensuring necessary values are written to the coroutine frame, and (2) writing a value to the coroutine frame that indicates where the coroutine is being suspended at.
+
+The \ctrlop{resume} operation can be performed on a suspended coroutine. Resumption will allocate a new stack frame, restoring the necessary state from the previous suspension, and execution will transfer to the point after suspension.
+
+The \ctrlop{destroy} operation can be performed on a suspended coroutine and destroys the coroutine frame without resuming execution of the coroutine.
+
+The \ctrlop{call} operation of a coroutine is similar to that of a function.\footnote{In fact, from the caller's perspective the two are equivalent.} However, instead of beginning execution of the coroutine body, the coroutine will first allocate a coroutine frame, write necessary data to the frame, and then possibly suspend to the caller. We say `possibly suspend` because a language may choose to continue coroutine executino until the first suspension point, or unconditionally suspend after creating the coroutine frame.
+
+The \ctrlop{return} operation is highly dependent on the semantics of the language. When a coroutine returns the language may choose to suspend the coroutine, thus keeping The Coroutine alive, or it may destroy The Coroutine and return to the caller like a normal function. Execution is then returned to the caller/resumer.
+
+\subsection{Library Components}
+
+Asynchronous programs require a runtime to manage and schedule the execution of concurrent code. A runtime may be multithreaded, or single threaded, it may be provided by the language and its runtime, or as a third-party library. The runtime design is informed by the language feature exposed to suspend and resume execution of coroutines.
+
+\subsubsection{Runtime Object} The runtime object, moving forward referred to as The \Task, wraps a \Coro{} into an object that can be passed around by the runtime system. Semantically, a \Task{} is simply a pointer to the underlying \Coro{} that represents the computation.
+
+An important property of a \Task{} is that it's registered in the runtime system and is scheduled to execute in the near future. Unlike a \Coro, which will not execute unless explicitly resumed, a \Task{} is being watched and its execution \textit{scheduled} by the runtime.
+
+\subsubsection{Scheduler} The scheduler is responsible for scheduling concurrent code to execute. Execution may take place on a single thread, green threads, or multiple OS-threads. For this work, we consider the implementation of the scheduler as a performance concern and not part of the operational behavior of asynchronous programs. The scheduler may have implications on fairness and termination, which we discuss in \Cref{sec:discussion}.
 
 \subsection{Terminology in The Wild} \label{sec:terminology:equiv}
 
 \begin{table}
-  \caption{Overview of terminology used by various systems}
+  \caption{Overview of terminology used by various concurrency systems / libraries. \ggnote{Everything below the middle rule needs to be double checked.}}
   \label{tab:terminology-overview}
-  \begin{tabular}{lccccc}
+  \begin{tabular}{lll}
     \toprule
-    System        & Scheduler & Queue & SMO & RO \\
-    \midrule      
-    \CSharp       & -         & -     & -   & -    \\
-    \JS           & -         & -     & -   & -    \\
-    \Swift        & -         & -     & -   & -    \\
-    \Rust         & -         & -     & -   & -    \\
-    \Tokio        & -         & -     & -   & -    \\
-    \Python       & -         & -     & -   & -    \\
-    \AsyncIO      & -         & -     & -   & -    \\
+    System                 & \Coro{}                               & \Task{}                   \\ % & Scheduler                              \\
     \midrule
-    Kotlin        & -         & -     & -   & -    \\
-    Zig           & -         & -     & -   & -    \\
-    Scala (Gears) & -         & -     & -   & -    \\
-    Haskell       & -         & -     & -   & -    \\
-    OCaml         & -         & -     & -   & -    \\
+    \CSharp{}              & IAsyncStateMachine                    & Task                      \\ % & TaskScheduler / SynchronizationContext \\
+    JavaScript             & Generator                             & Promise                   \\ % & Event Loop (Microtask Queue)           \\
+    Swift                  & PartialTask / Job                     & Task                      \\ % & Executor / SerialExecutor              \\
+    Rust                   & Future                                & -                         \\ % & Runtime / Executor (Tokio/async-std)   \\
+    Tokio (Rust)           & Future (Pinned)                       & Task                      \\ % & MultiThread / CurrentThread Scheduler  \\
+    Python                 & Coroutine                             & Task                      \\ % & AbstractEventLoop                      \\
+    AsyncIO (Python)       & Coroutine                             & Task                      \\ % & SelectorEventLoop / ProactorEventLoop  \\
+    \midrule
+    Kotlin                 & Continuation                          & Deferred                  \\ % & CoroutineDispatcher                    \\
+    Zig                    & @Frame / anyframe                     & @Frame                    \\ % & std.event.Loop (Lib) / Manual          \\
+    Gears (Scala)          & Async (Context/Capability)            & Future (Active/Passive)   \\ % & Suspension (Loom/Native)               \\
+    Haskell                & TSO (Thread State Object)             & ThreadId / MVar           \\ % & Capability (HEC)                       \\
+    OCaml 5                & Continuation                          & Fiber (Eio) / Promise     \\ % & Effect Handler (Schedule effect)       \\
+    Go                     & G (runtime.g)                         & (Channels / WaitGroup)    \\ % & "GMP Model (M &  P &  Netpoller)"      \\
+    Loom (Java)            & Continuation (VM Internal)            & VirtualThread / Future    \\ % & ForkJoinPool (Carrier Threads)         \\
+    C++20                  & Coroutine                             & -                         \\ % & std::execution (Proposed)              \\
+    Dart                   & Suspension Point (VM Internal)        & Future                    \\ % & Event Loop (Microtask Queue)           \\
+    Julia                  & Task                                  & Task                      \\ % & Task{}scheduler (Base)                  \\
+    Erlang                 & Process (PCB)                         & PID                       \\ % & BEAM SMP Scheduler (Reduction counting)\\
+    Elixir                 & Process                               & Task{}struct               \\ % & BEAM SMP Scheduler                     \\
+    Lua                    & lua_State (Thread)                    & (Thread value)            \\ % & Manual (coroutine.resume loop)         \\
+    Ruby                   & Fiber                                 & -                         \\ % & Fiber::SchedulerInterface              \\
+    Hack                   & -                                     & Awaitable                 \\ % & Asio Scheduler                         \\
+    F#                     & Async                                 & Async                     \\ % & Trampoline / ThreadPool                \\
+    Nim                    & iterator (Transformed)                & Future                    \\ % & Dispatcher / poll                      \\
+    Crystal                & Fiber                                 & Channel (Implicit)        \\ % & Scheduler / EventLoop                  \\
+    Simula 67              & Object (Detached)                     & Process                   \\ % & Event Notice / Timeline                \\
+    Modula-2               & PROCESS                               & -                         \\ % & TRANSFER (Primitive)                   \\
     \bottomrule
   \end{tabular}
 \end{table}
 
+\subsection{Architectural Components}
+
+\ggnote{To help with the discussion on deisign dimensions in the next section, I want some sort of state-machine diagrams that helps position where each dimension fits.}
+
+\begin{figure}
+  \centering
+  \begin{minipage}[t]{0.5\textwidth}
+    \includegraphics[width=0.95\textwidth]{example-image-a}
+  \end{minipage}\hfill%
+  \begin{minipage}[t]{0.5\textwidth}
+    \includegraphics[width=0.95\textwidth]{example-image-b}
+  \end{minipage}
+  \caption{(Left) Something to do with the lifecycle of a coroutine. (Right) Something to do with the state diagram of the runtime system.}\label{fig:architecture-diagram}
+\end{figure}
+
+\subsection{Design dimensions}
+
+A concurrent system requires the power of \Coro{}s, \Task{}s, and a Scheduler to push everything along. However, these pieces don't always fit nicely together and some careful assembly is required. For example, a designer may choose a different coroutine design based on the previous design of the language, which in turn introduces a constraint on all downstream decisions. In this section we provide five async/await design axes that pertain to the design and assembly of the core language and runtime building blocks discussed above.
+
+Given the core set of architectural components outlined above, we highlight how a langauge's assembly of these components influences its operational behavior. In particular, for each language we provide an answer to the following questions:
+
+\subsubsection{Eagerness} The Eagerness axis defines the eagerness of an async function application, the possible values are: \textit{lazy, semi-lazy, semi-eager,} and \textit{eager.} An eager application is where the current thread transfers execution to the body of the async function, until a suspend operation is called, at which point the application evalutes to a \Task{} value. A \textit{semi-}eager application evaluates immediately to a \Task{} value, but it is only scheduled for execution, the currently executing thread does not begin execution of the function body. A \textit{semi-}lazy application is where the current thread transfers execution to the body of the async function, until a suspend operation is called, at which point the application evalutes to a \Coro{} value. A lazy application evaluates immediately to a \Coro{} value, no code in the function body is executed.
+
+\begin{wrapfigure}{r}{0.33\textwidth}
+  \raggedright
+\begin{lstlisting}[language=Rust,numbers=none]
+async fn work(msg: &str) {
+  print!("{msg}");
+  tokio::task::yield_now()
+    .await
+}
+
+#[tokio::main]
+async fn main() {
+  let c1 = work("A");
+  let c2 = work("B");
+  print!("C");
+  c1.await; c2.await;
+} // => CAB
+\end{lstlisting}
+  \caption{An example of a \textit{lazy} async function application. The above program always results in the print order ``CAB''.}
+  \label{fig:designdims:eagerness-lazy}
+\end{wrapfigure}
+
+\subsubsection{Cancellation} The Cancellation axis defines the cancellation strategy of the system, the possible values are: \textit{none, polite, aggressive,} and \textit{unavoidable.} We say that a system provides no cancellation (none) if the developer must explicitly pass cancellation tokens to child \Task{}s, that is, the runtime system has no built-in mechanism for cancellation other than functions returning as normal. A \textit{polite} cancellation strategy allows callers to mark a cancellation flag in the \Coro{}, however, async computations must explicitly check this flag. Developers may choose to, or forget to, check the flag, and cancellation is not enforced. An \textit{aggressive} policy is one where any \code{await} expression may raise a \textit{cancellation exception.} We qualify this as a cancellation exception, because await points can raise exceptions if the awaited \Task{} raised an uncaught exception. Cancellation exceptions come from the runtime, not callees. A system provides \textit{unavoidable} cancellation if the cancelled \Task{} can not observe its own cancellation; unavoidable cancellation does not allow for \Task{}s to execute clean-up code.
+
+\subsubsection{Suspension} The Suspension axis defines how the set of \textit{await} points relates to the set of \textit{suspension} points, the possible values are: \textit{static,} and \textit{dynamic.} A system has \textit{static} suspension points if the language guarantees that every await point suspends the current computation. A system has \textit{dynamic} suspension points if the set of await points is a superset of the set of suspension points. Asynchronous computations may complete synchronously, in fact, a large number do, and the runtime can decide dynamically whether to actually suspend the calling \Task{} or continue with the awaited value.
+
+\subsubsection{Task Scope} The Task Scope axis defines how the execution of a \Task{} is scoped, the possible values are: region scoped, program scoped, and unscoped. A system enforces \textit{region scoping} if the lifetime of a \Task{} cannot extend past the lifetime of the \Task{} it was spawned from. Our definition of region scoping is similar to what others call \textit{structured concurrency}~\cite{}. A system enforces \textit{program scoping} if the lifetime of a \Task{} cannot outlive the program. \Task{}s are \textit{unscoped} if the program can terminate before running \Task{}s have terminated.
+
+\subsubsection{Exception} The Exception axis defines how exceptions interact with \Task{}s, the possible values are: awaited, and reraised. A system has \textit{awaited} exceptions if trapped exceptions propagate out of \Task{}s at await points. A system has \textit{reraise} exceptions if the runtime system can reraise exceptions from unawaited \Task{}s.
+
 \section{Semantics}\label{sec:semantics}
 
-The key contribution of this paper is a precise description of the operational behavior of several contemporary asynchronous systems. To reduce the cosmetic noise we provide the operational semantics as extensions to a simple base language. By providing the semantics in layers we highlight the control features necessary for a given language's implementation and can more easily compare the operational behavior between two languages. 
-
-Given the core set of architectural components outlined in \Cref{sec:terminology:arch}, we highlight how a langauge's assembly of these components influences its operational behavior. In particular, for each language we provide an answer to the following questions:
-
-\ggnote{I'm not sold at all on how these are phrased. Ideas welcome}
-
-\begin{enumerate}
-  \item \textbf{What temperature is an asynchronous application? (Hot, Warm, Cold)} 
-  \ggnote{I'm realizing that ``temperature'' is a measure of immediacy. A hot application starts running immediately, a warm application starts running \textit{soon,} but it is guaranteed to run, and a cold application will never run. The issue I take with immediate/soon/never is that ``never'' is a bit too strong. On its own, sure, it'll never run, but it could get polled manually or get turned into a task.}
-    Applying an asynchronous function can result in three possible behaviors. A \textit{hot} application will result in the executing thread to begin evaluating the function body, evaluation will continue until the first await point; the return value is a \Task. A \textit{warm} application will result in a \Task, but the executing thread will not immediately evaluate the function body --- the resulting \Task{} will eventually be run by an available thread. A \textit{cold} application results in a \Coro{} object, which will not run until prompted or until registered in the runtime.
-
-  \item \textbf{What cancellation strategy is employed? (None, Polite, Aggressive, Unavoidable)} We categorize cancellation into three strategies. Systems without cancellation do not provide any primitive operations by which to cancel \Task s. If a computation is to be cancellable, the developer must encode this functionality using standard communication and signalling mechanisms. \textit{Polite} cancellation is when the system provides the mechanism by which to cancel a computation but no enforcement policy --- a cancellation signal may be freely ignored by the cancelled computation. \textit{Unavoidable} cancellation enforces eventual termination of the cancelled task.
-
-  \item \textbf{Are await points reliable?} Await points are synchronization barriers between two running computations. In most contemporary async/await systems these points are syntactically marked with an \code{await} keyword. Cooperative concurrency relies on tasks to periodically suspend execution in order for other computations to make progress. When an await point is not equivalent to a suspension points we call them \textit{unreliable} await points.
-
-  \item \textbf{Are \Task s forgettable?} 
-  \ggnote{Will and I talked today and I think a better phrasing would be along the lines of scoping. Is a \Task{} region scoped, program scoped, or unscoped?}
-    In synchronous programming there is a well-defined caller-callee relationship for function application. In asynchronous programming there is not an agreed upon behavior. We will define the \textit{lifetime} of an asynchronous computation to be the time between asynchronous function application and the moment the computation is settled, with a resulting value or a trapped exception. Languages may choose to relate the lifetime of a computation to a syntactic region in the source program, or the language may dynamically relate the lifetime of a computation to its parent. We say that a \Task{} is forgettable if the program can terminate before the lifetime of all \Task s has completed.
-
-  \item \textbf{Are exceptions ignorable?} In synchronous programs an uncaught exception will result in a failing program. This same property may not necessarily hold if an exception is ignorable. We say that an exception is ignorable if an asynchronous program can terminate succesfully even though an exception has gone uncaught.
-
-\end{enumerate}
+The key contribution of this paper is a precise description of the operational behavior of several contemporary asynchronous systems. To reduce the cosmetic noise we provide the operational semantics as extensions to a simple base language. By providing the semantics in layers we highlight the control features necessary for a given language's implementation and can more easily compare the operational behavior between two languages.
 
 We start with a core language, a call-by-value variant of the $\lambda$-calculus extended with a heap and mutation. The grammar and single-step reduction are provided in \Cref{fig:lang:lc}. The reduction rule is defined over a mutable heap $\sigma$ and an expression $e$, $\langle\sigma\,e\rangle$. The reduction rules and grammar for $\lambda$ are standard so we do not elaborate further.
 
@@ -189,7 +411,7 @@ We start with a core language, a call-by-value variant of the $\lambda$-calculus
   \label{fig:lang:lc}
 \end{figure}
 
-We provide two base extensions for complex control flow to $\lambda$. The extension $\lambda_{exn}$ adds exceptions and $\lambda_{coro}$ adds coroutines. \Cref{fig:lang:exn} shows the grammar and reduction rule extensions for $\lambda_{exn}$, which extends $\lambda$ with \code{throw} and \catch{forms}. \Cref{fig:lang:coro} shows the grammar and reduction rule extensions for $\lambda_{coro}$, which extends $\lambda$ with coroutines. Our coroutine provides the operational behavior for \textit{asymmetric stackful coroutines}, following a similar approach as \cite{moura_revisiting_2009}.
+We provide two base extensions for complex control flow to $\lambda$. The extension $\lambda_{exn}$ adds exceptions and $\lambda_{coro}$ adds coroutines. \Cref{fig:lang:exn} shows the grammar and reduction rule extensions for $\lambda_{exn}$, which extends $\lambda$ with \code{throw} and \code{catch} forms. \Cref{fig:lang:coro} shows the grammar and reduction rule extensions for $\lambda_{coro}$, which extends $\lambda$ with coroutines. Our coroutine provides the operational behavior for \textit{asymmetric stackful coroutines}, following a similar approach as \cite{moura_revisiting_2009}.
 
 \begin{figure}[ht]
   \centering
@@ -234,9 +456,9 @@ We provide two base extensions for complex control flow to $\lambda$. The extens
   \label{fig:lang:platform}
 \end{wrapfigure}
 
-We now describe the configuration of the shared asynchronous grammar. \Cref{fig:lang:platform} defines the shared grammar constructs that encode the async runtime building blocks discussed in \Cref{sec:terminology:arch}. We will refer to this shared grammar extension as the \textit{async platform.}
+We now describe the configuration of the shared asynchronous grammar. \Cref{fig:lang:platform} defines the shared grammar constructs that encode the async runtime building blocks discussed in \Cref{sec:designdims}. We will refer to this shared grammar extension as the \textit{async platform.}
 
-A \textit{frame}, $F$, is written $\langle e,\,l\rangle$ and consists of an expression $e$, along with a frame label, $l$. A \textit{frame label}, $l$, is either the name of the \Task{} this frame corresponds to, or \textit{sync} to denote a synchronous frame. A \textit{frame stack}, $FS$, is a list of frames --- essentially a thread. A \texit{process}, $P$, is a collection of frame stacks. A \textit{task queue}, $Q$, stores the asynchronous frames waiting to be run. The async platform provides a few additional expressions that we will describe here.
+A \textit{frame}, $F$, is written $\langle e,\,l\rangle$ and consists of an expression $e$, along with a frame label, $l$. A \textit{frame label}, $l$, is either the name of the \Task{} this frame corresponds to, or \textit{sync} to denote a synchronous frame. A \textit{frame stack}, $FS$, is a list of frames --- essentially a thread. A \textit{process}, $P$, is a collection of frame stacks. A \textit{task queue}, $Q$, stores the asynchronous frames waiting to be run. The async platform provides a few additional expressions that we will describe here.
 
 The $block\,e_{async}$ expression provides the barrier between synchronous code and asynchronous code. Languages may use a block expression to block a synchronous frame until the asynchronous expression has completed running. For most languages the block expression marks the \textit{runtime entry,} and when it returns, the \textit{runtime exit.}
 
@@ -265,13 +487,15 @@ Each asynchronous language is automatically defined with the platform expression
 Our model of \CSharp{} follows that of \cite{hutchison_pause_2012}, which provided a formal description for \CSharp{} 5.0, in addition to the prose specification provided by Microsoft. % TODO: cite
 The \CSharp{} language and relation extension is provided in \Cref{fig:lang:cs}.
 
-Rule \semrule{Async-App} applies an asynchronous function, placing the function body in a new frame at the head of the executing frame stack. This is a \texit{hot application}, because the function body is immediately running in the executing thread. This frame will continue to run until a suspension point is reached.
+Rule \semrule{Async-App} applies an asynchronous function, placing the function body in a new frame at the head of the executing frame stack. This is a \textit{hot application}, because the function body is immediately running in the executing thread. This frame will continue to run until a suspension point is reached.
 
 Rules \semrule{Await-Suspend}, \semrule{Await-Continue}, and \semrule{Await-Failed} demonstrate how await points are handled. Suspension points in \CSharp{} are a \textit{subset} of all await points. That is, the rules \semrule{Await-Continue} and \semrule{Await-Failed} show that if the awaited object is complete --- with a value or an exception --- the current thread will continue executing. There is no guarantee that an await point will ever suspend the current computation, therefore, await points are unreliable.
 
+
 The grammar presented in \Cref{fig:lang:cs} does not include a $cancel$ expression. Therefore, we say that \CSharp{} has \textit{no cancellation policy}. If a computation is to be cancellable, the developer must encode this behavior themselves via standard communication mechanisms (e.g., channels, events).
 
-When a \Task{} is created, via \semrule{Async-App} or \semrule{Task-Run}, it has no relation to its context. Furthermore, when a task is resolved, \semrule{Task-Return}, there is no check for the status of child \Task s spawned during its execution. \Task{} objects freely live as any other object in \CSharp, no rule states that a \Task{} must be awaited, or even that a \Task{} must finish executing. The rule \semrule{Unblock} does not check the queue or status of executing threads for unfinished computations. Therefore, we say that both tasks and exceptions are ignorable.
+
+When a \Task{} is created, via \semrule{Async-App} or \semrule{Task-Run}, it has no relation to its context. Furthermore, when a task is resolved, \semrule{Task-Return}, there is no check for the status of child \Task{}s spawned during its execution. \Task{} objects freely live as any other object in \CSharp, no rule states that a \Task{} must be awaited, or even that a \Task{} must finish executing. The rule \semrule{Unblock} does not check the queue or status of executing threads for unfinished computations. Therefore, we say that both tasks and exceptions are ignorable.
 
 \subsection{JavaScript}
 
@@ -315,7 +539,7 @@ The \Swift{} grammar includes a new \code{(cancelled?)} expression, which return
 
 The rules \semrule{Await-Continue}, \semrule{Await-Failed}, and \semrule{Await-Suspend} do not provide any guarantee on suspension. There fore await points in \Swift{} are not stable and only represent possible suspension points.
 
-The result of an async application is a new \Task{} object, which is associated with the label $l$ of the calling frame. In other words, \Swift{} establishes a \textit{parent-child relationship} between a calling \Task{} and a spawned \Task. Rule \semrule{Task-Return} relies on this relationship to resolve a \Task{} only when all child \Task s have resolved. The parent-child relationship of \Task s creates a \textit{task tree,} where a \Task{} can only return once every node in its subtree has resolved. Therefore, no \Task{} can be forgotten.
+The result of an async application is a new \Task{} object, which is associated with the label $l$ of the calling frame. In other words, \Swift{} establishes a \textit{parent-child relationship} between a calling \Task{} and a spawned \Task. Rule \semrule{Task-Return} relies on this relationship to resolve a \Task{} only when all child \Task{}s have resolved. The parent-child relationship of \Task{}s creates a \textit{task tree,} where a \Task{} can only return once every node in its subtree has resolved. Therefore, no \Task{} can be forgotten.
 
 Rule \semrule{await-Failed} shows that the exception from a failed \Task{} only gets reraised at an await point. The rule \semrule{Block} does not reraise any unawaited exceptions at runtime exit, therefore, even though a \Task{} cannot be forgotten, an exception can be ignored if a \Task{} is nevery awaited.
 
@@ -407,9 +631,9 @@ The rule \semrule{Task-Spawn} takes a \Coro{} object and turns it into a \Task{}
 
 The rule \semrule{Cancel} shows the use of the \code{cancel} expression. This expression takes a \Task{} object and marks it as cancelled. The next time the \Task{} is resumed, via the rule \semrule{Dequeue-Cancelled}, the runtime will not resume the underlying \Coro{} object, but use the \code{throw-in!} expression to raise a \code{CancelledError} at the suspension point. We call this cancellation policy \textit{aggressive} because an exception may be raised at any suspension point. Cancellation exceptions may be caught and ignored by the running computation, which is why the policy is not \textit{unavoidable.}
 
-The rule \semrule{Task-Return} does not check for any child \Task s spawned during executions. However, the rule \semrule{Block-Exit} requires that all \Task s have resolved before the runtime exits. Therefore we say that \Task s are \textit{program scoped,} but not \textit{region scoped.}
+The rule \semrule{Task-Return} does not check for any child \Task{}s spawned during executions. However, the rule \semrule{Block-Exit} requires that all \Task{}s have resolved before the runtime exits. Therefore we say that \Task{}s are \textit{program scoped,} but not \textit{region scoped.}
 
-The rule \semrule{Block-Exit} inspects the store $\sigma$ for any unawaited \Task s that have a trapped exception. If any such \Task s exist, the runtime will reraise the first exception it finds. Therefore, we say that exceptions are not ignorable.
+The rule \semrule{Block-Exit} inspects the store $\sigma$ for any unawaited \Task{}s that have a trapped exception. If any such \Task{}s exist, the runtime will reraise the first exception it finds. Therefore, we say that exceptions are not ignorable.
 
 \ggnote{We probably should add something in about \textit{edge-triggered} vs \textit{level-triggered} cancellation.}
 
@@ -418,17 +642,17 @@ The rule \semrule{Block-Exit} inspects the store $\sigma$ for any unawaited \Tas
 \begin{table}
   \caption{Overview of semantic decisions make by language/system designers}
   \label{tab:semantics-overview}
-  \begin{tabular}{lccccc}
+  \begin{tabular}{llllll}
     \toprule
-    System   & Q1   & Q2          & Q3  & Q4  & Q4  \\
+    System   & Eagerness   & Cancellation  & Suspension  & Task Scope         & Exception  \\
     \midrule
-    \CSharp  & Hot  & None        & No  & Yes & Yes \\
-    \JS      & Hot  & None        & Yes & Yes & Yes \\
-    \Swift   & Warm & Polite      & Yes & No  & Yes \\
-    \Rust    & Cold & Unavoidable & Yes & -   & -   \\
-    \Tokio   & -    & Unavoidable & Yes & Yes & -   \\
-    \Python  & Cold & Aggressive  & No  & -   & Yes \\
-    \AsyncIO & -    & Aggressive  & No  & No  & No  \\
+    \CSharp  & eager       & none          & dynamic     & unscoped           & awaited    \\
+    \JS      & eager       & none          & static      & program scoped     & awaited    \\
+    \Swift   & semi-eager  & polite        & dynamic     & region scoped      & awaited    \\
+    \Rust    & lazy        & unavoidable   & dynamic     & -                  & -          \\
+    \Tokio   & lazy        & unavoidable   & dynamic     & unscoped           & -          \\
+    \Python  & lazy        & aggressive    & dynamic     & -                  & -          \\
+    \AsyncIO & lazy        & aggressive    & dynamic     & program scoped     & reraise    \\
     \bottomrule
   \end{tabular}
 \end{table}
@@ -698,9 +922,7 @@ In this section we will describe four system properties that lead to concurrency
 %
 % \paragraph{A computation that could run on a different thread may (\MPAR)} \willdo{Possible by Swift (I think maybe Kotlin) and potentially C\#}
 
-\section{User Study}
-
-\section{Discussion}
+\section{Discussion}\label{sec:discussion}
 
 What did we learn and what should people do
 
