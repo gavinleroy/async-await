@@ -139,7 +139,9 @@
 %% For highlighting code within an lstlisting
 \definecolor{AttentionColor}{RGB}{211, 211, 211}
 \newcommand{\lineEq}[1]{%
-  \ifnum\value{lstnumber}=#1 \color{AttentionColor}\fi}
+  \ifnum\value{lstnumber} = #1\color{White!50!AttentionColor}\fi}
+
+\newcommand{\abbr}[1]{\textsc{#1}}
 
 \newcommand{\ctrlop}[1]{\texttt{#1}}
 \newcommand{\semrule}[1]{\textsf{[#1]}}

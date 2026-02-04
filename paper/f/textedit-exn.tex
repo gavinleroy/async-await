@@ -1,0 +1,64 @@
+\begin{figure}
+  \begin{minipage}[t]{0.49\textwidth}
+\begin{lstlisting}[language=CSharp]
+using System;
+using System.Drawing;
+using System.IO;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+
+static class Program {
+  [STAThread]
+  static void Main() {
+      Application.Run(new TextEdit());
+  }
+}
+
+public class TextEdit : Form {
+  public TextEdit() { 
+    /* */ 
+    InitializeServices()
+  }
+
+  private void InitializeServices() {
+    /* elided */
+    _autoSaveController.StartAutoSaveTimer();
+  }
+}
+\end{lstlisting}
+  \end{minipage}\hfill%
+  \begin{minipage}[t]{0.49\textwidth}
+\begin{lstlisting}[
+  language=CSharp,%
+  firstnumber=25,%
+  linebackgroundcolor={\lineEq{42},\lineEq{43}},%
+]
+public class AutoSaveController {
+  private DocumentManager _doc;
+  private DiskIO _disk;
+  private Action<string> _uiNotify;
+  private Forms.Timer _timer;
+
+  public AutoSaveController(
+    DocumentManager doc, DiskIO disk,
+    Action<string> uiNotify) {
+      /* setup elided */
+      _timer.Tick += AutoSaveTimer_Tick;
+  }
+
+  private async void AutoSaveTimer_Tick(
+    object sender, EventArgs e
+  ) {
+    _uiNotify("Auto-saving...");
+    await _disk.SaveFileAsync(
+      )_doc.FilePath, _doc.Content);
+    _doc.MarkSaved();
+    _uiNotify(
+      $"Saved {DateTime.Now:T}");
+  }
+}
+\end{lstlisting}
+  \end{minipage}
+  \cprotect\caption{The above \CSharp{} program is a simple TextEdit application built with Windows Forms. The editor runs a background task that saves the open files periodically. The method \code{AutoSaveTimer_Tick} is \textit{async void}, meaning that any exception raised is placed on the executing thread rather than on an enclosing \code{Task} object. If the highlighted disk save operation raises an exception due to, e.g., insufficient disk space, the entire application crashes! Outside of the method \code{AutoSaveTime_Tick}, a try catch block cannot be used to catch the raised exception.}
+  \label{fig:wat:csharp-exn}
+\end{figure}
