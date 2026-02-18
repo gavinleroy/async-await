@@ -1,0 +1,23 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v9.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v9.0": {
+      "UncatchableExn/1.0.0": {
+        "runtime": {
+          "UncatchableExn.dll": {}
+        }
+      }
+    }
+  },
+  "libraries": {
+    "UncatchableExn/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}

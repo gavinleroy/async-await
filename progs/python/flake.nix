@@ -6,14 +6,11 @@
 
   outputs = { self, nixpkgs, flake-utils }:
     flake-utils.lib.eachDefaultSystem (system:
-      let 
-        pkgs = import nixpkgs { inherit system; }; 
+      let pkgs = import nixpkgs { inherit system; };
       in {
         devShell = with pkgs; mkShell {
           nativeBuildInputs = [
-            python3
-            pkgs.python311Packages.trio
-            mypy
+          (python3.withPackages (p: with p; [ trio ]))
           ];
         };
       });

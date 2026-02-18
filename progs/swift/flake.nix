@@ -10,11 +10,13 @@
         pkgs = import nixpkgs { inherit system ; };
       in {
         devShell = pkgs.mkShell {
-          buildInputs = with pkgs; [ 
+          buildInputs = with pkgs; [
+            # NOTE, the version in NixPkgs is 5.10. We need at lest Swift 6
+            # Watch the issue here: https://github.com/NixOS/nixpkgs/issues/343210
             swift
-            swiftPackages.Foundation
-            swiftPackages.swiftpm
+            swiftpm
             sourcekit-lsp
+            swiftPackages.Foundation
           ];
         };
       });

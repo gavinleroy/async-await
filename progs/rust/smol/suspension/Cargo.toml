@@ -1,0 +1,8 @@
+[package]
+name = "suspension"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+rand = "0.10"
+smol = "2.0.2"

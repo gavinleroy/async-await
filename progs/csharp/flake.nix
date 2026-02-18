@@ -11,7 +11,7 @@
       in {
         devShell = pkgs.mkShell {
           buildInputs = with pkgs; [ 
-            dotnet-sdk_9
+            dotnet-sdk_10
           ];
         };
       });
