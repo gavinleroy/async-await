@@ -1,23 +1,60 @@
-#lang racket
+#lang racket/base
 
-(require redex "lc.rkt")
+(require redex/reduction-semantics
+         "lc.rkt")
 
 (provide LC+Exn -->exn/core -->exn)
 
 (define-extended-language LC+Exn LC
-  (e ::= ....              
+  (e ::= ....
      (throw e)
      (catch e_handle e_try))
-  
+
   (E ::= ....
      (throw E)
      (catch E e)
      (catch v E))
 
-  (G ::= 
-     ;; Evaluation context `E` without a `catch` term
-     (side-condition (name ctx E)
-                     (false? (member 'catch (flatten (term ctx)))))))
+  (M ::= ....
+     (throw M)
+     (catch M e)
+     (catch v M))
+
+  (G ::=
+     (throw G)
+
+     ;; Copied from the base LC
+     hole
+     (reset G)
+     (v ... G e ...)
+     (fix G)
+     (set! x G)
+     (let ([x_0 v] ... [x G] [x_1 e] ...) e)
+     (begin v ... G e ...)
+     (if G e e)
+     (list v ... G e ...)
+     (cons G e)
+     (cons v G)
+     (car G)
+     (cdr G)
+     (empty? G)
+     (struct [x_0 v] ... [x G] [x_s e] ...)
+     (field x G)
+     (box G)
+     (unbox G)
+     (set-box! G e)
+     (set-box! v G)
+     (+ v ... G e ...)
+     (- v ... G e ...)
+     (= v ... G e ...)
+     (< v ... G e ...)
+     (> v ... G e ...)
+     (<= v ... G e ...)
+     (>= v ... G e ...)
+     (num->string G)
+
+     (equal? v ... G e ...)
+     (append v ... G e ...)))
 
 ;; -----------------------------------------------------------------------------
 ;; Operational Semantics
@@ -27,16 +64,14 @@
   (reduction-relation
    LC+Exn #:domain (σ e)
 
-   [--> (σ (in-hole E (in-hole G (throw v)))) 
-        (σ (in-hole E (throw v)))
-        
-        (side-condition (not (equal? (term hole)
-                                     (term G))))
-        "throw"]
-   
-   [--> (σ (in-hole E (catch (lambda (x) e) (throw v)))) 
+   [--> (σ (in-hole E (catch (lambda (x) e) (in-hole G (throw v)))))
         (σ (in-hole E ((lambda (x) e) v)))
         "catch-exn"]
+
+   [--> (σ (in-hole G (throw v)))
+        (σ (throw v))
+        (side-condition (not (equal? (term hole) (term G))))
+        "uncaught-exn"]
 
    [--> (σ (in-hole E (catch _ v)))
         (σ (in-hole E v))
@@ -53,36 +88,52 @@
 ;; -----------------------------------------------------------------------------
 
 (module+ test
-  (require (submod "lc.rkt" niceties)
-           (submod "lc.rkt" test))
+  (require (submod "lc.rkt" test/helpers)
+           racket/control
+           rackunit)
 
-  (define-metafunction/extension main LC+Exn
-    main/exn : e -> (σ e))
-  
+  (struct my-exn (payload) #:transparent)
+
+  (define-syntax-rule (catch handler body)
+    (with-handlers ([my-exn? (lambda (exn-obj)
+                               (handler (my-exn-payload exn-obj)))])
+      body))
+
+  (define-syntax-rule (throw e)
+    (raise (my-exn e)))
+
+  (define-syntax-rule (eval-in-racket expr)
+    (with-handlers ([my-exn? (lambda (exn-obj)
+                               `(throw ,(my-exn-payload exn-obj)))])
+      expr))
+
   (define-syntax-rule (exn-->>= e v)
-    (test-->> -->exn #:equiv prog/equiv (term (main/exn e)) v))
+    (let ([t (term (() e))]
+          [expected v]
+          [racket-val (eval-in-racket e)])
 
-  (test--> -->exn
-           (term (() (+ 1 (+ 2 (+ 3 (+ (throw "what?") 4))))))
-           (term (() (throw "what?"))))
+      ;; Check semantics against racket
+      (check-equal? racket-val expected
+                    (format "Racket evaluation diverged for: ~a" 'e))
 
-  (test--> -->exn
-           (term (() (catch (lambda (e) 0)
-                            (+ 1 (+ 2 (+ 3 (+ (throw "what?") 4)))))))
-           (term (() (catch (lambda (e) 0)
-                            (throw "what?")))))
+      ;; Check deterministic evaluation
+      (apply-reduction-relation* -->exn t #:error-on-multiple? #true)
 
+      ;; Check output of actual test
+      (test-->> -->exn #:equiv prog/equiv t expected))))
+
+(module+ test
   (exn-->>=
    (+ 1 (catch (lambda (e) 41)
                (throw "nope")))
    42)
-  
+
   (exn-->>=
    (+ 1 (catch (lambda (e) 41)
                (let ([x (throw "nope")])
                  0)))
    42)
-  
+
   (exn-->>=
    (+ 0 (catch (lambda (e) 42)
                ((lambda ()
@@ -105,10 +156,10 @@
      (add1 (add1 (add1 (add1 (catch thirty-eight
                                     (add1 (add1 (add1 (throw 0))))))))))
    42)
-  
+
   (exn-->>=
    (+ 0 ((lambda ()
-                  (+ 1 (+ 2 (+ 3 (+ (throw "what?") 4)))))))
+           (+ 1 (+ 2 (+ 3 (+ (throw "what?") 4)))))))
    (term (throw "what?")))
 
   (exn-->>=
@@ -116,4 +167,39 @@
           (if #false
               (throw "nope")
               (+ 21 21)))
+   42)
+
+  (exn-->>=
+   (catch (lambda (e) 42)
+          (reset (+ 10 (throw "error"))))
+   42)
+
+  (exn-->>=
+   (+ 10
+      (reset
+       (catch (lambda (e) 0) ; This handler is abandoned
+              (+ 1 (shift k 32)))))
+   42)
+
+  (exn-->>=
+   (catch (lambda (e) 42)          ; <-- Caught here
+          (reset
+           (catch (lambda (e) 0)   ; <-- Captured into `k` and ignored
+                  (+ 1 (shift k (throw "error"))))))
+   42)
+
+  (exn-->>=
+   (let ([k-func (reset
+                  (catch (lambda (e) 42)
+                         ;; Capture the application context: (catch ... ([]))
+                         ((shift k k))))])
+     ;; k-func is roughly: (lambda (thunk) (reset (catch ... (thunk))))
+     (k-func (lambda () (throw "error"))))
+   42)
+
+  (exn-->>=
+   (catch (lambda (e) 42)
+          (reset
+           (+ 1 (shift k
+                       (+ 100 (k (throw "error")))))))
    42))
