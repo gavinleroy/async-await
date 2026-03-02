@@ -1,0 +1,159 @@
+\section{Motivation}\label{sec:motivation}
+
+Today there are three popular paradigms of concurrent computing: fork-join, communicating sequential processes (\abbr{csp}), and cooperative multitasking. Fork-join is widely used for \textit{data parallelism} to speed up \abbr{cpu}-bound computations. Examples of fork-join include the OpenMP framework and the Cilk programming language. \abbr{csp} is widely used for safe dataflow and memory safety, it's a member of the process algebra family and is based on message passing over channels. Examples of \abbr{csp} include Unix procesess and pipes, Erlang processes and mailboxes, and Go goroutines and channels. As an idiom, \abbr{csp} replaces shared memory and locks. A popular maxim in the Go community is, ``Do not communicate by sharing memory; instead, share memory by communicating.''~\cite{andrew_gerrand_2010}. Cooperative multitasking is widely used for \abbr{io}-bound computations and is based on fine-grained, suspendable computations. Examples of cooperative multitasking include Windows 3.1 and MacOS $\lt 9$ processes, Lua coroutines, and Python's Twisted framework.
+
+In recent years the async/await syntactic abstraction has been popularized to make concurrent programming easier. In this paper our target focus is languages with the async/await abstraction, and the semantics of the asynchronous constructs this abstraction hides. Many languages have adopted the async/await syntax (\CSharp{}, \FSharp{}, \Cpp{}, Python, Rust, Swift, JavaScript, Kotlin, Hack, Nim) and the proposal for this language modification follows a similar pattern in all of them.
+
+Before async/await, languages commonly used a combination of callbacks and user-defined objects to model event-driven computation. Achieving concurrency with the then-standard language features was verbose and error prone. \Cref{fig:motivation:evolution} is an illustrative example of the journey language designers go through in their proposal for async/await syntax. They begin with a synchronous function, pointing out that all the \abbr{io} operations are blocking and can take some time. They then show several asynchronous versions of the same function, highlighting the contrast in code size and complexity. Lastly, they present the version using async/await syntax, which looks almost identical to the original synchronus function.
+
+%%%%
+%% The JavaScript code in the figure really
+%% messes up Tex highlighting in Vim
+\input{./f/async-evolution.tex}
+
+The design of async/await systems has organically grown out of the desire for asynchronous programs to syntactically resemble synchronous programs. It's tantilizing to claim that async/await is simpler for developers to use because the syntax is familiar to that they already know. In fact, many contemporary programming languages have made this claim! The following quotes are from the official proposal to add async/await syntax to an existing language (emphasis ours).
+
+\begin{displayquote}%c#
+  \textbf{(\CSharp{})} \textit{Notice first how similar it is to the synchronous code.} \ldots The control flow is completely unaltered, and there are no callbacks in sight. That doesn’t mean that there are no callbacks, but the compiler takes care of creating and signing them up \ldots~\cite{torgersen_asynchronous_nodate}
+\end{displayquote}
+
+\begin{displayquote}%js
+  \textbf{(JavaScript)} With async functions, all the remaining boilerplate is removed, leaving only \textit{the semantically meaningful code in the program text.}~\cite{noauthor_async_nodate-1}
+\end{displayquote}
+
+\begin{displayquote}%python
+  \textbf{(Python)} It is proposed to make coroutines a proper standalone concept in Python, and introduce new supporting syntax. \textit{The ultimate goal is to help establish a common, easily approachable, mental model of asynchronous programming in Python and make it as close to synchronous programming as possible.}~\cite{noauthor_pep_nodate}
+\end{displayquote}
+
+\begin{displayquote}%rust
+  \textbf{(Rust)} In brief, an asynchronous function returns a future, rather than evaluating immediately when it is called. Inside the function, other futures can be awaited using an await expression, which causes them to yield control while the future is being polled. \textit{From a user's perspective, they can use async/await as if it were synchronous code, and only need to annotate their functions and calls.}~\cite{noauthor_2394-async_await_nodate}
+\end{displayquote}
+
+\begin{displayquote}%swift
+  \textbf{(Swift)} Modern Swift development involves a lot of asynchronous (or ``async'') programming using closures and completion handlers, but these APIs are hard to use. This gets particularly problematic when many asynchronous operations are used, error handling is required, or control flow between asynchronous calls gets complicated. \textit{This proposal describes a language extension to make this a lot more natural and less error prone.}~\cite{noauthor_swift-evolutionproposals0296-async-awaitmd_nodate}
+\end{displayquote}
+
+It's true that the async/await version of our illustrative example strongly resembles the synchronous version, however, the sad reality is that it does not take advantage of concurrency. Not only is the syntax of the async/await function similar to the synchronous version, so is its execution. The truth is that async/await is a syntactic abstraction over complicated semantics. Reasoning about async/await programs is no easier than reasoning about any concurrent program. In this section we provide examples of surprising async/await program behavior, which require deeper knowledge of concurrent semantics than the async/await abstraction may lead you to believe.
+
+\ggnote{We left off unsure whether these examples are good for our purposes. Not a lot of energy and time has been put into polishing the text or the code, we need to revisit this discussion to see what presentation format will be most motivating. Real-world examples? Written in the original language? Written in pseudo code?}
+
+\subsection{Rust and the Missing Packets}
+
+\begin{wrapfigure}{r}{0.45\textwidth}
+  \raggedright
+\begin{lstlisting}[language=Rust,numbers=none]
+async fn forward(
+  mut rx: mpsc::Receiver<String>,
+  tx: mpsc::Sender<String>
+) -> Option<()> {
+  loop {
+    let msg = rx.recv().await?;
+    log::debug!("Forwarding {msg}");
+    tx.send(msg).await.ok()? } }
+\end{lstlisting}
+  \caption{An example}
+  \label{fig:motivation:rust-forward}
+\end{wrapfigure}
+
+Within a Rust application you may have many concurrent computations that communicate with each other over channels. For example, one computation reads packets off the network, performing sone internal buffering for performance, then sends them elsewhere to get processed. With reads, processing, and writes, you decide to abstract the behavior of forwarding messages from one channel to another, into the function \code{forward} shown in \Cref{fig:motivation:rust-forward}. With one abstraction it's now easy to log messages between readers and writers to view the system.
+
+\begin{figure}
+  \begin{minipage}[t]{0.49\textwidth}
+\begin{lstlisting}[language=Rust]
+async fn forward_with_timeout(
+  mut rx: mpsc::Receiver<String>,
+  tx: mpsc::Sender<String>
+) -> Option<()> {
+  loop {
+    let msg = tokio::select! {
+      msg = rx.recv() => msg?,
+      _ = sleep(Duration::from_secs(5)) => {
+        println!("no msgs for 5 seconds");
+        continue
+      }
+    };
+
+    tx.send(msg).await.ok()?
+  }
+}
+\end{lstlisting}
+  \end{minipage}\hfill%
+  \begin{minipage}[t]{0.49\textwidth}
+\begin{lstlisting}[language=Rust]
+async fn forward_with_timeout(
+  mut rx: mpsc::Receiver<String>, 
+  tx: mpsc::Sender<String>
+) -> Option<()> {
+  loop {
+    let msg = rx.recv().await?;
+
+    tokio::select! {
+      done = tx.send(msg) => done.ok()?,
+      _ = sleep(Duration::from_secs(5)) =>
+        println!("no space for 5 seconds"),
+    }
+  }
+}
+\end{lstlisting}
+  \end{minipage}
+  \cprotect\caption{The Rust function \code{forward_with_timeout} reads from one channel and forwards it to the next. (Left) After observing that the sending channel is empty most of the time, the developer adds a five second timeout to the receive operation. (Right) After observing that the receiving channel is full most of the time, the developer adds a five second timeout to the send operation. Although these changes appear symmetric, the \textbf{right} example is incorrect and the forward operation will not forward all received messages.}
+  \label{fig:wat:rust-drop}
+\end{figure}
+
+\Cref{fig:wat:rust-drop} shows two possible versions of the forward function. In the first version (left), after profiling, you observe that the sending channel is empty for long periods of time and you'd like to log when it's empty for longer than five seconds. To do this, you would wrap the \code{recv} operation with a timeout, if the result is an error, the timeout occurred before the read happened. In this case you can log this gap in data and continue. In the second version (right), after profiling, you observe that the receiving channel is full for long periods of time and you'd like to log when it's full for longer than five seconds. The operation is the same as before, you wrap the \code{send} operation in a timeout and check the result.
+
+Although these two scenarios sound harmless, if you choose the second version --- logging timeouts of the \code{send} operation --- you've introduced a bug in your code. The forward operation no longer forwards all packets, instead, it forwards only the packets that don't timeout. The expression \code{tx.send(msg)} consumes \textit{ownership} of the message in the buffer. If the timeout finishes first, it will free the memory associated with the concurrent send operation, which includes the message that was read. The accidental memory free comes from the \code{select!} statement that races the two computations against each other, freeing the ``loser.''
+
+\subsection{Swift and the Overdrawn Bank Account}
+
+Swifts actors are conceptually very similar to classes but advertised as safe to use in concurrent environments. Unlike classes, actors allow only one task to access their mutable state at a time, which makes it safe for code in multiple tasks to interact with the same instance of an actor. Following this definition, and dreaming of data-race-free code, you rewrite your banking application in Swift.
+
+\begin{wrapfigure}{l}{0.49\textwidth}
+  \begin{lstlisting}[language=Swift]
+struct TransactionData { 
+  amount : Double,
+  /* rest elided */
+}
+
+actor BankAccount {
+  var balance: Double = 100.0
+
+  func withdraw(
+    trans: TransactionData
+  ) async throws {
+    assert(0.0 <= balance, 
+      "account balance negative")
+
+    guard balance >= amount else {
+        throw BankError.insufficientFunds
+    }
+
+    await verifyTransaction(trans)
+    balance -= trans.amount
+  }
+}
+  \end{lstlisting}
+  \cprotect\caption{Swift actors conform to the \code{Sendable} protocol, meaning it is a ``thread-safe type whose values can be shared across arbitrary concurrent contexts.'' Although a value of \code{BankAccount} is thread safe, as written, a user can \textit{overdraw} from their account breaking the invariant that the balance is non-negative.}
+  \label{fig:wat:swift-reentry}
+\end{wrapfigure}
+
+\Cref{fig:wat:swift-reentry} defines an actor \code{BankAccount} that manages the balance of a single clients account. The actor has two methods, \code{withdraw} and \code{deposit}. The main invariant that this actor must provide is that the \textit{balance is always non-negative.} When a withdraw transaction is started the code first checks that there's enough balance, verifies the transaction, and then modifies the account balance.
+
+If you push this code in to production you'd likely wake up the morning after to find your bank in incredible debt as users overdraw copious amounts of money from their accounts. The issue is that when an actor method calls \code{await}, it suspends. While suspended, the actor is \textit{unlocked.} This means that a user could initiate a withdrawal, and while the first withdrawal is verifying the transaction, they could initiate a second withdrawal that would take the account balance below zero. Invariants checked before an await point may not hold after the await point, and so, the bank account is overdrawn.
+
+If the \code{withdraw} method were instead synchronous the issue described above would not occur. Execution would enter the function, locking the actor, and the actor would not unlock until execution returned from the function. The actor remains locked in all callees because of the strict nesting behavior of stack frames. Asynchronous function calls break the strict nesting of stack frames, making it possible to exit the actor (via a suspend), only to reenter the actor within the same logical computation.
+
+\subsection{\CSharp{} and the Exceptional Text Editor}
+
+Windows Forms applications are popular motivation for concurrency. The application needs to run many computations and perform background tasks all while the main \abbr{gui} remains unblocked. Common advice is that all computation that is not rendering should be done outside of the \abbr{gui} thread. Swift even enforces this in the type system by placing all SwiftUI components to render within the \textit{main actor,} and all computations are \textit{escapable,} meaning they can be run on a different actor.
+
+%%%%
+%% The code in this figure messes up my highlighting
+\input{./f/textedit-exn.tex}
+
+\Cref{fig:wat:csharp-exn} provides an illustrative implementation of the TextEdit utility. In the main application there is an open document and the \code{AutoSaveController} manages a background worker to periodically save the contents of the current document. The autosave worker calls the \code{DiskIO.SaveFileAsync} method, which could raise an exception if the current disk is full. If a ``disk full'' exception is raised, the entire text editor would crash.
+
+The \code{AutoSaveTimer_Tick} method is marked as \textit{async void,} which means that the asynchronous computation is not enclosed in a \CSharp{} \code{Task} object. Typically, the \code{Task} would trap any raised exception and reraise the exception when the \code{Task} is awaited. However, async void methods place any uncaught exceptions on the executing thread, which causes the application to terminate.
+
+We will discuss the complexities of exceptional control flow and async/await in \Cref{sec:semantics}. In synchronous code, exceptions simply propagate up the call stack to the nearest matching exception handler. In async/await, that is not always the case. Developers must consider exceptions from other threads, exceptions from called code, and even exceptions injected from the runtime.
+

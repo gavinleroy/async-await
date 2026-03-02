@@ -1,15 +1,15 @@
 \usepackage{tikz}
 \usetikzlibrary{positioning, arrows.meta}
-\usepackage{xargs}                      % Use more than one optional parameter in a new commands
+\usepackage{xargs}
 \usepackage{graphicx}
 \usepackage[dvipsnames]{xcolor}
 \usepackage{
-    listings, 
-    listings-rust, 
-    listings-js, 
-    listings-swift, 
-    listings-kotlin, 
-    listings-csharp
+    listings,
+    ./sty/listings-rust,
+    ./sty/listings-js,
+    ./sty/listings-swift,
+    ./sty/listings-kotlin,
+    ./sty/listings-csharp,
 }
 \usepackage[listings,skins]{tcolorbox}
 \usepackage{cprotect}
@@ -61,13 +61,8 @@
 
 \newcommand{\estimate}[1]{\textcolor{WildStrawberry}{#1}}
 \newcommand{\willdo}[1]{\textcolor{WildStrawberry}{#1}}
-% \newcommand{\estimate}[1]{#1}
-
-%% Setting a research question
-\newcommand{\RQ}[1]{\noindent\textbf{#1}}
 
 \lstdefinestyle{grayish}{
-    language=Rust,
     basicstyle=\ttfamily\footnotesize,
     stringstyle=\color{gray},
     commentstyle=\color{gray},
@@ -81,7 +76,7 @@
     showstringspaces=false,
     showtabs=false,
     tabsize=2,
-    numberstyle=\tiny, 
+    numberstyle=\tiny,
     numbersep=8pt,
     xleftmargin=12pt,
     % aboveskip=1em,
@@ -90,10 +85,7 @@
     % belowskip=4pt,
 }
 
-\lstset{
-    escapeinside={(*@}{@*)},
-    style=grayish
-}
+\lstset{style=grayish}
 
 \definecolor{codeborder}{RGB}{240, 240, 240}
 

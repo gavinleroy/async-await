@@ -1,0 +1,14 @@
+\section{Introduction}
+
+\ggnote{You will read the words \Coro{} and \Task{} in the text. In the source these are written as macros and I'm using these silly names for now fully expecting us to have a discussion on what they should be later.}
+
+\begin{enumerate}
+  \item \textbf{We motivate the work with case studies about the pitfalls of async/await syntax.} Async/await as a syntactic abstraction hides the semantics of the underlying concurrency model. We show how developers can easily write erroneous programs due to inconsistent terminology, mismatched guarantees, and complicated semantics that diverges between languages. (\Cref{sec:motivation})
+
+  \item \textbf{We outline the design dimensions for cooperative multitasking.} Adding asynchronous programming to a language natively requires great engineering effort. The language gains new syntactic constructs, compiler transformations, and a runtime system that all work together to provide the desired look and behavior. We find that many of these systems share a common set of architectural components, but differ in how these components are assembled. We outline these decisions and clarify mixed terminology that exists in the wild. (\Cref{sec:designdims})
+
+  \item \textbf{We provide operational semantics for several contemporary programming languages' with async/await syntax.} We show precisely where the design dimensions emerge from the operational semantics. We provide the semantics as an extension to a $\lambda$-calculus core language with \code{reset} and \code{shift} operators. (\Cref{sec:semantics})
+
+  \item \textbf{We provide a mapping of design decisions to properties of programs in the resulting language.} Language designers make trade-offs when designing their async systems. We highlight how these trade-offs impact the resulting programs developers write. This information can help developers understand the behavior of their programs, and inform language designers of the downstream impact of their design decisions. We encourage designers going forward to consider the properties they wish to provide to developers and design their systems accordingly. (\Cref{sec:properties})
+\end{enumerate}
+

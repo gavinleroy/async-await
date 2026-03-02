@@ -1,0 +1,101 @@
+\section{Properties of Resulting Programs}\label{sec:properties}
+
+The design dimensions we present in \Cref{sec:designdims}, and modelled in \Cref{sec:semantics}, may seem like mere implementation details that burden the language designer but have no effect on the language user. In distilling the essence of contemporary async/await systems we identified program properties that developers enjoy, or yearn for, based on a language's chosen design. 
+
+In this section we describe four program properties that remove categories of ill-behaving programs. In \Cref{tab:properties-mapping} we provide a mapping from design dimensions to program properties.
+
+\subsection{No Task is Left Orphaned}
+
+\ggnote{Design dim: region-scoped tasks}
+
+An orphaned task is one that is running in the background but is not synchronized with the surrounding program. We consider an orphaned task to represent a race condition.
+
+\begin{wrapfigure}{r}{0.40\textwidth}
+  \raggedright
+\begin{lstlisting}[language=JavaScript]
+async function saveFiles (files) {
+  files.forEach(async (file) => { 
+    await saveFile(file) 
+  }) 
+}
+\end{lstlisting}
+  \cprotect\caption{An example of orphaned tasks that can cause a race condition. The developer has used \code{forEach} with asynchronous work, therefore, the \code{saveFiles} function will return immediately. A caller can ``await'' the task but the child workers saving the file are orphaned and will remain running in the background.}
+  \label{fig:orphans}
+\end{wrapfigure}
+
+The function \code{saveFiles} in \Cref{fig:orphans} is equivalent to the most upvoted question on StackOverflow with the label \textit{async-await}~\footnote{\citeurl{https://stackoverflow.com/questions/37576685/using-async-await-with-a-foreach-loop/37576787#37576787}}. In this function the programmer has mistakenly created a list of orphaned tasks by using the synchronous \code{Array.forEach} method with async lambda values. This function starts a worker to save each file but then returns immediately.
+
+We claim that an orphaned task with no synchronization point, i.e., edge in the task tree, with the calling context is an error. If a language can guarantee the property of no orphaned tasks, then a large class of errors is prevented. To prevent orphans a language should have region-scoped tasks.
+
+\ggnote{\textbf{Some might say} that the ``fire and forget'' pattern of async programming is desired sometimes, because you want an effect to happen but don't care when it happens. My response is that effects are made \textit{to be observed.} If an effect is never observed, why make the effect to begin with? Therefore, if an effect has an eventual observer, a race condition exists on the effect and its observance. An additional retort of error handling is appropriate, but I'll save that for the following property.}
+
+\subsection{No Exception is Ignored}
+
+\ggnote{Design dims: propagation (reraise), ideally with region-scoped tasks.}
+
+In programming languages with exceptions it is commonly referred to as bad practice to swallow an error without processing, reporting, or logging it. In async/await languages it is entirely possible for the Task to swallow an exception if the exception is never awaited. Silent failures are difficult to trace and debug, and languages with exceptions should prevent an exception from getting swallowed --- even if the task is never awaited.
+
+Consider the simplified \code{TextEdit} application provided in \Cref{fig:prop:tedit}
+
+\begin{figure}
+  \centering
+  \includegraphics[width=0.75\textwidth]{example-image-a}
+  \caption{A toy implementation of the TextEdit application. The \textit{Save} button saves the current file by firing off a task. Although the language semantics provide region scoped tasks, the save operation results in an exception that is never propagated. }
+  \label{fig:prop:tedit}
+\end{figure}
+
+In an async/await system, ignoring exceptions severely compromises application stability by creating silent failures that are incredibly difficult to trace and debug. Because asynchronous tasks run independently of the main execution thread, an uncaught error cannot simply bubble up a traditional call stack; instead, it either gets swallowed entirely—leaving the system in an unpredictable, corrupted state—or forces the runtime to abruptly crash the entire process to prevent further damage. Enforcing strict error handling ensures that failures are gracefully caught, logged, and managed, preserving the predictable control flow that the async/await paradigm is built to provide
+
+\subsection{No Starving Tasks}
+
+\ggnote{Design dim: static await points}
+
+Cooperative concurrency relies on all tasks to cooperate. They must suspend at regular intervals to allow other tasks the chance to progress. A developer may think that their code is yielding regularly because it has so many await keywords sprinkled throughout, however, these await points do not designate suspension points.
+
+A language can guarantee that no task is dynamically starved if await points are suspend points.
+
+Most languages choose to not provide this guarantee for performance. If the runtime encounters an await point but the awaited contents are ready, the runtime can either continue executing or suspend to allow another task to make progress. However, if no other tasks needs to make progress, the system pays the price of a suspension and context switch for nothing.
+
+\begin{wrapfigure}{r}{0.5\textwidth}
+\begin{lstlisting}[language=CSharp]
+async Task RecursiveDeathSpiral() {
+  for (int i = 0; i < 50000; i++) {
+    await new BadAwaitable();
+  }
+}
+
+struct BadAwaitable {
+  public BadAwaiter GetAwaiter() =>
+    new BadAwaiter();
+}
+
+struct BadAwaiter : INotifyCompletion {
+  // force a suspension
+  public bool IsCompleted => false;
+  public void GetResult() { }
+  public void OnCompleted(Action k) { k(); }
+}
+\end{lstlisting}
+  \caption{This program stack overflows because each suspension within the loop adds a nested call frame.}
+  \label{fig:prop:stackoverflow}
+\end{wrapfigure}
+
+Besides performance, \CSharp{} does not suspend on all await points because it can easily lead to stack overflows. Every time \CSharp{} suspends the current frame will add an additional nested call frame. The program in \Cref{fig:prop:stackoverflow} shows a program that performs some asynchronous work inside the loop. If the construct \code{BadAwaitable} forced the system to suspend, even though it's value is ready, this program results in a stack overflow.
+
+\subsection{Program Correctness Modulo Cancellation}
+
+\cprotect\ggnote{Design dims: cancellation (cooperative, top-down). A fun alternative is to have lazy semantics without a \code{spawn} function. If you only have lazy starts, but do not expose a spawn, then you basically get structured concurrency for free. Another alternative is region-scoped tasks, building a task tree \textit{on spawn}, and simultaneous, cooperative cancellation.
+
+I'm kind of thinking of very specific scenarios, this one might be hard to write a blanket rule for.}
+
+a correct program without cancellation is a correct program with cancellation. More specifically, if your program doesn't deadlock without cancellation then it shouldn't deadlock with cancellation. Rust is particularly bad because there's no default mechanism to observe cancellation and every await point in a function could never return.
+
+\begin{table}
+  \begin{tabular}{l}
+    \toprule
+    \bottomrule
+  \end{tabular}
+  \caption{Someting about properties}
+  \label{tab:properties-mapping}
+\end{table}
+
