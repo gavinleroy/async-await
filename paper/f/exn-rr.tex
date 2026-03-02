@@ -1,0 +1,24 @@
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+$\langle \Sigma, E[\text{try } G[\text{throw } v] \text{ catch } (\text{fun } x \to e)] \rangle$ & [Catch-Exn] \\
+$\longrightarrow \langle \Sigma, E[(\text{fun } x \to e)\ v] \rangle$ &
+\end{tabular*}
+
+\vspace{1.5em}
+
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+$\langle \Sigma, G[\text{throw } v] \rangle \longrightarrow \langle \Sigma, \text{throw } v \rangle$ & [Uncaught-Exn] \\
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \textbf{where } G \neq [\cdot]
+  \end{array}$
+}
+\end{tabular*}
+
+\vspace{1.5em}
+
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+$\langle \Sigma, E[\text{try } v \text{ catch } e_h] \rangle \longrightarrow \langle \Sigma, E[v] \rangle$ & [Catch-Value]
+\end{tabular*}

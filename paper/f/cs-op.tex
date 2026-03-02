@@ -1,0 +1,28 @@
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+$\langle  \Sigma_0, \Pi \uplus \{ \langle \ell, E[(\text{async fun } \many{x} \to e_{body})\ \many{v}] \rangle :: \mathcal{F}_{rest} \} \rangle$ & [Async-App] \\
+$\longrightarrow \langle \Sigma_2, \Pi \uplus \{ F_{new} :: \langle \ell, E[x_{task}] \rangle :: \mathcal{F}_{rest} \} \rangle$ & \\
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \textbf{where } (\Sigma_1, v_{task}) = \text{task\_alloc}(\Sigma_0, \ell) \text{ and } x_{task} = \text{gensym()} \text{ and } \many{x}_{fresh} = \many{\text{gensym()}} \\
+  \qquad \Sigma_2 = \Sigma_1[x_{task} \mapsto v_{task}, \many{x}_{fresh} \mapsto \many{v}] \\
+  \qquad e_{subst} = e_{body}[\many{x}_{fresh}/\many{x}] \\
+  \qquad e_{try} = \text{try } \text{task\_set\_done}(x_{task}, e_{subst}) \text{ catch } v_{err} \to \text{task\_set\_failed}(x_{task}, v_{err}) \\
+  \qquad F_{new} = \langle x_{task}, \text{reset } ( e_{try} \mathbin{;} \text{os\_start\_soon}(\text{task\_get\_waiters}(x_{task})) ) \rangle
+  \end{array}$
+}
+\end{tabular*}
+
+\vspace{1.5em}
+
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+$\langle  \Sigma, \Pi \uplus \{ \langle \ell, E[\text{await } v_{aw}] \rangle :: \mathcal{F}_{rest} \} \rangle$ & [Await] \\
+$\longrightarrow \langle \Sigma, \Pi \uplus \{ \langle \ell, E[e_{check}] \rangle :: \mathcal{F}_{rest} \} \rangle$ & \\
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \textbf{where } e_k = \text{shift } x_k \to \text{task\_add\_waiter}(v_{aw}, \ell, \text{fun } () \to x_k\ (\text{task\_get\_result}(v_{aw}))) \\
+  \qquad e_{check} = \text{if } \text{task\_is\_completed}(v_{aw}) \text{ then } \text{task\_get\_result}(v_{aw}) \text{ else } e_k
+  \end{array}$
+}
+\end{tabular*}

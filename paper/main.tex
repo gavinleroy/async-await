@@ -1,4 +1,4 @@
-\documentclass[acmsmall,screen,review]{acmart}
+\documentclass[acmsmall,screen,anonymous,review]{acmart}
 
 %%
 %% \BibTeX command to typeset BibTeX logo in the docs
@@ -6,9 +6,12 @@
 
 \bibliographystyle{ACM-Reference-Format}
 
-\usepackage{prelude}
+\setcopyright{none}
 
-%%% TODO: CCSXML goes here
+%%%%
+%% TODO: CCSXML goes here
+
+\usepackage{prelude}
 
 %%%%
 %% end of the preamble, start of the body of the document source.
@@ -37,44 +40,50 @@
 \setlength{\enumerateparindent}{\parindent}
 
 \begin{abstract}
-???
+The design space for the async/await abstraction of cooperative concurrency is large. Many languages have adopted this abstraction and lie at different points in the design space. We provide dimensions for async/await design and provide the operational behavior of several moden programming languages with async/await. We show how the resulting langauges can guarantee, or preclude, certain program properties based on the design dimensions of the async/await system.
 \end{abstract}
 
-%%
-%% Keywords. The author(s) should pick words that accurately describe
-%% the work being presented. Separate the keywords with commas.
-% \keywords{}
-  
+%%%%
+%% \keywords{}
+
 \maketitle
 
 \section{Introduction}
 
-Contemporary programming languages make efficient use of hardware resources. Multithreading with coarse-grained parallel computations has long been the de-facto standard to take advantage of hardware resources. However, the landscape of modern languages have adopted flavors of \textit{asynchronous programming,} which is based on fine-grained suspendable computations. 
-
-Unlike parallel programming with multiple threads, concurrent programming interleaves computations for better concurrency to suit the needs of modern programs that wait for user inputs, system IO, etc. The promise of ``async/await'' systems is that concurrent code looks like synchronous code and that developers can use familiar reasoning facilities to understand their code's execution.
-
-The design of ``async/await'' systems has organically grown out of the desire for async programs to syntactically resemble synchronous programs and the design constraints of retro-fitting a concurrent system atop a synchronous base. Async systems hide complex control flow and a myriad of design decisions, which impact the developer, behind the facade of familiar syntax. Our goal is to shed light on the design decisions of contemporary async systems, the impact these decisions have on developers, and the semantics of popular systems in use today. We describe the landscape of asynchronous systems in four parts: 
+\ggnote{You will read the words \Coro{} and \Task{} in the text. In the source these are written as macros and I'm using these silly names for now fully expecting us to have a discussion on what they should be later.}
 
 \begin{enumerate}
-  \item \textbf{We motivate the work with case studies about the pitfalls of async/await systems.} We show that developers struggle to understand the behavior of async programs due to inconsistent terminology, mismatched guarantees, and divergent semantics between languages.
+  \item \textbf{We motivate the work with case studies about the pitfalls of async/await syntax.} Async/await as a syntactic abstraction hides the semantics of the underlying concurrency model. We show how developers can easily write erroneous programs due to inconsistent terminology, mismatched guarantees, and complicated semantics that diverges between languages. (\Cref{sec:motivation})
 
-  \item \textbf{We outline the design dimensions of an asynchronous system.} Adding asynchronous programming to a language natively requires great engineering effort. The language gains new syntactic constructs, compiler transformations, and a runtime system that all work together to provide the desired look and behavior. We find that many of these systems share a common set of architectural components, but differ in how these components are assembled. We outline these decisions and clarify mixed terminology that exists in the wild.
+  \item \textbf{We outline the design dimensions for cooperative multitasking.} Adding asynchronous programming to a language natively requires great engineering effort. The language gains new syntactic constructs, compiler transformations, and a runtime system that all work together to provide the desired look and behavior. We find that many of these systems share a common set of architectural components, but differ in how these components are assembled. We outline these decisions and clarify mixed terminology that exists in the wild. (\Cref{sec:designdims})
 
-  \item \textbf{We provide operational semantics for several contemporary programming languages' asynchronous systems.} We grow the operational semantics from the $\lambda$-calculus into the complex systems that exist in the wild. We show how the design decisions affect the operational behavior of each language compared to the others.
-    
-  \item \textbf{We provide a mapping of design decisions to properties of programs in the resulting language.} Language designers make trade-offs when designing their async systems. We highlight how these trade-offs impact the resulting programs developers write. This information can help developers understand the behavior of their programs, and inform language designers of the downstream impact of their design decisions. We encourage designers going forward to consider the properties they wish to provide to developers and design their systems accordingly.
+  \item \textbf{We provide operational semantics for several contemporary programming languages' with async/await syntax.} We show precisely where the design dimensions emerge from the operational semantics. We provide the semantics as an extension to a $\lambda$-calculus core language with \code{reset} and \code{shift} operators. (\Cref{sec:semantics})
+
+  \item \textbf{We provide a mapping of design decisions to properties of programs in the resulting language.} Language designers make trade-offs when designing their async systems. We highlight how these trade-offs impact the resulting programs developers write. This information can help developers understand the behavior of their programs, and inform language designers of the downstream impact of their design decisions. We encourage designers going forward to consider the properties they wish to provide to developers and design their systems accordingly. (\Cref{sec:properties})
 \end{enumerate}
 
-\section{Motivation}
+\section{Motivation}\label{sec:motivation}
 
-The design of async/await systems has organically grown out of the desire for async programs to syntactically resemble synchronous programs. Before async/await existed, langauges relied on callbacks, and complicated user-defined objects to model concurrent, even-driven computations. However, all of these approachers were verbose and unsatisfying. \Cref{fig:motivation:evolution} shows the evoluation of a piece of code from synchronous, callback-based, promise-based, and finally with async/await.
+Today there are three popular paradigms of concurrent computing: fork-join, communicating sequential processes (\abbr{csp}), and cooperative multitasking. Fork-join is widely used for \textit{data parallelism} to speed up \abbr{cpu}-bound computations. Examples of fork-join include the OpenMP framework and the Cilk programming language. \abbr{csp} is widely used for safe dataflow and memory safety, it's a member of the process algebra family and is based on message passing over channels. Examples of \abbr{csp} include Unix procesess and pipes, Erlang processes and mailboxes, and Go goroutines and channels. As an idiom, \abbr{csp} replaces shared memory and locks. A popular maxim in the Go community is, ``Do not communicate by sharing memory; instead, share memory by communicating.''~\cite{andrew_gerrand_2010}. Cooperative multitasking is widely used for \abbr{io}-bound computations and is based on fine-grained, suspendable computations. Examples of cooperative multitasking include Windows 3.1 and MacOS $\lt9$ processes, Lua coroutines, and Python's Twisted framework.
+
+In recent years the async/await syntactic abstraction has been popularized to make concurrent programming easier. In this paper our target focus is languages with the async/await abstraction, and the semantics of the asynchronous constructs this abstraction hides. Many languages have adopted the async/await syntax (\CSharp{}, \FSharp{}, \Cpp{}, Python, Rust, Swift, JavaScript, Kotlin, Hack, Nim) and the proposal for this language modification follows a similar pattern in all of them.
+
+Before async/await, languages commonly used a combination of callbacks and user-defined objects to model event-driven computation. Achieving concurrency with the then-standard language features was verbose and error prone. \Cref{fig:motivation:evolution} is an illustrative example of the journey language designers go through in their proposal for async/await syntax. They begin with a synchronous function, pointing out that all the \abbr{io} operations are blocking and can take some time. They then show several asynchronous versions of the same function, highlighting the contrast in code size and complexity. Lastly, they present the version using async/await syntax, which looks almost identical to the original synchronus function.
 
 %%%%
-%% The JavaScript code in the figure really messes up 
-%% Tex highlighting in Vim
+%% The JavaScript code in the figure really
+%% messes up Tex highlighting in Vim
 \input{./f/async-evolution.tex}
 
-It's tantilizing to claim that async/await provides a large benefit to developers when you see the the small difference between the synchronous version and async/await version. In fact, many contemporary programming languages have made this claim! (emphasis ours)
+The design of async/await systems has organically grown out of the desire for asynchronous programs to syntactically resemble synchronous programs. It's tantilizing to claim that async/await is simpler for developers to use because the syntax is familiar to that they already know. In fact, many contemporary programming languages have made this claim! The following quotes are from the official proposal to add async/await syntax to an existing language (emphasis ours).
+
+\begin{displayquote}%c#
+  \textbf{(\CSharp{})} \textit{Notice first how similar it is to the synchronous code.} \ldots The control flow is completely unaltered, and there are no callbacks in sight. That doesn’t mean that there are no callbacks, but the compiler takes care of creating and signing them up \ldots~\cite{torgersen_asynchronous_nodate}
+\end{displayquote}
+
+\begin{displayquote}%js
+  \textbf{(JavaScript)} With async functions, all the remaining boilerplate is removed, leaving only \textit{the semantically meaningful code in the program text.}~\cite{noauthor_async_nodate-1}
+\end{displayquote}
 
 \begin{displayquote}%python
   \textbf{(Python)} It is proposed to make coroutines a proper standalone concept in Python, and introduce new supporting syntax. \textit{The ultimate goal is to help establish a common, easily approachable, mental model of asynchronous programming in Python and make it as close to synchronous programming as possible.}~\cite{noauthor_pep_nodate}
@@ -85,20 +94,12 @@ It's tantilizing to claim that async/await provides a large benefit to developer
 \end{displayquote}
 
 \begin{displayquote}%swift
-  \textbf{(Swift)} Modern Swift development involves a lot of asynchronous (or "async") programming using closures and completion handlers, but these APIs are hard to use. This gets particularly problematic when many asynchronous operations are used, error handling is required, or control flow between asynchronous calls gets complicated. \textit{This proposal describes a language extension to make this a lot more natural and less error prone.}~\cite{noauthor_swift-evolutionproposals0296-async-awaitmd_nodate}
+  \textbf{(Swift)} Modern Swift development involves a lot of asynchronous (or ``async'') programming using closures and completion handlers, but these APIs are hard to use. This gets particularly problematic when many asynchronous operations are used, error handling is required, or control flow between asynchronous calls gets complicated. \textit{This proposal describes a language extension to make this a lot more natural and less error prone.}~\cite{noauthor_swift-evolutionproposals0296-async-awaitmd_nodate}
 \end{displayquote}
 
-\begin{displayquote}%js
-  \textbf{(JavaScript)} With async functions, all the remaining boilerplate is removed, leaving only \textit{the semantically meaningful code in the program text.}~\cite{noauthor_async_nodate-1}
-\end{displayquote}
+It's true that the async/await version of our illustrative example strongly resembles the synchronous version, however, the sad reality is that it does not take advantage of concurrency. Not only is the syntax of the async/await function similar to the synchronous version, so is its execution. The truth is that async/await is a syntactic abstraction over complicated semantics. Reasoning about async/await programs is no easier than reasoning about any concurrent program. In this section we provide examples of surprising async/await program behavior, which require deeper knowledge of concurrent semantics than the async/await abstraction may lead you to believe.
 
-\begin{displayquote}%c#
-  \textbf{(\CSharp{})} \textit{Notice first how similar it is to the synchronous code.} \ldots The control flow is completely unaltered, and there are no callbacks in sight. That doesn’t mean that there are no callbacks, but the compiler takes care of creating and signing them up \ldots~\cite{torgersen_asynchronous_nodate}
-\end{displayquote}
-
-The shocking reality is that the async/await example provided in \Cref{fig:motivation:evolution} is synchronous, the downloaded \abbr{uri}'s are sequentalized by the await in the loop body. For each cited language feature proposal, the proposers show examples of \textit{synchronous code} with async/await keywords sprinkled throughout, the reality is that the code is also altered when concurrency is desired.
-
-In this section we expose the faulty logic that async/await is less complicated because it looks like synchronous code. Time is a dependency that cannot be fully abstracted, by hiding it behind keywords, developers require deeper knowledge of the system implementation than ever before.
+\ggnote{We left off unsure whether these examples are good for our purposes. Not a lot of energy and time has been put into polishing the text or the code, we need to revisit this discussion to see what presentation format will be most motivating. Real-world examples? Written in the original language? Written in pseudo code?}
 
 \subsection{Rust and the Missing Packets}
 
@@ -143,7 +144,7 @@ async fn forward_with_timeout(
   \end{minipage}\hfill%
   \begin{minipage}[t]{0.49\textwidth}
 \begin{lstlisting}[language=Rust]
-async fn forward_with_timeout_(
+async fn forward_with_timeout(
   mut rx: mpsc::Receiver<String>, 
   tx: mpsc::Sender<String>
 ) -> Option<()> {
@@ -206,7 +207,7 @@ If you push this code in to production you'd likely wake up the morning after to
 
 If the \code{withdraw} method were instead synchronous the issue described above would not occur. Execution would enter the function, locking the actor, and the actor would not unlock until execution returned from the function. The actor remains locked in all callees because of the strict nesting behavior of stack frames. Asynchronous function calls break the strict nesting of stack frames, making it possible to exit the actor (via a suspend), only to reenter the actor within the same logical computation.
 
-\subsection{\CSharp{} and the ``Exceptional'' Text Editor}
+\subsection{\CSharp{} and the Exceptional Text Editor}
 
 Windows Forms applications are popular motivation for concurrency. The application needs to run many computations and perform background tasks all while the main \abbr{gui} remains unblocked. Common advice is that all computation that is not rendering should be done outside of the \abbr{gui} thread. Swift even enforces this in the type system by placing all SwiftUI components to render within the \textit{main actor,} and all computations are \textit{escapable,} meaning they can be run on a different actor.
 
@@ -220,203 +221,476 @@ The \code{AutoSaveTimer_Tick} method is marked as \textit{async void,} which mea
 
 We will discuss the complexities of exceptional control flow and async/await in \Cref{sec:semantics}. In synchronous code, exceptions simply propagate up the call stack to the nearest matching exception handler. In async/await, that is not always the case. Developers must consider exceptions from other threads, exceptions from called code, and even exceptions injected from the runtime.
 
-\subsection{Pedagogic Examples}
+\section{Design Dimensions}\label{sec:designdims}
 
-\ggnote{TODO, the pedagogic examples. I believe these should show the exact same errors as the previous three.}
+The async/await syntax rewrites a synchronous-looking program into a concurrent program that executes in the cooperative multitasking paradigm. When a language is extended with async/await syntax the designer makes several design decisions that affect the execution of the resulting code. The first is how the expansion of the async/await keywords takes place, the second is the architecture of the underlying cooperative multitasking system, and the third are the runtime semantics of the multitasking system.
 
-\section{Design Dimensions} \label{sec:designdims}
+In this section we will look at the design dimensions of an async/await system. We will first discuss the key architectural components of a cooperative multitasking system, then we will outline the design dimensions of the async/await expansion and runtime execution.
 
-The design of async/await systems rely on several key components. These range from language features that provide extra control-flow constructs to the langauge, to user-space objects that coordinate the runtime of the asynchronous code. In this section we will list what each of these constructs and objects are and their role in the larger asynchronous system. We will highlight the design decisions on how to assemble the pieces together and in \Cref{sec:semantics} we provide the operational behahvior of several contemporary programming languages, which assemble th pieces differently.
+\subsection{Architecture of a Cooperative Multitasking System}
 
-\subsection{Language Features}
-
-To simply \textit{support} concurrent execution, programming languages need to provide advanced control flow that enables functions to suspend themselves for later resumption. The expressive power of a \textit{one-shot delimited continuation} is necessary, however, language designers may choose to not expose this functionality to users by containing this expressivity within compiler transformations. As we will discuss in \Cref{sec:semantics}, several languages need finer-grained control over memory allocation than \code{call/1cc} would provide, and indeed, most do not have direct support for capturing any variant of continuation. Therefore the language feature we present as a building block for concurrency is \textit{the coroutine.}
-
-\subsubsection{Coroutines} As a generalization of the function, the concept of a coroutine has existed since the early 1960's~\cite{conway_design_1963}. Many researchers explored their use as a general control mechanism~\cite{knuth_art_1997,marlin_coroutines_1980,pauli_coroutine_1980,moody_coroutine_1980,wirth_programming_1985,griswold_icon_1983}, but it wasn't until 2009, when~\cite{moura_revisiting_2009} classified coroutine mechanisms and demonstrated their equivalence to one-shot delimited continuations. The design dimensions provided are: asymmetric vs.\ symmetric (e.g., the semantics of \code{yield}), stackful vs.\ stackless (e.g., where a \code{yield} can occur), and first-class vs.\ limited-use coroutines (e.g., are coroutines first class values).
-
-In this section we will use the word coroutine to mean any implementation of coroutines along the three design dimensions. For most programming languages, functions support two operations: \ctrlop{call} and \ctrlop{return} --- here we consider throwing an exception as a \ctrlop{return} operation. A \textit{coroutine} supports three additional operations: \ctrlop{suspend}, \ctrlop{resume}, and \ctrlop{destroy}.
-
-Coroutines contain data that must be preserved across suspension points and they contain data that only needs to be kept while the coroutine is executing. Data that must persist across suspension points is stored on the \textit{coroutine frame} and data that does not can go on the executing \textit{stack frame}. We will refer to the coroutine frame as The \Coro, an object that holds the state necessary to suspend and resume execution of the coroutine body.
-
-The \ctrlop{suspend} operation allows a coroutine to suspend execution in the middle of the function and transfer execution elsewhere. Suspension points within a coroutine are typically identified by usages of a keyword, such as \code{await} or \code{yield}. When a coroutine hits a suspension point it first prepares itself for resumption by (1) ensuring necessary values are written to the coroutine frame, and (2) writing a value to the coroutine frame that indicates where the coroutine is being suspended at.
-
-The \ctrlop{resume} operation can be performed on a suspended coroutine. Resumption will allocate a new stack frame, restoring the necessary state from the previous suspension, and execution will transfer to the point after suspension.
-
-The \ctrlop{destroy} operation can be performed on a suspended coroutine and destroys the coroutine frame without resuming execution of the coroutine.
-
-The \ctrlop{call} operation of a coroutine is similar to that of a function.\footnote{In fact, from the caller's perspective the two are equivalent.} However, instead of beginning execution of the coroutine body, the coroutine will first allocate a coroutine frame, write necessary data to the frame, and then possibly suspend to the caller. We say `possibly suspend` because a language may choose to continue coroutine executino until the first suspension point, or unconditionally suspend after creating the coroutine frame.
-
-The \ctrlop{return} operation is highly dependent on the semantics of the language. When a coroutine returns the language may choose to suspend the coroutine, thus keeping The Coroutine alive, or it may destroy The Coroutine and return to the caller like a normal function. Execution is then returned to the caller/resumer.
-
-\subsection{Library Components}
-
-Asynchronous programs require a runtime to manage and schedule the execution of concurrent code. A runtime may be multithreaded, or single threaded, it may be provided by the language and its runtime, or as a third-party library. The runtime design is informed by the language feature exposed to suspend and resume execution of coroutines.
-
-\subsubsection{Runtime Object} The runtime object, moving forward referred to as The \Task, wraps a \Coro{} into an object that can be passed around by the runtime system. Semantically, a \Task{} is simply a pointer to the underlying \Coro{} that represents the computation.
-
-An important property of a \Task{} is that it's registered in the runtime system and is scheduled to execute in the near future. Unlike a \Coro, which will not execute unless explicitly resumed, a \Task{} is being watched and its execution \textit{scheduled} by the runtime.
-
-\subsubsection{Scheduler} The scheduler is responsible for scheduling concurrent code to execute. Execution may take place on a single thread, green threads, or multiple OS-threads. For this work, we consider the implementation of the scheduler as a performance concern and not part of the operational behavior of asynchronous programs. The scheduler may have implications on fairness and termination, which we discuss in \Cref{sec:discussion}.
-
-\subsection{Terminology in The Wild} \label{sec:terminology:equiv}
-
-\begin{table}
-  \caption{Overview of terminology used by various concurrency systems / libraries. \ggnote{Everything below the middle rule needs to be double checked.}}
-  \label{tab:terminology-overview}
-  \begin{tabular}{lll}
-    \toprule
-    System                 & \Coro{}                               & \Task{}                   \\ % & Scheduler                              \\
-    \midrule
-    \CSharp{}              & IAsyncStateMachine                    & Task                      \\ % & TaskScheduler / SynchronizationContext \\
-    JavaScript             & Generator                             & Promise                   \\ % & Event Loop (Microtask Queue)           \\
-    Swift                  & PartialTask / Job                     & Task                      \\ % & Executor / SerialExecutor              \\
-    Rust                   & Future                                & -                         \\ % & Runtime / Executor (Tokio/async-std)   \\
-    Tokio (Rust)           & Future (Pinned)                       & Task                      \\ % & MultiThread / CurrentThread Scheduler  \\
-    Python                 & Coroutine                             & Task                      \\ % & AbstractEventLoop                      \\
-    AsyncIO (Python)       & Coroutine                             & Task                      \\ % & SelectorEventLoop / ProactorEventLoop  \\
-    \midrule
-    Kotlin                 & Continuation                          & Deferred                  \\ % & CoroutineDispatcher                    \\
-    Zig                    & @Frame / anyframe                     & @Frame                    \\ % & std.event.Loop (Lib) / Manual          \\
-    Gears (Scala)          & Async (Context/Capability)            & Future (Active/Passive)   \\ % & Suspension (Loom/Native)               \\
-    Haskell                & TSO (Thread State Object)             & ThreadId / MVar           \\ % & Capability (HEC)                       \\
-    OCaml 5                & Continuation                          & Fiber (Eio) / Promise     \\ % & Effect Handler (Schedule effect)       \\
-    Go                     & G (runtime.g)                         & (Channels / WaitGroup)    \\ % & "GMP Model (M &  P &  Netpoller)"      \\
-    Loom (Java)            & Continuation (VM Internal)            & VirtualThread / Future    \\ % & ForkJoinPool (Carrier Threads)         \\
-    C++20                  & Coroutine                             & -                         \\ % & std::execution (Proposed)              \\
-    Dart                   & Suspension Point (VM Internal)        & Future                    \\ % & Event Loop (Microtask Queue)           \\
-    Julia                  & Task                                  & Task                      \\ % & Task{}scheduler (Base)                  \\
-    Erlang                 & Process (PCB)                         & PID                       \\ % & BEAM SMP Scheduler (Reduction counting)\\
-    Elixir                 & Process                               & Task/struct               \\ % & BEAM SMP Scheduler                     \\
-    Lua                    & lua_State (Thread)                    & (Thread value)            \\ % & Manual (coroutine.resume loop)         \\
-    Ruby                   & Fiber                                 & -                         \\ % & Fiber::SchedulerInterface              \\
-    Hack                   & -                                     & Awaitable                 \\ % & Asio Scheduler                         \\
-    F#                     & Async                                 & Async                     \\ % & Trampoline / ThreadPool                \\
-    Nim                    & iterator (Transformed)                & Future                    \\ % & Dispatcher / poll                      \\
-    Crystal                & Fiber                                 & Channel (Implicit)        \\ % & Scheduler / EventLoop                  \\
-    Simula 67              & Object (Detached)                     & Process                   \\ % & Event Notice / Timeline                \\
-    Modula-2               & PROCESS                               & -                         \\ % & TRANSFER (Primitive)                   \\
-    \bottomrule
-  \end{tabular}
-\end{table}
-
-\subsection{Architectural Components}
-
-\ggnote{To help with the discussion on deisign dimensions in the next section, I want some sort of state-machine diagrams that helps position where each dimension fits.}
+A cooperative multitasking system requires several key architectural components. In this section we detail what those components are and highlight how they fit into the larger execution of a concurrent program.
 
 \begin{figure}
   \centering
-  \begin{minipage}[t]{0.5\textwidth}
-    \includegraphics[width=0.95\textwidth]{example-image-a}
-  \end{minipage}\hfill%
-  \begin{minipage}[t]{0.5\textwidth}
-    \includegraphics[width=0.95\textwidth]{example-image-b}
-  \end{minipage}
-  \caption{(Left) Something to do with the lifecycle of a coroutine. (Right) Something to do with the state diagram of the runtime system.}\label{fig:architecture-diagram}
+  \includegraphics[width=0.98\textwidth]{./assets/cooperative-multitasking.pdf}
+  \caption{Cooperative Multitasking Architecture}
+  \label{fig:architecture-diagram}
 \end{figure}
 
-\subsection{Design dimensions}
+\paragraph{\Coro{} (low-level control flow)} The most fundamental building block in cooperative multitasking is a functions ability to suspend itself for later resumption. The base language must provide functionality equivalent to \textit{delimited continuations.} A majority of languages do not rely on continuations, but rather, rewrite asynchronous funcions into a state machine. The expanded state machine code behaves like an \textit{asymmetric stackless coroutine,} to use the taxonomy provided by~\cite{moura_revisiting_2009}. General coroutines can yield values on suspension and accept values on resumption. For cooperative multitasking the generated state machine does not need to yield values on suspension, but needs only to accept values on resumption (or access them at a shared location). To distinguish from general coroutines we will use the term \Coro{} to refer to a coroutine with this limited ability.
 
-A concurrent system requires the power of \Coro{}s, \Task{}s, and a Scheduler to push everything along. However, these pieces don't always fit nicely together and some careful assembly is required. For example, a designer may choose a different coroutine design based on the previous design of the language, which in turn introduces a constraint on all downstream decisions. In this section we provide five async/await design axes that pertain to the design and assembly of the core language and runtime building blocks discussed above.
+\begin{figure}[htbp]
+  \begin{minipage}[t]{0.42\textwidth}
+\begin{lstlisting}[language=Rust]
+async fn slow_print(msg):
+  println!("{msg}")
+  await sleep(Duration::millis(5))
+\end{lstlisting}\vspace{2em}
+\begin{lstlisting}[language=Rust]
+enum SP:
+  Init(msg),
+  Waiting(fut)
 
-Given the core set of architectural components outlined above, we highlight how a langauge's assembly of these components influences its operational behavior. In particular, for each language we provide an answer to the following questions:
+fn slow_print(msg):
+  SP::Init(msg)
+\end{lstlisting}
+  \end{minipage}\hfill%
+  \begin{minipage}[t]{0.58\textwidth}
+\begin{lstlisting}[language=Rust,firstnumber=7]
+impl Future for SP:
+  fn poll(self, ctx):
+    loop:
+      match *self:
+        SP::Init(msg):
+          let fut = sleep(Duration::millis(5))
+          *self = SP::Waiting(fut)
+        SP::Waiting(fut):
+          if let Poll::Ready(()) = fut.poll(ctx):
+            return Poll::Ready(())
+          else:
+            return Poll::Pending
+\end{lstlisting}
+  \end{minipage}
+  \cprotect\caption{An example of how the Rust compiler transforms an async function into a state machine. The function code{} \ggnote{Using a pseduo-Rust syntax here and, even if we do want to keep an example here, we'll need something a bit more illustrative.}}
+  \label{fig:state-machine-transform}
+\end{figure}
 
-\subsubsection{Eagerness} The Eagerness axis defines the eagerness of an async function application, the possible values are: \textit{lazy, semi-lazy, semi-eager,} and \textit{eager.} An eager application is where the current thread transfers execution to the body of the async function, until a suspend operation is called, at which point the application evalutes to a \Task{} value. A \textit{semi-}eager application evaluates immediately to a \Task{} value, but it is only scheduled for execution, the currently executing thread does not begin execution of the function body. A \textit{semi-}lazy application is where the current thread transfers execution to the body of the async function, until a suspend operation is called, at which point the application evalutes to a \Coro{} value. A lazy application evaluates immediately to a \Coro{} value, no code in the function body is executed.
+\paragraph{\Task{} (async runtime object)} The \Coro{} is a state machine representation of the users initial code, and the \Task{} is the runtime object that tracks the state, e.g., the state of the state machine and other \Task{}s that are waiting on this \Task{}s value. There's an important distinction between the \Coro{} and the \Task{}, the former is an alternative representation of the users code, the latter is a pointer to that executing code. The \Task{} is registered with the current asynchronous runtime and will eventually be scheduled to run.
 
-\begin{wrapfigure}{r}{0.33\textwidth}
+A \Task{} represents one \Coro{} that is registered in the runtime, but with cooperative multitasking it is important to understand how \Task{}s relate to each other. We will describe \Task{} relationships using a \textit{task tree.} The nodes in the task tree are the set of all executing \Task{}s in the runtime system. The task tree may be held explicitly, e.g., by the runtime system, or may be held implicitly, e.g., through object pointers or registered callbacks. As we will discuss in \Cref{ssec:designdims}, how the task tree is constructed and destructed affects the runtime semantics.
+
+\paragraph{Reactor (OS interface)} The reactor provides a communication layer between the runtime and the operating system. A fundamental assumption of cooperative multitasking is that the underlying operating system is capable of concurrent \abbr{io}. The reactor starts an \abbr{io} operation with the \abbr{os} and, when the \abbr{os} signals that the operation is done, will requeue the waiting \Task{} with the returned value.
+
+\paragraph{Executor (Thread interface)} The executor is responsible for removing \Task{}s from the work queue and placing them on a thread to execute. The implementation of the Reactor and Executor are mostly a performance consideration, which we see as out of scope for this investigation. The Executor implementation may have implications on fairness and termination, which we discuss in \Cref{sec:discussion}.
+
+\subsection{Terminology in The Wild} \label{sec:terminology:equiv}
+
+\begin{table}[htbp]
+  \begin{tabular}{lll}
+    \toprule
+    System            & \Coro{}          & \Task{}    \\
+    \CSharp{}         & IAsyncStateMachine & Task       \\
+    JavaScript        & -                  & Promise    \\
+    Swift             & -                  & Task       \\
+    \midrule
+    Rust              & Future             & -          \\
+    Tokio (Rust)      & -                  & Task       \\
+    SMOL (Rust)       & -                  & Task       \\
+    \midrule
+    Python            & Coroutine          & -          \\
+    asyncio (Python)  & -                  & Task       \\
+    Trio (Python)     & -                  & Task       \\
+    \midrule
+    Kotlin            & Coroutine          & Deferred   \\
+    \Cpp{}20          & Coroutine          & Promise    \\
+    Hack              & -                  & Awaitable  \\
+    Nim               & -                  & Future     \\
+    Dart              & -                  & Future     \\
+    Zig               & -                  & Future     \\
+    \FSharp{}         & -                  & Async      \\
+    \bottomrule
+  \end{tabular}
+  \caption{Overview of terminology used by async/await systems.}
+  \label{tab:aa-terminology-overview}
+\end{table}
+
+% \begin{table}
+%   \caption{(Not-so-)Different Languages \ggnote{Note, these are not double checked}}
+%   \label{tab:aaetc-terminology-overview}
+%   \begin{tabular}{lll}
+%     \toprule
+%     Gears (Scala)     & -                           & Future           \\
+%     Haskell           & TSO (Thread State Object)   & Async            \\
+%     OCaml 5 (async)   & Fiber                       & -                \\
+%     Lua               & Coroutine                   & (Thread value)   \\
+%     Ruby              & Fiber                       & -                \\
+%     \bottomrule
+%   \end{tabular}
+% \end{table}
+%
+% \begin{table}
+%   \caption{CSP languages}
+%   \label{tab:fj-terminology-overview}
+%   \begin{tabular}{lll}
+%     System       & Task      \\
+%     \toprule
+%     Go           & Goroutine \\
+%     Erlang       & Process   \\
+%     Elixir       & Task      \\
+%     Crystal      & Fiber     \\
+%     Julia        & Task      \\
+%     \bottomrule
+%   \end{tabular}
+% \end{table}
+
+\subsection{Design dimensions}\label{ssec:designdims}
+
+Provided the base components for a cooperative multitasking system, language designers must decide how the async/await syntax expands expands into primitives that control the base components. In this section we provide the async/await design dimensions. The design dimensions map the async/await syntax to the runtime behavior of the desugared program. The design dimensions are: \textit{eagnerness,} \textit{scope,} \textit{destruction,} \textit{propagation,} \textit{suspension,} and \textit{cancellation.}
+
+\subsubsection{Eagerness} The Eagerness axis defines the eagerness of an async function application, the possible values are: \textit{eager,} \textit{semi-eager,} and \textit{lazy.}
+
+On evaluating an eager async application, the current thread transfers execution to the body of the async function. When a suspension occurs, the application evaluates to a \Task{} value and execution of the calling context proceeds as normal. By contrast, a \textit{semi-}eager application evaluates immediately to a \Task{} value, but control does not transfer to the function body. The \Task{} is scheduled with the executor to run on the next available worker thread. A lazy application evaluates immediately to a \Coro{} object. As a reminder, \Coro{}s are not scheduled with the evaluator and perform work only when prompted.
+
+\begin{figure}[htbp]
   \raggedright
-\begin{lstlisting}[language=Rust,numbers=none]
+  \begin{minipage}[t]{0.30\textwidth}
+\begin{lstlisting}[language=Rust]
 async fn work(msg: &str) {
+  sleep(one_ms).await
   print!("{msg}");
-  tokio::task::yield_now()
-    .await
 }
 
 #[tokio::main]
 async fn main() {
-  let c1 = work("A");
-  let c2 = work("B");
+  let a = work("A");
+  let b = work("B");
   print!("C");
-  c1.await; c2.await;
+  a.await; b.await;
 } // => CAB
 \end{lstlisting}
-  \caption{An example of a \textit{lazy} async function application. The above program always results in the print order ``CAB''.}
-  \label{fig:designdims:eagerness-lazy}
-\end{wrapfigure}
+    \cprotect\subcaption{Rust function applications are lazy. The function \code{work} does not execute until line eleven. The print order of the program is always ``CAB'' because \code{a}, and \code{b} are not running concurrently.}
+    \label{fig:designdims:eagerness:lazy}
+  \end{minipage}\hfill%
+  \begin{minipage}[t]{0.33\textwidth}
+\begin{lstlisting}[language=Swift]
+func work(msg: String
+) async throws {
+  try await Task.sleep(
+    for: .milliseconds(1))
+  print(msg)
+}
 
-\subsubsection{Cancellation} The Cancellation axis defines the cancellation strategy of the system, the possible values are: \textit{none, polite, aggressive,} and \textit{unavoidable.} We say that a system provides no cancellation (none) if the developer must explicitly pass cancellation tokens to child \Task{}s, that is, the runtime system has no built-in mechanism for cancellation other than functions returning as normal. A \textit{polite} cancellation strategy allows callers to mark a cancellation flag in the \Coro{}, however, async computations must explicitly check this flag. Developers may choose to, or forget to, check the flag, and cancellation is not enforced. An \textit{aggressive} policy is one where any \code{await} expression may raise a \textit{cancellation exception.} We qualify this as a cancellation exception, because await points can raise exceptions if the awaited \Task{} raised an uncaught exception. Cancellation exceptions come from the runtime, not callees. A system provides \textit{unavoidable} cancellation if the cancelled \Task{} can not observe its own cancellation; unavoidable cancellation does not allow for \Task{}s to execute clean-up code.
+async let a = work(msg: "A")
+async let b = work(msg: "B")
+print("C")
+try await a; try await b
+// => CAB, CBA, BCA, ACB, ...
+\end{lstlisting}
+    \cprotect\subcaption{Swift function applications are semi-eager. The right-hand-side of an async let binding is evaluated in a concurrently executing \textit{child} task, control of the executing task does not jump to the body of the async function. The print order of the program is any permutation of the string ``ABC''.}
+    \label{fig:designdims:eagerness:semieager}
+  \end{minipage}\hfill%
+  \begin{minipage}[t]{0.33\textwidth}
+\begin{lstlisting}[language=CSharp]
+async Task work(string msg) {
+  Console.Write(msg);
+  await Task.Delay(1);
+}
+
+async Task Main() {
+  var a = work("A");
+  var b = work("B");
+  Console.Write("C");
+  await a; await b;
+} // => ABC
+\end{lstlisting}
+    \cprotect\subcaption{\CSharp{} function applications are eager. In this example the order of statements in the \code{work} function are flipped, the print happens before the delay. When \code{work} is called the executing thread transfers control to the body of the async function until it is suspended. The print order of this program is always ``ABC''.}
+    \label{fig:designdims:eagerness:eager}
+  \end{minipage}
+  \caption{Examles of lazy, semi-eager, and eager async function application.}
+  \label{fig:designdims:eagerness}
+\end{figure}
+
+Languages have adopted all variants of eagerness, as shown in \Cref{fig:designdims:eagerness}. Rust employes lazy function evaluation, \Coro{} values perform work only when awaited, polled, or spawned. \Cref{fig:designdims:eagerness:lazy} shows work being performed at an await point, resulting in a deterministic order of effects. Swift's \textit{async let} construct is semi-eager, as showsn in \Cref{fig:designdims:eagerness:semieager}, the right-hand-side of the binding is scheduled to run in a concurrently executing child task. Note that in Swift async applications, which are not immediately awaited, must be bound with an \textit{async let} instead of a normal let binding. The order of effects in this program is non-deterministic. \CSharp{} adopts a truly eager application, the currently executing thread will transfer execution to the body of the async function. In \Cref{fig:designdims:eagerness:eager}, the order of the print and delay statements are flipped in the body of the \code{work} function. Because applications are eagerly evaluated, the order of effects is deterministic.
+
+\subsubsection{Scope}\label{subsubsec:dims:scope} The Task Scope axis defines how the execution of a \Task{} is scoped, the possible values are: region scoped, and program scoped. A system enforces \textit{region scoping} if the lifetime of a child \Task{} cannot extend past the lifetime of its parent task in the task tree. Region scoping follows traditional lexical scope rules. Our definition of region scoping is similar to the term \textit{structured concurrency}~\cite{martin_sustrik2016,swift_structured_concurrency,elizarov_kotlin_2021} that has propagated in the wild. \Task{}s are program scoped if they are not region scoped.
+
+\begin{figure}[htbp]
+  \begin{minipage}[t]{0.49\textwidth}
+    \begin{lstlisting}[langauge=Swift,escapechar=|]
+func innerWork() async {
+    try? await Task.sleep(
+      for: .milliseconds(100))
+    print("done")
+}
+
+func work() async throws {
+    async let a = innerWork() /* |$T_1$| */
+    try await Task.sleep(
+      for: .milliseconds(1))
+    print("exiting")
+}
+
+try await work() /* |$T_0$| */
+\end{lstlisting}
+    \cprotect\subcaption{\Task{}s are region scoped in Swift. The \Task{} $T_1$ cannot outlive the \Task{} $T_0$. In the task tree, $T_0$ is a parent of $T_1$. This program prints ``exiting'' and then ``done.''}
+  \label{fig:designdims:scope:region}
+\end{minipage}\hfill%
+\begin{minipage}[t]{0.49\textwidth}
+\begin{lstlisting}[langauge=CSharp,escapechar=|]
+public static async Task InnerWork() {
+  await Task.Delay(100);
+  Console.Write("done");
+}
+
+async Task Work() {
+  var _ = InnerWork(); /* |$T_1$| */
+  await Task.Delay(1);
+  Console.Write("exiting");
+}
+
+async Task Main() {
+  await Work(); /* |$T_0$| */
+}
+\end{lstlisting}
+    \cprotectsubcaption{\Task{}s are program scoped in \CSharp{}. The \Task{} $T_1$ has no association with the \Task{} $T_0$. This program prints ``exiting,'' and the print in \code{InnerWork} is never executed.}
+    \label{fig:designdims:scope:program}
+  \end{minipage}
+  \caption{Examples of region- and program-scoped tasks.}
+  \label{fig:designdims:scope}
+\end{figure}
+
+\subsubsection{Destruction} The Task Destruction axis defines what happens to a task at the end of its scope (see \Cref{subsubsec:dims:scope}). At the end of its scope a task is either \textit{awaited,} \textit{cancelled,} or \textit{terminated.}
+
+\begin{figure}[htbp]
+  \begin{minipage}[t]{0.33\textwidth}
+\begin{lstlisting}[langauge=JavaScript,escapechar=|]
+async function inner_work() {
+  await new Promise(r => 
+    setTimeout(r, 100))
+  console.log("done")
+}
+
+async function work() {
+  let a = inner_work()
+  await new Promise(r => 
+    setTimeout(r, 1))
+  console.log("exiting")
+}
+
+await work()
+\end{lstlisting}
+  \end{minipage}\hfill%
+  \begin{minipage}[t]{0.33\textwidth}
+    \begin{lstlisting}[langauge=Swift,escapechar=|]
+func innerWork() async {
+  try? await Task.sleep(for: .milliseconds(100))
+  if Task.isCancelled {
+      print("I was cancelled")
+  }
+  print("done")
+}
+
+func work() async throws {
+  async let a = innerWork()
+  try await Task.sleep(for: .milliseconds(1))
+  print("exiting")
+}
+
+try await work()
+\end{lstlisting}
+    \cprotect\subcaption{\Task{}s are region scoped in Swift. The \Task{} $T_1$ cannot outlive the \Task{} $T_0$. In the task tree, $T_0$ is a parent of $T_1$. This program prints ``exiting'' and then ``done.''}
+  \label{fig:designdims:destriction:cancel}
+\end{minipage}\hfill%
+\begin{minipage}[t]{0.33\textwidth}
+\begin{lstlisting}[langauge=CSharp,escapechar=|]
+async Task InnerWork() {
+  await Task.Delay(100);
+  Console.Write("done");
+}
+
+async Task Work() {
+  var _ = InnerWork(); /* |$T_1$| */
+  await Task.Delay(1);
+  Console.Write("exiting");
+}
+
+async Task Main() {
+  await Work(); /* |$T_0$| */
+}
+\end{lstlisting}
+    \cprotectsubcaption{\Task{}s are program scoped in \CSharp{}. The \Task{} $T_1$ has no association with the \Task{} $T_0$. This program prints ``exiting,'' and the print in \code{InnerWork} is never executed.}
+    \label{fig:designdims:destruction:term}
+  \end{minipage}
+  \caption{Examples of await, cancel, and termination destruction semantics.}
+  \label{fig:designdims:destruction}
+\end{figure}
+
+We distignuish between the last two cases because cancellation provides running tasks the opportunity to perform clean-up actions, whereas termination does not.
+
+\subsubsection{Propagation} The Exception Propgation axis defines when an exception is propagated from a \Task{}s to the program if it \textit{was not awaited.} Every language with async/await syntax and exceptions progate exceptions at await points. What's interesting in this dimension, is when unawaited tasks propagate exceptions, the possible values are: \textit{destruction,} and \textit{never.} Exception propagation happens on destruction if a trapped exception is reraised at the end of a task's scope (see \Cref{subsubsec:dims:scope}). Unawaited task exceptions are never propagated if they are only reraised at await points.
 
 \subsubsection{Suspension} The Suspension axis defines how the set of \textit{await} points relates to the set of \textit{suspension} points, the possible values are: \textit{static,} and \textit{dynamic.} A system has \textit{static} suspension points if the language guarantees that every await point suspends the current computation. A system has \textit{dynamic} suspension points if the set of await points is a superset of the set of suspension points. Asynchronous computations may complete synchronously, in fact, a large number do, and the runtime can decide dynamically whether to actually suspend the calling \Task{} or continue with the awaited value.
 
-\subsubsection{Task Scope} The Task Scope axis defines how the execution of a \Task{} is scoped, the possible values are: region scoped, program scoped, and unscoped. A system enforces \textit{region scoping} if the lifetime of a \Task{} cannot extend past the lifetime of the \Task{} it was spawned from. Our definition of region scoping is similar to what others call \textit{structured concurrency}~\cite{}. A system enforces \textit{program scoping} if the lifetime of a \Task{} cannot outlive the program. \Task{}s are \textit{unscoped} if the program can terminate before running \Task{}s have terminated.
+\subsubsection{Cancellation} The Cancellation axis defines how a running task is cancelled, including how cancellation is signaled (if at all) and how cancellation propagates between task dependencies. A clear cancellation mechanism is what distinguishes async/await from other concurrency paradigms. Within the cancellation axis there are two design dimensions: \textit{cooperation,} and \textit{direction.}
 
-\subsubsection{Exception} The Exception axis defines how exceptions interact with \Task{}s, the possible values are: awaited, and reraised. A system has \textit{awaited} exceptions if trapped exceptions propagate out of \Task{}s at await points. A system has \textit{reraise} exceptions if an uncaught exception can terminate the program without awaiting on a faulted \Task.
+In this section we will illustrate cancellation using the function \code{process} defined in \Cref{fig:cancellation} in both Rust (SMOL) and Python (AsyncIO).
+
+\begin{figure}
+  \begin{minipage}[t]{0.49\textwidth}
+\begin{lstlisting}[language=Rust, linebackgroundcolor={\lineEq{15}}]
+async fn process(
+  db: Database,
+  cache: Cache,
+  request: Request,
+) -> Response {
+  let response = compute_response(
+    &db, &cache, request).await;
+
+  let db_update = smol::spawn(
+    update_db(&db, &response));
+
+  let cache_update = smol::spawn(
+    update_cache(&cache, &response));
+
+    db_update.await;
+    cache_update.await;
+
+  response
+}
+  \end{lstlisting}
+  \end{minipage}\hfill%
+  \begin{minipage}[t]{0.49\textwidth} 
+\begin{lstlisting}[language=Python, linebackgroundcolor={\lineEq{11}}]
+async def process(db, cache, request):
+  response = await compute_response(
+    db, cache, request)
+
+  db_update = asyncio.create_task(
+    update_db(db, response))
+
+  cache_update = asyncio.create_task(
+    update_cache(cache, response))
+
+  await db_update
+  await cache_update
+
+  return response
+\end{lstlisting}
+  \end{minipage}
+  \cprotect\caption{An illustrative async function, \code{process}, that processes a request, and in turn, updates a database and cache in parallel. It's important that the cache and database remain in sync, but the chosen cancellation policy may break this invariant. (Left) A Rust implementation using the SMOL async framework. SMOL uses a top-down, non-cooperative cancellation policy that may leave the database and cache in a \textit{partially-updated} state. (Right) A Python implementation using the Asyncio library. Asyncio uses a bottom-up, cooperative cancellation policy that may leave the database unchanged and the cache fully updated.}
+  \label{fig:cancellation}
+\end{figure}
+
+\paragraph{Cooperation} The Cooperation cancellation axis defines if cancellation requires cooperation from all tasks in the cancelled subtree. If cancellation is \textit{cooperative,} this means that a cancellation signal can get intercepted by a node in the tree if they do not cooperate. Cancellation is \textit{non-}cooperative if tasks have no choice but to cooperate with cancellation; non-cooperative cancellation can otherwise be referred to as termination.
+
+In Rust a \Coro{} is represented as an enumeration. Cancelling an \Coro{} is defined by simply freeing the value's memory. In the asynchronous framework SMOL, a \Task{} can be cancelled by either invoking the \code{.cancel()} method or freeing the \Task{}, which in turn frees the underlying \Coro{}. As a consequence of Rust's choice to define cancellation as a memory free, it is not possible for an asynchronous function to prevent a cancellation. A memory free cannot be shielded or intercepted. Therefore, we classify Rust's cancellation as non-cooperative. Note that this cancellation policy remains non-cooperative regardless of the async framework chosen for a specific program.
+
+\begin{figure}
+  \begin{minipage}[t]{0.49\linewidth}
+    \includegraphics[width=0.99\textwidth]{./assets/ai/rust-smol-cancellation.png}
+  \end{minipage}\hfill%
+  \begin{minipage}[t]{0.49\linewidth}
+    \includegraphics[width=0.99\textwidth]{./assets/ai/python-aio-cancellation.png}
+  \end{minipage}
+  \cprotect\caption{Example execution of the \code{process} function shown in \Cref{fig:cancellation}. (Left) The Rust (SMOL) implementation uses the non-cooperative memory free cancellation protocol. Both the \code{db_update} and \code{cache_udpate} are terminated, leaving the systems in a potentially inconsistent state. (Right) The Python (Asyncio) implementation uses exceptions to signal cancellation and the \code{cache_update} is left orphaned because cancellation is not signaled to it.}
+  \label{fig:cancellation:swimlane}
+\end{figure}
+
+
+Shown in \Cref{fig:cancellation:swimlane}, if the executing Rust function \code{process} is cancelled at line fifteen, then the memory for \code{process}, \code{db_update}, and \code{cache_update} are all freed. Neither the database update nor the cache update can rollback partially-made changes, so unless both operations completed fully before the cancellation, the system is left in an inconsistent state.
+
+Cancellation in Python is handled by raising an exception at the next await point blocking the task. Refering to the code in \Cref{fig:cancellation}, if the \code{process} function is cancelled at line eleven, the exception will be raised at an await point within the \code{update_db} function. Because \code{process} is waiting on \code{db_update}, an await point blocking the task is within the dynamic extent of \code{update_db}. The \textit{expectation} is that \code{update_db} will allow the exception to propagate, or reraise the exception if it needs to do some cleanup.
+
+\begin{wrapfigure}{r}{0.35\textwidth}
+  \raggedright
+\begin{lstlisting}[language=Python,numbers=none]
+async def db_update(db r):
+  snap = await db.snapshot()
+  try:
+    # .. cancelled in here ..
+  except:
+    await db_rollback(snap)
+\end{lstlisting}
+  \cprotect\caption{An example of a Python function swalling a cancellation request. The function \code{db_update} is not cooperating in the cancellation protocol by using a try/except block, which catches all exceptions.}
+  \label{fig:cancellation:cooperative}
+\end{wrapfigure}
+
+The \code{db_update} function may choose to, or be mistakenly programmed to, not cooperate with cancellation. \Cref{fig:cancellation:cooperative} provides an illustrative implementation of the \code{db_update} function that does not cooperate with the Asyncio cancellation protocol. A \code{asyncio.CancellationError} will get raised within the \code{db_update} function, however, since the function body is wrapped in a try/except block, the cancellation request is never propagated to the \code{process} function. \code{process} is unaware that the database was not updated and the database and cache are now out of sync.
+
+\paragraph{Propagation direction} The Propagation Direction axis defines where in the waiting tree of dependencies cancellation is signaled first and how that signal is propagated to the rest of the waiting nodes. The possible values are \textit{top-down,} \textit{bottom-up,} and \textit{simultaneous.}
+
+Before specifying exactly what the direction of cancellation propagation is, we first need to specify through what cancellation is propagating. Cancellation propagates through the \textit{task tree,} specifically, the task tree rooted at the cancelled task. Not all languages explicitly build a task tree in the runtime.
+
+Consider the Rust (SMOL) code in \Cref{fig:cancellation}, at line fifteen, the set of tasks is depicted in \Cref{fig:cancellation:tree:rust}. Unlike Python, an edge between two tasks in the SMOL task tree is added when a task is \textit{spawned,} not when it's awaited. We say this because the calling task has ownership of the spawned task. When a task is cancelled, SMOL invokes the destructors as they would typically run in Rust, which flows down the tree represented by memory ownership. Therefore, we say that Rust (SMOL) cancellation propagates top-down.
+
+\begin{wrapfigure}{l}{0.30\linewidth}
+  {\begin{tikzpicture}[scale=0.2]
+  \tikzstyle{every node}+=[inner sep=0pt]
+    \draw [black] (13.3,-24.3) circle (3);
+    \draw (13.3,-24.3) node {$\text{\tiny process}$};
+    \draw [black] (27.2,-18.9) circle (3);
+    \draw (27.2,-18.9) node {$\text{\tiny db\_update}$};
+    \draw [black] (23,-26.2) circle (3);
+    \draw (23,-26.2) node {$\text{\tiny cache\_update}$};
+    \draw [black] (16.1,-23.21) -- (24.4,-19.99);
+    \fill [black] (24.4,-19.99) -- (23.48,-19.81) -- (23.84,-20.74);
+  \end{tikzpicture}
+  \cprotect\subcaption{The state of the Python (Asyncio) task tree at line eleven. Because \code{process} is waiting on \code{db_update} the two form a tree, however, \code{cache_update} is not part of the current tree because it wasn't awaited.}
+  \label{fig:cancellation:tree:python}}
+
+  {\begin{tikzpicture}[scale=0.2]
+  \tikzstyle{every node}+=[inner sep=0pt]
+  \draw [black] (13.3,-24.3) circle (3);
+    \draw (13.3,-24.3) node {$\text{\tiny process}$};
+  \draw [black] (27.2,-18.9) circle (3);
+    \draw (27.2,-18.9) node {$\text{\tiny db\_update}$};
+  \draw [black] (23.8,-26) circle (3);
+    \draw (23.8,-26) node {$\text{\tiny cache\_update}$};
+  \draw [black] (16.1,-23.21) -- (24.4,-19.99);
+  \fill [black] (24.4,-19.99) -- (23.48,-19.81) -- (23.84,-20.74);
+  \draw [black] (16.26,-24.78) -- (20.84,-25.52);
+  \fill [black] (20.84,-25.52) -- (20.13,-24.9) -- (19.97,-25.89);
+  \end{tikzpicture}
+  \cprotect\subcaption{The state of the Rust (SMOL) task tree at line fifteen. Because SMOL's cancel on drop semantics, and Rust's owernship model, the task tree is help implicitly in Rust's memory.}
+  \label{fig:cancellation:tree:rust}}
+
+  \caption{The depicted task right before cancellation from the programs shown in \Cref{fig:cancellation}.}
+  \label{fig:cancellation:tree}
+\end{wrapfigure}
+
+Consider the Python (Asyncio) code in \Cref{fig:cancellation}, at line 11, the set of tasks is depicted in \Cref{fig:cancellation:tree:python}. By default, all tasks in Asyncio are disjoint. Given two tasks, $A$ and $B$, where $B$ is spawned from within $A$, an edge in the task tree is added between the two nodes only when $A$ awaits $B$. Therefore, in our example program \code{db_update} is a child of \code{process} only because of the await present on line eleven. Therefore, cancellation is signalled from within \code{update_db}, and propagates \textit{upward} in the task tree to signal cancellation.
+
+A \textit{simultaneous} cancellation would alert all tasks at the same time of cancellation. An example language with simultaneous cancellation propagation is Swift, as we will see in \Cref{sec:semantics}.
 
 \section{Semantics}\label{sec:semantics}
 
-The key contribution of this paper is a precise description of the operational behavior of several contemporary asynchronous systems. To reduce the cosmetic noise we provide the operational semantics as extensions to a simple base language. By providing the semantics in layers we highlight the control features necessary for a given language's implementation and can more easily compare the operational behavior between two languages.
+The key contribution of this paper is a precise and neutral description of the operational behavior of several contemporary asynchronous systems. To reduce the cosmetic noise we provide the operational semantics as extensions to a simple base language. By providing the semantics in layers we highlight the control features necessary for a given language's implementation and can more easily compare the operational behavior between two languages.
 
 We start with a core language, a call-by-value variant of the $\lambda$-calculus extended with a heap and mutation. The grammar and single-step reduction are provided in \Cref{fig:lang:lc}. The reduction rule is defined over a mutable heap $\sigma$ and an expression $e$, $\langle\sigma\,e\rangle$. The reduction rules and grammar for $\lambda$ are standard so we do not elaborate further.
 
-\begin{figure}[ht]
-  \raggedright
-  \resizebox{0.63\textwidth}{!}{%
-    \begin{minipage}[t]{0.32\textwidth}
-      \centering
-      \includegraphics[trim=0 4in 0 0, clip]{./assets/langs/lc.pdf}
-    \end{minipage}%
-    \hfill
-    \begin{minipage}[t]{0.66\textwidth}
-      \centering
-      \includegraphics[trim=0 4in 0 0, clip]{./assets/reductions/lc.pdf}
-    \end{minipage} }
-  \caption{$\lambda$}
-  \label{fig:lang:lc}
-\end{figure}
-
-We provide two base extensions for complex control flow to $\lambda$. The extension $\lambda_{exn}$ adds exceptions and $\lambda_{coro}$ adds coroutines. \Cref{fig:lang:exn} shows the grammar and reduction rule extensions for $\lambda_{exn}$, which extends $\lambda$ with \code{throw} and \code{catch} forms. \Cref{fig:lang:coro} shows the grammar and reduction rule extensions for $\lambda_{coro}$, which extends $\lambda$ with coroutines. Our coroutine provides the operational behavior for \textit{asymmetric stackful coroutines}, following a similar approach as \cite{moura_revisiting_2009}.
-
-\begin{figure}[ht]
-  \centering
-
-  \begin{minipage}{\textwidth}
-    \resizebox{0.63\textwidth}{!}{%
-      \begin{minipage}[t]{0.33\textwidth}
-        \raggedright
-        \includegraphics[trim=0 10in 0 0, clip]{./assets/langs/exn.pdf}
-      \end{minipage}%
-      \hfill
-      \begin{minipage}[t]{0.62\textwidth}
-        \raggedright
-        \includegraphics[trim=0 10in 0 0, clip]{./assets/reductions/exn.pdf}
-      \end{minipage} }
-    \caption{$\lambda_{exn}$}
-    \label{fig:lang:exn}
+\begin{figure}
+\centering
+  \begin{minipage}[t]{0.39\textwidth}
+    {\input{./f/lc-gr.tex}
+     \cprotect\subcaption{The grammar for the base $\lambda$-calculus. Our base is a totally standard version of $\lambda$ extended with Danvy and Filinski's \code{shift} and \code{reset} operators~\cite{danvy_filinski_2000}.}
+     \label{fig:lang:lc}}
+  \end{minipage}\hfill%
+  \begin{minipage}[t]{0.59\textwidth}
+    {\input{./f/exn-gr.tex}
+     \cprotect\subcaption{The grammar for $\lambda_{exn}$-calculus, which extends the $\lambda$-calclus with try/catch, and throw forms.}
+     \label{fig:lang:exn}}
+    \vspace{1em}
+    {\input{./f/exn-rr.tex}
+     \cprotect\subcaption{The operational semantics for the $\lambda_{exn}$-calculus.}
+     \label{fig:lang:exn:red}}
   \end{minipage}
 
-  \bigskip
-
-  \begin{minipage}{\textwidth}
-    \resizebox{0.62\textwidth}{!}{%
-      \begin{minipage}[t]{0.32\textwidth}
-        \centering
-        \includegraphics[trim=0 9in 0 0, clip]{./assets/langs/coro.pdf}
-      \end{minipage}%
-      \hfill
-      \begin{minipage}[t]{0.62\textwidth}
-        \centering
-        \includegraphics[trim=0 9in 0 0, clip]{./assets/reductions/coro.pdf}
-      \end{minipage} }
-    \caption{$\lambda_{coro}$}
-    \label{fig:lang:coro}
-  \end{minipage}
+  \caption{The syntax and semantics of the base $\lambda$- and $\lambda_{exn}$-calculus.}
+  \label{fig:lang:base}
 \end{figure}
 
-\begin{wrapfigure}{r}{0.33\textwidth}
-  \raggedright
-  \includegraphics[width=0.95\linewidth, trim=0 9in 6.25in 0, clip]{./assets/langs/platform.pdf}
-  \caption{Platform}
-  \label{fig:lang:platform}
-\end{wrapfigure}
+\cprotect\ggnote{We provide two base extensions for complex control flow to $\lambda$. The extension $\lambda_{exn}$ adds exceptions and $\lambda_{coro}$ adds coroutines. \Cref{fig:lang:exn} shows the grammar and reduction rule extensions for $\lambda_{exn}$, which extends $\lambda$ with \code{throw} and \code{catch} forms. \Cref{fig:lang:coro} shows the grammar and reduction rule extensions for $\lambda_{coro}$, which extends $\lambda$ with coroutines. Our coroutine provides the operational behavior for \textit{asymmetric stackful coroutines}, following a similar approach as \cite{moura_revisiting_2009}.}
 
 We now describe the configuration of the shared asynchronous grammar. \Cref{fig:lang:platform} defines the shared grammar constructs that encode the async runtime building blocks discussed in \Cref{sec:designdims}. We will refer to this shared grammar extension as the \textit{async platform.}
 
@@ -428,22 +702,22 @@ The form \code{os/io} is the \textsc{OmniScient IO} operation provided by the ru
 
 Each asynchronous language is automatically defined with the platform expressions and additional non-terminals. These represent the common operations and a base-set of interactions each asynchronous language will have with its underlying system. We will answer each of the design questions by indicating where in the semantics 
 
-\subsection{\CSharp}
+\subsection{\CSharp{}}
 
-\begin{figure}[ht]
-  \raggedright
-  \resizebox{0.50\textwidth}{!}{%
-    \begin{minipage}[t]{0.40\textwidth}
-      \centering
-      \includegraphics[trim=0 3in 0 0, clip]{./assets/langs/cs.pdf}
-    \end{minipage}%
-    %\hfill
-    \begin{minipage}[t]{0.60\textwidth}
-      \centering
-      \includegraphics[trim=0 3in 0 0, clip]{./assets/reductions/cs.pdf}
-    \end{minipage} }
-  \caption{\CSharp}
-  \label{fig:lang:cs}
+\begin{figure}[htbp]
+\centering
+  $$
+  \begin{array}{rcl}
+  e & ::= & \ldots \mid \text{async fun } \many{x} \to e \mid \text{await } e \\
+  v & ::= & \ldots \mid \text{async fun } \many{x} \to e \\
+  E & ::= & \ldots \mid \text{await } E
+  \end{array}
+  $$
+  \hline
+  \vspace{1em}
+  \input{./f/cs-op.tex}
+\caption{Syntax and Operational Semantics for \CSharp{} async/await}
+\label{fig:lang:cs}
 \end{figure}
 
 Our model of \CSharp{} follows that of \cite{hutchison_pause_2012}, which provided a formal description for \CSharp{} 5.0, in addition to the prose specification provided by Microsoft. % TODO: cite
@@ -460,431 +734,158 @@ The grammar presented in \Cref{fig:lang:cs} does not include a $cancel$ expressi
 When a \Task{} is created, via \semrule{Async-App} or \semrule{Task-Run}, it has no relation to its context. Furthermore, when a task is resolved, \semrule{Task-Return}, there is no check for the status of child \Task{}s spawned during its execution. \Task{} objects freely live as any other object in \CSharp, no rule states that a \Task{} must be awaited, or even that a \Task{} must finish executing. The rule \semrule{Unblock} does not check the queue or status of executing threads for unfinished computations. Therefore, we say that both tasks and exceptions are ignorable.
 
 \subsection{JavaScript}
-
-% \begin{figure}[ht]
-%   \raggedright
-%   \resizebox{0.62\textwidth}{!}{%
-%     \begin{minipage}[t]{0.32\textwidth}
-%       \centering
-%       \includegraphics[trim=0 4in 0 0, clip]{./assets/langs/js.pdf}
-%     \end{minipage}%
-%     \hfill
-%     \begin{minipage}[t]{0.62\textwidth}
-%       \centering
-%       \includegraphics[trim=0 4in 0 0, clip]{./assets/reductions/js.pdf}
-%     \end{minipage} }
-%   \caption{\JS}
-%   \label{fig:lang:js}
-% \end{figure}
-
 \subsection{Swift}
-
-\begin{figure}[ht]
-  \raggedright
-  \resizebox{0.62\textwidth}{!}{%
-    \begin{minipage}[t]{0.32\textwidth}
-      \centering
-      \includegraphics[trim=0 4in 0 0, clip]{./assets/langs/swift.pdf}
-    \end{minipage}%
-    \hfill
-    \begin{minipage}[t]{0.62\textwidth}
-      \centering
-      \includegraphics[trim=0 4in 0 0, clip]{./assets/reductions/swift.pdf}
-    \end{minipage} }
-  \caption{\Swift}
-  \label{fig:lang:swift}
-\end{figure}
-
-The operational semantics for \Swift{} are provided in \Cref{fig:lang:swift}. Rule \semrule{Async-App} creates a new frame with the function body and places this frame in the queue to be run soon. The application result is a \Task{} object. Therefore \Swift{} employes \textit{warm} applications, because the frame is enqueued to be run, but was not immediately run by the executing thread. 
-
-The \Swift{} grammar includes a new \code{(cancelled?)} expression, which returns whether the executing \Task{} has been cancelled. Common programming practice for a computation is to check this function at appropriate times, and perform clean-up and raise a \code{CancellationError} when the return is true. A \Task{} requests cancellation by passing the \Task{} handle to the \code{(cancel e)} expression. We call this a \textit{polite} cancellation strategy, because \Task{} cancellation cannot be enforced. Cancellation is requested, but requires cooperation from the requested \Task.
-
-The rules \semrule{Await-Continue}, \semrule{Await-Failed}, and \semrule{Await-Suspend} do not provide any guarantee on suspension. There fore await points in \Swift{} are not stable and only represent possible suspension points.
-
-The result of an async application is a new \Task{} object, which is associated with the label $l$ of the calling frame. In other words, \Swift{} establishes a \textit{parent-child relationship} between a calling \Task{} and a spawned \Task. Rule \semrule{Task-Return} relies on this relationship to resolve a \Task{} only when all child \Task{}s have resolved. The parent-child relationship of \Task{}s creates a \textit{task tree,} where a \Task{} can only return once every node in its subtree has resolved. Therefore, no \Task{} can be forgotten.
-
-Rule \semrule{await-Failed} shows that the exception from a failed \Task{} only gets reraised at an await point. The rule \semrule{Block} does not reraise any unawaited exceptions at runtime exit, therefore, even though a \Task{} cannot be forgotten, an exception can be ignored if a \Task{} is nevery awaited.
-
 \subsection{Rust}
-
-% \begin{figure}[ht]
-%   \raggedright
-%   \resizebox{0.62\textwidth}{!}{%
-%     \begin{minipage}[t]{0.32\textwidth}
-%       \centering
-%       \includegraphics[trim=0 8in 0 0, clip]{./assets/langs/rust.pdf}
-%     \end{minipage}%
-%     \hfill
-%     \begin{minipage}[t]{0.62\textwidth}
-%       \centering
-%       \includegraphics[trim=0 8in 0 0, clip]{./assets/reductions/rust.pdf}
-%     \end{minipage} }
-%   \caption{\Rust}
-%   \label{fig:lang:rust}
-% \end{figure}
-
 \subsubsection{Tokio}
-
-% \begin{figure}[h]
-%   \raggedright
-%   \resizebox{0.62\textwidth}{!}{%
-%     \begin{minipage}[t]{0.32\textwidth}
-%       \centering
-%       \includegraphics[trim=0 4in 0 0, clip]{./assets/langs/tokio.pdf}
-%     \end{minipage}%
-%     \hfill
-%     \begin{minipage}[t]{0.62\textwidth}
-%       \centering
-%       \includegraphics[trim=0 4in 0 0, clip]{./assets/reductions/tokio.pdf}
-%     \end{minipage} }
-%   \caption{\Tokio}
-%   \label{fig:lang:tokio}
-% \end{figure}
-
+\subsubsection{SMOL}
 \subsection{Python}
-
-\begin{figure}[ht]
-  \raggedright
-  \resizebox{0.68\textwidth}{!}{%
-    \begin{minipage}[t]{0.40\textwidth}
-      \centering
-      \includegraphics[trim=0 9.5in 0 0, clip]{./assets/langs/python.pdf}
-    \end{minipage}%
-    \hfill
-    \begin{minipage}[t]{0.59\textwidth}
-      \centering
-      \includegraphics[trim=0 9.5in 0 0, clip]{./assets/reductions/python.pdf}
-    \end{minipage} }
-  \caption{\Python}
-  \label{fig:lang:python}
-\end{figure}
-
-The operational semantics for \Python{} are provided in \Cref{fig:lang:python}. The language \Python{}, by itself, does not provide a runtime. This fact is reflected in the extended grammar, which provides the expressions \code{async/lambda} and \code{await}, but the language is not defined on top of our asynchronous platform. Therefore, it does not have frames, frame stacks, processes, etc.
-
-The rule \semrule{Async-App} demonstrates that applying an asynchronous function results in a \Coro{} object. The function body is neither evaluated nor scheduled to run anywhere. Therefore, \Python{} employs \textit{cold applications.}
-
-In the base language, a \Coro{} object can be either polled manually, via the \code{resume!} expression, or it can be \textit{awaited.} The rule \semrule{Await-Coro} shows that awaiting a \Coro{} is not syntactic sugar for polling the object, but instead it reduces to running the \Coro{} body. This has the effect of \textit{fusing} the \Coro{} stacks together, so a suspension point yields control to the caller of the outer \Coro.
-
-The rule \semrule{Throw-In!} provides additional flexibility to $\lambda_{coro}$ language, specifically, the ability to raise an exception at the suspension point. The gained flexibility is not obvious in the core \Python{} language, but runtime extensions, such as \AsyncIO{}, will use this feature for cancellation.
-
-The remainder of the system properties are not applicable to \Python{} without a runtime implementation. So we leave those unanswered in this section.
-
 \subsubsection{AsyncIO}
-
-\begin{figure}[ht]
-  \raggedright
-  \resizebox{0.62\textwidth}{!}{%
-    \begin{minipage}[t]{0.32\textwidth}
-      \centering
-      \includegraphics[trim=0 4in 0 0, clip]{./assets/langs/asyncio.pdf}
-    \end{minipage}%
-    \hfill
-    \begin{minipage}[t]{0.62\textwidth}
-      \centering
-      \includegraphics[trim=0 4in 0 0, clip]{./assets/reductions/asyncio.pdf}
-    \end{minipage} }
-  \caption{\AsyncIO}
-  \label{fig:lang:asyncio}
-\end{figure}
-
-The de-facto runtime implementation in \Python{} is \AsyncIO{}. The operational semantics for \AsyncIO{} are provided in \Cref{fig:lang:asyncio}.
-
-The rule \semrule{Task-Spawn} takes a \Coro{} object and turns it into a \Task{} registered with the runtime. This means that raw async function applications are still \textit{cold,} and must be explicitly registered with the runtime to be scheduled. The scheduling is \textit{warm,} because the spawned \Task{} will run soon, but not immediately.
-
-The rule \semrule{Cancel} shows the use of the \code{cancel} expression. This expression takes a \Task{} object and marks it as cancelled. The next time the \Task{} is resumed, via the rule \semrule{Dequeue-Cancelled}, the runtime will not resume the underlying \Coro{} object, but use the \code{throw-in!} expression to raise a \code{CancelledError} at the suspension point. We call this cancellation policy \textit{aggressive} because an exception may be raised at any suspension point. Cancellation exceptions may be caught and ignored by the running computation, which is why the policy is not \textit{unavoidable.}
-
-The rule \semrule{Task-Return} does not check for any child \Task{}s spawned during executions. However, the rule \semrule{Block-Exit} requires that all \Task{}s have resolved before the runtime exits. Therefore we say that \Task{}s are \textit{program scoped,} but not \textit{region scoped.}
-
-The rule \semrule{Block-Exit} inspects the store $\sigma$ for any unawaited \Task{}s that have a trapped exception. If any such \Task{}s exist, the runtime will reraise the first exception it finds. Therefore, we say that exceptions are not ignorable.
-
-\ggnote{We probably should add something in about \textit{edge-triggered} vs \textit{level-triggered} cancellation.}
-
+\subsubsection{Trio}
 \subsection{Summary of Language Decisions}
 
 \begin{table}
-  \caption{Overview of semantic decisions make by language/system designers}
-  \label{tab:semantics-overview}
-  \begin{tabular}{llllll}
+  \begin{tabular}{lllllll}
     \toprule
-    System   & Eagerness   & Cancellation  & Suspension  & Task Scope         & Exception  \\
+    System           & Eagerness   & Task Scope      & Destruction  & Propagation  & Suspension  \\
     \midrule
-    \CSharp  & eager       & none          & dynamic     & unscoped           & awaited    \\
-    \JS      & eager       & none          & static      & program scoped     & awaited    \\
-    \Swift   & semi-eager  & polite        & dynamic     & region scoped      & awaited    \\
-    \Rust    & lazy        & unavoidable   & dynamic     & -                  & -          \\
-    \Tokio   & lazy        & unavoidable   & dynamic     & unscoped           & -          \\
-    \Python  & lazy        & aggressive    & dynamic     & -                  & -          \\
-    \AsyncIO & lazy        & aggressive    & dynamic     & program scoped     & reraise    \\
+    \CSharp          & eager       & program scoped  & terminated   & awaited      & dynamic     \\
+    JavaScript       & eager       & unscoped        & awaited      & reraise      & static      \\
+    Swift            & semi-eager  & region scoped   & cancelled    & awaited      & dynamic     \\
+    \midrule
+    Tokio (Rust)     & lazy        & program scoped  & cancelled*   & -            & dynamic     \\
+    SMOL (Rust)      & lazy        & region scoped   & cancelled*   & -            & dynamic     \\
+    \midrule
+    AsyncIO (Python) & lazy        & program scoped  & terminated   & reraise      & dynamic     \\
+    Trio (Python)    & lazy        & region scoped   & awaited      & reraise      & dynamic     \\
     \bottomrule
   \end{tabular}
+  \caption{Overview of semantic decisions make by language/system designers. *Rust's cancellation semantics are a variant of termination.}
+  \label{tab:semantics-overview}
 \end{table}
 
-\section{Properties ``The Table''}
+\begin{table}
+  \begin{tabular}{lll}
+    \toprule
+    Language         & Cooperation      & Direction    \\
+    \midrule
+    Rust             & non-cooperative  & top-down     \\
+    Swift            & cooperative      & simultaneous \\
+    Python           & cooperative      & bottom-up    \\
+    \bottomrule
+  \end{tabular}
+  \caption{Overview of cancellation decisions make by language/system designers}
+  \label{tab:cancellation-overview}
+\end{table}
 
-Many programming languages share a semantic core that helps developers transfer from one language to another. Mutable variables, lexical scope, and eager evaluation, are examples of commonalities shared by a large number of modern languages. Developers rely on these commonalities and form a mental model of program execution to understand their program's behavior.
+\section{Properties of Resulting Programs}\label{sec:properties}
 
-In the asynchronous world when a developer moves from language $A$ to language $B$ there are several pitfalls she may fall into. The first arises from \textit{inconsistent terminology.} Although contemporary async systems share a similar vocabulary, the semantic definition of a term may change between languages $A$ and $B$. Inconsistency amongst languages may introduce misconceptions in the developer's mental model of how an async system works that can lead to incorrect programs. 
+The design dimensions we present in \Cref{sec:designdims}, and modelled in \Cref{sec:semantics}, may seem like mere implementation details that burden the language designer but have no effect on the language user. In distilling the essence of contemporary async/await systems we identified program properties that developers enjoy, or yearn for, based on a language's chosen design. 
 
-The second pitfall is a mismatch in \textit{system guarantees.} The properties that async systems guarantee, or fail to guarantee, may lead to additional misconceptions when translating between languages. A mismatch in program guarantees may lead to an incorrect program execution profile or incorrect program behavior. We call these \textit{concurrency errors} and \textit{semantic errors} respectively. A concurrency error is when a program $P$ written in language $A$, $P_A$ can interleave computations $c_1, \ldots, c_n$ with interleaving $I$, such that that same program written in language $B$, $P_B$ cannot exhibit he same interleaving. A semantic error is when program $P$, written in languages $A$ and $B$ do not produce equivalent output for the same input $x$, that is $P_A(x) \not\equiv P_B(x)$.
+In this section we describe four program properties that remove categories of ill-behaving programs. In \Cref{tab:properties-mapping} we provide a mapping from design dimensions to program properties.
 
-In this section we will describe four system properties that lead to concurrency and semantic errors. These properties are:
-\begin{enumerate}
-    \item (\EEXN) A program with an unhandled exception terminates unsuccessfully
-    \item (\ERUN) A computation eventually runs
-    \item (\ETERM) A canceled computation eventually terminates
-    \item (\APARENT) A computation is never left orphaned
-    \item (\MPAR) A computation that could run on a different thread may
-\end{enumerate}
+\subsection{No Task is Left Orphaned}
 
-% \paragraph{A computation eventually runs (\ERUN)}  We classify languages as guaranteeing \ERUN based on the semantics of the return value of an async function. Eagerly-evaluated return values, such as those found in C\#, JavaScript, Kotlin, Swift, etc, are registered with the runtime and enqueued to run on the next available thread --- these languages guarantee \ERUN. Lazily-evaluated return values, such as those found in Rust and Python will not run until explicitly awaited or explicitly set to run on a thread --- these languages cannot guarantee \ERUN.
-%
-% \begin{figure}
-%     \centering
-%     \begin{subfigure}[t]{0.46\textwidth}
-% \begin{lstlisting}[language=JavaScript]
-% async function handleConnections() 
-% { /* ... */ }
-%
-% async function startServer() {
-%   handleConnections();
-%   while (true) {
-%     await sleep(10);
-%     let responded = await ping();
-%     if (!responded) 
-%         throw new Error(
-%             "handler didn't respond")
-%   }
-% }
-% \end{lstlisting}
-%     \caption{JavaScript}
-%     \end{subfigure}\hfill%
-%     \begin{subfigure}[t]{0.46\textwidth}
-% \begin{lstlisting}[language=Python]
-% async def handle_connections():
-%     # ...
-%
-% async def start_server():
-%   handle_connections()
-%   while true:
-%      await sleep(10)
-%      responded = await ping()
-%      if !responded:
-%         raise Error(
-%             "handler didn't respond")
-% \end{lstlisting}
-%     \caption{Python}
-%     \end{subfigure}
-%     \cprotect\caption{An implementation of a simple server and heartbeat check in JavaScript (left) and Python (right). JavaScript's async runtime guarantees \ERUN, meaning the computation created by invoking \code{handleConnections} eventually starts running. Furthermore, the child computation is interleaved with the heartbeat checks performed by the parent computation. In contrast, Python does not guarantee \ERUN and therefore the handler computation never starts.}
-%     \label{fig:server-js-py}
-% \end{figure}
-%
-%
-% Consider the small server code in \Cref{fig:server-js-py} provided in JavaScript and Python. The program starts a computation to handle incoming connections and then pings that handler every 10 seconds to see if it's alive. Creating the handler computation in JavaScript is as easy as invoking the \code{handleConnections} function because the resulting computation is eagerly evaluated and placed in the event loop to run. Because computations in JavaScript are eagerly evaluated we say that the language guarantees \ERUN and the developer can assume that \code{handleConnections} will indeed start to handle incoming connections.
-%
-% In contrast, when the program is translated directly into Python, it contains a semantic error. The return value of invoking \code{handle_connections} is not a running computation, but a coroutine object that represents the computation. This computation \textit{will not} run until awaited on or explicitly registered with the chosen runtime. Therefore, the first heartbeat check will return false and \code{start_server} will raise an exception.
-%
-% To ensure that the \code{handle_connections} computation is eagerly evaluated developers should register the coroutine object with the async runtime, here we will demonstrate with the popular \textsc{AsyncIO} runtime. We will instead start the connection handler as follows
-%
-% \begin{lstlisting}[language=Python,numbers=none]
-% asyncio.create_task(handle_connections())
-% \end{lstlisting}
-%
-% Although this program change \textit{appears} to fix the problem, that is, the computation is now eagerly evaluated, it actually creates an even more sinister semantic error. The \ASYNCIO runtime holds \textit{weak references} to running computations. Because the developer has not stored a reference to the connection handler anywhere, the computation object will get garbage collected on the next collection cycle.
-%
-% \begin{figure}
-%     \centering
-%     \begin{subfigure}[t]{0.48\linewidth}
-% \begin{lstlisting}[language=Swift]
-% func uploadToDB(_ dataId: UInt32) async 
-% { /* ... */ }
-%
-% func saveData(dataId: UInt32) async {
-%     async let uploading = uploadToDB(dataId)
-%     let analysis = await analyzeData(dataId)
-%     await writeToDisk(analysis)
-%     await uploading
-% }
-% \end{lstlisting} 
-%     \caption{Swift}
-%     \end{subfigure}\hfill%
-%     \begin{subfigure}[t]{0.48\linewidth}
-% \begin{lstlisting}[language=Rust]
-% async fn upload_to_db(dataid: &u32) 
-% { /* ... */ }
-%
-% async fn save_data(dataid: u32) {
-%   let uploading = upload_to_db(dataid);
-%   let analysis = analyze_data(dataid).await;
-%   write_to_disk(analysis).await;
-%   uploading.await;
-% }
-% \end{lstlisting} 
-%     \caption{Rust}
-%     \end{subfigure}
-%     \cprotect\caption{An implementation of a function that uploads data to a database while performing a local analysis and writing the analysis files to disk. The program written in Swift (left) performs the database upload and local analysis concurrently, while Rust (right) performs the computations sequentially, because the upload computation will not start until the value is awaited.}
-%     \label{fig:upload-data-swift-rs}
-% \end{figure}
-%
-% The example in \Cref{fig:server-js-py} demonstrates how semantic errors can arise when translating from a language that guarantees \ERUN to one that does not. The next example in \Cref{fig:upload-data-swift-rs} produces the same result in a language that guarantees \ERUN and in one that does not, but instead demonstrates a concurrency error.
-%
-% \Cref{fig:upload-data-swift-rs} contains a small program that will take an identifier to a dataframe, start uploading that data to a database, and also perform a local analysis on the frame and write the analysis to local disk. The program version provided in Swift will run the data upload and data analysis computations concurrently. Swift guarantees \ERUN and therefore invoking the function \code{uploadToDB} enqueues the computation with the runtime system. In contrast, the Rust version will perform the data analysis and disk write first sequenced with the database upload. The upload computation does not start running on the function invocation \code{upload_to_db(dataid)}, but rather on when the result is awaited, \code{uploading.await}.
-%
-% To correct this mistake the developer needs to explicitly register the computation with the runtime, here we use the popular \TOKIO runtime. The below line should replace the right-hand-side expression on line 2 to ensure the computation is eagerly evaluated.
-%
-% \begin{lstlisting}[language=Rust,numbers=none]
-% tokio::spawn(upload_to_db(dataid));
-% \end{lstlisting}
-%
-% However, this fix is again not straightforward. Because the \code{upload_to_db} function takes a reference, this Rust program now \textit{fails to compile} due to unsatisfied trait bounds on the \code{tokio::spawn} function.
-%
-% \paragraph{A canceled computation eventually terminates \ETERM} \willdo{Only possible with Rust, Python (Trio) can limit async operations but sync code can also loop forever. Swift, JavaScript, and C\# rely on fully-cooperative cleanup and thus can provide no guarantees.}
-%
-% \paragraph{A computation is never left orphaned (\APARENT)} We classify languages as guaranteeing \APARENT based on the hierarchy, or lack thereof, of running computations. In synchronous programming there is an explicit caller-callee relationship that provides structure, for example, errors in a callee frame propagate upward in the call stack to the caller. Contemporary asynchronous systems have found different approaches to structure and error handling that provide varying guarantees for running computations. In this section we discuss orphaned computations, which can lead to semantic \willdo{and concurrency errors} when moving between programming languages.
-%
-% \begin{figure}
-%     \centering
-%     \begin{subfigure}[t]{0.48\linewidth}
-% \begin{lstlisting}[language=JavaScript]
-% function logFiles(files: string[]) {
-%   files.forEach((file) => {
-%     const contents = 
-%         fs.readFileSync(file, 'utf8')
-%     Logger.log(contents)
-%   })
-% } 
-% \end{lstlisting} 
-%     \caption{Synchronous JavaScript}
-%     \end{subfigure}\hfill%
-%     \begin{subfigure}[t]{0.48\linewidth}
-% \begin{lstlisting}[language=JavaScript]
-% async function logFiles(files: string[]) {
-%   files.forEach(async (file) => {
-%     const contents = 
-%         await fs.readFile(file, 'utf8')
-%     await Logger.log(contents)
-%   })
-% } 
-% \end{lstlisting} 
-%     \caption{Async JavaScript}
-%     \end{subfigure} \\
-%     \begin{subfigure}{0.66\linewidth}
-% \begin{lstlisting}[language=CSharp]
-% async Task logFiles(List<string> files) {
-%   files.ForEach(async (file) => {
-%     var contents =  await File.ReadAllTextAsync(file);
-%     Logger.log(contents);
-%   });
-% }
-% \end{lstlisting} 
-%     \caption{\CSharp}
-%     \end{subfigure}
-%     \caption{Blah blah blah}
-%     \label{fig:for-each-js}
-% \end{figure}
-%
-% The program provided in \Cref{fig:for-each-js} is a small utility that logs the contents of all files in a provided array. In this example we will translate the program from JavaScript ($JS$), a language with a clear caller/callee hierarchy, to \textit{asynchronous} JavaScript ($JS_{async}$), a language that does not provide a computation hierarchy.
-%
-% For each file in the array, the JavaScript program will read the file contents and then log the contents. Each file is processed sequentially and at function return all file contents are present in the global \code{Logger} object. The async version is an initial attempt for the developer to turn this sync code into its async counterpart. However, unlike the synchronous version, the async version of \code{logFiles} will return \textit{almost immediately} and will simply have started the file reads, which will \textit{eventually} complete, but the program execution will continue without synchronization points. 
-%
-% This example comes from the most upvoted Stack Overflow question with the tag ``async-await.'' There, the developer posts the async program from \Cref{fig:for-each-js} and asks:
-%
-% \begin{displayquote}
-% Are there any issues with using async/await in a \code{forEach} loop? I'm trying to loop through an array of files and await on the contents of each file. This code does work, but could something go wrong with this? \footnote{\url{https://stackoverflow.com/questions/37576685/using-async-await-with-a-foreach-loop}}
-% \end{displayquote}
-%
-% If we use the async version of \code{logFiles} in the following client program:
-%
-% \begin{lstlisting}[language=JavaScript]
-% async function main() {
-%   const files = await getFilePaths();
-%   await logFiles(files);
-%   await Logger.log("logged file contents");
-%   await Logger.printLogs();
-% } 
-% \end{lstlisting}
-%
-% The result on \textsc{stdio} is non-deterministic, likely it would be ``logged file contents'' and it's unlikely that any file contents would be logged. Every file read launched within \code{logFiles} is immediately orphaned because JavaScript lacks a notion of computation hierarchy and the code provides no synchronization points for the computation started within the \code{forEach} body. 
-%
-% The property \APARENT is a language-level guarantee of \textit{structured concurrency,} which ties a computation to a lexical scope, and all children spawned within a parent scope are awaited before the parent can terminate. Structured concurrency creates an explicit tree hierarchy with a spawner/spawnee relationship between parent and child computations. Languages that provide structured concurrency can help developers make the right choice, at at a bare minimum, write a program with a concurrency error rather than a semantic error.
-%
-% \begin{figure}
-%     \centering
-%     \begin{subfigure}[t]{0.48\linewidth}
-% \begin{lstlisting}[language=Kotlin]
-% suspend fun logFiles(files: List<Int>) {
-%   files.forEach { file ->
-%     val contents = readFile(file)
-%     Logger.log(contents)
-%   }
-% }
-% \end{lstlisting} 
-%     \caption{Kotlin Concurrency Error}
-%     \label{subfig:for-each-kotlin-bad}
-%     \end{subfigure}\hfill%
-%     \begin{subfigure}[t]{0.48\linewidth}
-% \begin{lstlisting}[language=Kotlin]
-% suspend fun logFiles(files: List<Int>) = 
-%   coroutineScope {
-% 	files.forEach { file -> async {
-%       val contents = readFile(file)
-%       Logger.log(contents) }
-%     }
-% }
-% \end{lstlisting} 
-%     \caption{Kotlin}
-%     \label{subfig:for-each-kotlin}
-%     \end{subfigure} \\
-%     \begin{subfigure}{0.48\linewidth}
-% \begin{lstlisting}[language=Swift]
-% func logFiles(_ files: [String]) async {
-%   files.forEach { file in
-%     // error: cannot pass function of type 
-%     //   '(String) async -> Void' 
-%     // to parameter expecting synchronous 
-%     // function type
-%     let contents = await readFile(file)
-%     await Logger.shared.log(contents)
-%   }
-% }
-% \end{lstlisting} 
-%     \caption{Swift Type Error}
-%     \label{subfig:for-each-swift-bad}
-%     \end{subfigure}\hfill%
-%     \begin{subfigure}{0.48\linewidth}
-% \begin{lstlisting}[language=Swift]
-% static func logFiles(
-%   files: [String]
-% ) async {
-%   await withTaskGroup(of: Void.self) 
-%   { group in 
-%     for file in files {
-%       group.addTask { 
-%         let contents = await readFile(file)
-%         await Logger.shared.log(contents)
-%       }
-%     }
-%   }
-% \end{lstlisting} 
-%     \caption{Swift}
-%     \label{subfig:for-each-swift}
-%     \end{subfigure}
-%     \caption{Blah blah blah}
-%     \label{fig:log-files-kotlin-swift}
-% \end{figure}
-%
-% Kotlin and Swift are the two contemporary pioneers of structured concurrency. \Cref{fig:log-files-kotlin-swift} shows how a developer might go from the synchronous code from \Cref{fig:for-each-js} to async code in Kotlin and Swift, and how the naive translation avoids semantic errors like that in \Cref{fig:for-each-js}.
-%
-% Kotlin does not use the traditional async/await keywords, but rather, async functions are marked as ``suspend'' and await points are implicitly added after each invocation of a suspending function. \Cref{subfig:for-each-kotlin-bad} shows an initial attempt at writing \code{logFiles} in async Kotlin. The only difference is that the developer added the \code{suspend} keyword to the function definition. The resulting code does run, but contains a concurrency error (instead of a semantic error like the async JavaScript version). The files are read and logged \textit{sequentially} as if the developer had used a \code{for} loop instead of the \code{forEach} higher-order function.
-%
-% The corrected Kotlin program is provided in \Cref{subfig:for-each-kotlin}, where the developer has wrapped the body of \code{logFiles} in a \code{coroutineScope}, which waits for all child computations to finish, and the body of the lambda uses an \code{async} coroutine wrapper so that the child computations run concurrently.
-%
-% \Cref{subfig:for-each-swift-bad} provides an initial attemp to port the sync version of \code{logFiles} to Swift. The function signature is marked \code{async}. Unlike in JavaScript where an async function is similar to a sync function that returns a promise, async function in Swift are properly colored and do not return a special computation value, but rather marks the resulting expression as async. The \code{forEach} function expects a sync lambda, but an async lambda was provided, and therefore the function fails to type check.
-%
-% The corrected Swift version provided in \Cref{subfig:for-each-swift} uses Swift's \code{withTaskGroup} function to create a task group in which all the child computations will run. The task group will wait for all child computations to finish before it terminates itself, and each child can run concurrently with its siblings.
-%
-% \paragraph{A computation that could run on a different thread may (\MPAR)} \willdo{Possible by Swift (I think maybe Kotlin) and potentially C\#}
+\ggnote{Design dim: region-scoped tasks}
+
+An orphaned task is one that is running in the background but is not synchronized with the surrounding program. We consider an orphaned task to represent a race condition.
+
+\begin{wrapfigure}{r}{0.40\textwidth}
+  \raggedright
+\begin{lstlisting}[language=JavaScript]
+async function saveFiles (files) {
+  files.forEach(async (file) => { 
+    await saveFile(file) 
+  }) 
+}
+\end{lstlisting}
+  \cprotect\caption{An example of orphaned tasks that can cause a race condition. The developer has used \code{forEach} with asynchronous work, therefore, the \code{saveFiles} function will return immediately. A caller can ``await'' the task but the child workers saving the file are orphaned and will remain running in the background.}
+  \label{fig:orphans}
+\end{wrapfigure}
+
+The function \code{saveFiles} in \Cref{fig:orphans} is equivalent to the most upvoted question on StackOverflow with the label \textit{async-await}~\footnote{\citeurl{https://stackoverflow.com/questions/37576685/using-async-await-with-a-foreach-loop/37576787#37576787}}. In this function the programmer has mistakenly created a list of orphaned tasks by using the synchronous \code{Array.forEach} method with async lambda values. This function starts a worker to save each file but then returns immediately.
+
+We claim that an orphaned task with no synchronization point, i.e., edge in the task tree, with the calling context is an error. If a language can guarantee the property of no orphaned tasks, then a large class of errors is prevented. To prevent orphans a language should have region-scoped tasks.
+
+\ggnote{\textbf{Some might say} that the ``fire and forget'' pattern of async programming is desired sometimes, because you want an effect to happen but don't care when it happens. My response is that effects are made \textit{to be observed.} If an effect is never observed, why make the effect to begin with? Therefore, if an effect has an eventual observer, a race condition exists on the effect and its observance. An additional retort of error handling is appropriate, but I'll save that for the following property.}
+
+\subsection{No Exception is Ignored}
+
+\ggnote{Design dims: propagation (reraise), ideally with region-scoped tasks.}
+
+In programming languages with exceptions it is commonly referred to as bad practice to swallow an error without processing, reporting, or logging it. In async/await languages it is entirely possible for the Task to swallow an exception if the exception is never awaited. Silent failures are difficult to trace and debug, and languages with exceptions should prevent an exception from getting swallowed --- even if the task is never awaited.
+
+Consider the simplified \code{TextEdit} application provided in \Cref{fig:prop:tedit}
+
+\begin{figure}
+  \centering
+  \includegraphics[width=0.75\textwidth]{example-image-a}
+  \caption{A toy implementation of the TextEdit application. The \textit{Save} button saves the current file by firing off a task. Although the language semantics provide region scoped tasks, the save operation results in an exception that is never propagated. }
+  \label{fig:prop:tedit}
+\end{figure}
+
+In an async/await system, ignoring exceptions severely compromises application stability by creating silent failures that are incredibly difficult to trace and debug. Because asynchronous tasks run independently of the main execution thread, an uncaught error cannot simply bubble up a traditional call stack; instead, it either gets swallowed entirely—leaving the system in an unpredictable, corrupted state—or forces the runtime to abruptly crash the entire process to prevent further damage. Enforcing strict error handling ensures that failures are gracefully caught, logged, and managed, preserving the predictable control flow that the async/await paradigm is built to provide
+
+\subsection{No Starving Tasks}
+
+\ggnote{Design dim: static await points}
+
+Cooperative concurrency relies on all tasks to cooperate. They must suspend at regular intervals to allow other tasks the chance to progress. A developer may think that their code is yielding regularly because it has so many await keywords sprinkled throughout, however, these await points do not designate suspension points.
+
+A language can guarantee that no task is dynamically starved if await points are suspend points.
+
+Most languages choose to not provide this guarantee for performance. If the runtime encounters an await point but the awaited contents are ready, the runtime can either continue executing or suspend to allow another task to make progress. However, if no other tasks needs to make progress, the system pays the price of a suspension and context switch for nothing.
+
+\begin{wrapfigure}{r}{0.5\textwidth}
+\begin{lstlisting}[language=CSharp]
+async Task RecursiveDeathSpiral() {
+  for (int i = 0; i < 50000; i++) {
+    await new BadAwaitable();
+  }
+}
+
+struct BadAwaitable {
+  public BadAwaiter GetAwaiter() =>
+    new BadAwaiter();
+}
+
+struct BadAwaiter : INotifyCompletion {
+  // force a suspension
+  public bool IsCompleted => false;
+  public void GetResult() { }
+  public void OnCompleted(Action k) { k(); }
+}
+\end{lstlisting}
+  \caption{This program stack overflows because each suspension within the loop adds a nested call frame.}
+  \label{fig:prop:stackoverflow}
+\end{wrapfigure}
+
+Besides performance, \CSharp{} does not suspend on all await points because it can easily lead to stack overflows. Every time \CSharp{} suspends the current frame will add an additional nested call frame. The program in \Cref{fig:prop:stackoverflow} shows a program that performs some asynchronous work inside the loop. If the construct \code{BadAwaitable} forced the system to suspend, even though it's value is ready, this program results in a stack overflow.
+
+\subsection{Program Correctness Modulo Cancellation}
+
+\cprotect\ggnote{Design dims: cancellation (cooperative, top-down). A fun alternative is to have lazy semantics without a \code{spawn} function. If you only have lazy starts, but do not expose a spawn, then you basically get structured concurrency for free. Another alternative is region-scoped tasks, building a task tree \textit{on spawn}, and simultaneous, cooperative cancellation.
+
+I'm kind of thinking of very specific scenarios, this one might be hard to write a blanket rule for.}
+
+a correct program without cancellation is a correct program with cancellation. More specifically, if your program doesn't deadlock without cancellation then it shouldn't deadlock with cancellation. Rust is particularly bad because there's no default mechanism to observe cancellation and every await point in a function could never return.
+
+\begin{table}
+  \begin{tabular}{l}
+    \toprule
+    \bottomrule
+  \end{tabular}
+  \caption{Someting about properties}
+  \label{tab:properties-mapping}
+\end{table}
 
 \section{Discussion}\label{sec:discussion}
+
+\subsection{Others in the Space}\label{sec:discussion:others}
+
+\subsubsection{Zig}
+\subsubsection{Scala (Gears)}
+
+\subsection{Discussion}\label{sec:discussion:control}
 
 What did we learn and what should people do
 

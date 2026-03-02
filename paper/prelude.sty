@@ -1,3 +1,5 @@
+\usepackage{tikz}
+\usetikzlibrary{positioning, arrows.meta}
 \usepackage{xargs}                      % Use more than one optional parameter in a new commands
 \usepackage{graphicx}
 \usepackage[dvipsnames]{xcolor}
@@ -21,6 +23,7 @@
 \usepackage{enumitem}
 \usepackage{csquotes}
 \usepackage{caption}
+\usepackage{subcaption}
 \usepackage{tcolorbox}
 \usepackage{lstlinebgrd}
 
@@ -68,15 +71,15 @@
     basicstyle=\ttfamily\footnotesize,
     stringstyle=\color{gray},
     commentstyle=\color{gray},
-    breakatwhitespace=false,         
-    breaklines=true,                 
-    captionpos=b,                    
-    keepspaces=true,                 
+    breakatwhitespace=false,
+    breaklines=true,
+    captionpos=b,
+    keepspaces=true,
     numbers=left,
     columns=fullflexible,
-    showspaces=false,                
+    showspaces=false,
     showstringspaces=false,
-    showtabs=false,                  
+    showtabs=false,
     tabsize=2,
     numberstyle=\tiny, 
     numbersep=8pt,
@@ -146,19 +149,42 @@
 \newcommand{\ctrlop}[1]{\texttt{#1}}
 \newcommand{\semrule}[1]{\textsf{[#1]}}
 
-\newcommand{\Task}{\textsc{Task}}
-\newcommand{\Coro}{\textsc{Coroutine}}
+%%%%
+%% Components
+\newcommand{\Coro}{\textsc{Bum}}
+\newcommand{\Task}{\textsc{Ecstatic}}
 
-\newcommand{\Comp}{\textsc{Computation}}
-\newcommand{\SMoL}{\textsc{SMoL}}
+%%%%
+%% Typesetting OP sematnics
+% \definecolor{objlang}{}
+\newcommand{\obj}[1]{\textcolor{RedOrange}{#1}}
 
+\makeatletter
+\newsavebox\myboxA
+\newsavebox\myboxB
+\newlength\mylenA
+\newcommand*\xoverline[2][0.75]{%
+    \sbox{\myboxA}{$\m@th#2$}%
+    \setbox\myboxB\null% Phantom box
+    \ht\myboxB=\ht\myboxA%
+    \dp\myboxB=\dp\myboxA%
+    \wd\myboxB=#1\wd\myboxA% Scale phantom
+    \sbox\myboxB{$\m@th\overline{\copy\myboxB}$}%  Overlined phantom
+    \setlength\mylenA{\the\wd\myboxA}%   calc width diff
+    \addtolength\mylenA{-\the\wd\myboxB}%
+    \ifdim\wd\myboxB<\wd\myboxA%
+       \rlap{\hskip 0.5\mylenA\usebox\myboxB}{\usebox\myboxA}%
+    \else
+        \hskip -0.5\mylenA\rlap{\usebox\myboxA}{\hskip 0.5\mylenA\usebox\myboxB}%
+    \fi}
+\makeatother
+\newcommand{\many}[1]{\xoverline{#1}}
+
+%%%%
+%% Languages with special typesetting
 \newcommand{\CSharp}{\textsc{C\#}}
-\newcommand{\JS}{\textsc{JavaScript}}
-\newcommand{\Python}{\textsc{Python}}
-\newcommand{\Rust}{\textsc{Rust}}
-\newcommand{\Swift}{\textsc{Swift}}
-\newcommand{\AsyncIO}{\textsc{AsyncIO}}
-\newcommand{\Tokio}{\textsc{Tokio}}
+\newcommand{\FSharp}{\textsc{F\#}}
+\newcommand{\Cpp}{\textsc{C++}}
 
 \newcommand{\EEXN}{\textsc{eexn}}
 \newcommand{\ERUN}{\textsc{erun}}
