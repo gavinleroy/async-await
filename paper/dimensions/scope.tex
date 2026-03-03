@@ -1,0 +1,67 @@
+\subsubsection{Eagerness}\label{ssec:designdims:eagerness} The Eagerness axis defines the eagerness of an async function application, the possible values are: \textit{eager,} \textit{semi-eager,} and \textit{lazy.}
+
+\ggnote{This section has not been updated}
+
+On evaluating an eager async application, the current thread transfers execution to the body of the async function. When a suspension occurs, the application evaluates to a \Task{} value and execution of the calling context proceeds as normal. By contrast, a \textit{semi-}eager application evaluates immediately to a \Task{} value, but control does not transfer to the function body. The \Task{} is scheduled with the executor to run on the next available worker thread. A lazy application evaluates immediately to a \Coro{} object. As a reminder, \Coro{}s are not scheduled with the evaluator and perform work only when prompted.
+
+\begin{figure}[H]
+  \raggedright
+  \begin{minipage}[t]{0.30\textwidth}
+\begin{lstlisting}[language=Rust]
+async fn work(msg: &str) {
+  sleep(one_ms).await
+  print!("{msg}");
+}
+
+#[tokio::main]
+async fn main() {
+  let a = work("A");
+  let b = work("B");
+  print!("C");
+  a.await; b.await;
+} // => CAB
+\end{lstlisting}
+    \cprotect\subcaption{Rust function applications are lazy. The function \code{work} does not execute until line eleven. The print order of the program is always ``CAB'' because \code{a}, and \code{b} are not running concurrently.}
+    \label{fig:designdims:eagerness:lazy}
+  \end{minipage}\hfill%
+  \begin{minipage}[t]{0.33\textwidth}
+\begin{lstlisting}[language=Swift]
+func work(msg: String
+) async throws {
+  try await Task.sleep(
+    for: .milliseconds(1))
+  print(msg)
+}
+
+async let a = work(msg: "A")
+async let b = work(msg: "B")
+print("C")
+try await a; try await b
+// => CAB, CBA, BCA, ACB, ...
+\end{lstlisting}
+    \cprotect\subcaption{Swift function applications are semi-eager. The right-hand-side of an async let binding is evaluated in a concurrently executing \textit{child} task, control of the executing task does not jump to the body of the async function. The print order of the program is any permutation of the string ``ABC''.}
+    \label{fig:designdims:eagerness:semieager}
+  \end{minipage}\hfill%
+  \begin{minipage}[t]{0.33\textwidth}
+\begin{lstlisting}[language=CSharp]
+async Task work(string msg) {
+  Console.Write(msg);
+  await Task.Delay(1);
+}
+
+async Task Main() {
+  var a = work("A");
+  var b = work("B");
+  Console.Write("C");
+  await a; await b;
+} // => ABC
+\end{lstlisting}
+    \cprotect\subcaption{\CSharp{} function applications are eager. In this example the order of statements in the \code{work} function are flipped, the print happens before the delay. When \code{work} is called the executing thread transfers control to the body of the async function until it is suspended. The print order of this program is always ``ABC''.}
+    \label{fig:designdims:eagerness:eager}
+  \end{minipage}
+  \caption{Examles of lazy, semi-eager, and eager async function application.}
+  \label{fig:designdims:eagerness}
+\end{figure}
+
+Languages have adopted all variants of eagerness, as shown in \Cref{fig:designdims:eagerness}. Rust employes lazy function evaluation, \Coro{} values perform work only when awaited, polled, or spawned. \Cref{fig:designdims:eagerness:lazy} shows work being performed at an await point, resulting in a deterministic order of effects. Swift's \textit{async let} construct is semi-eager, as showsn in \Cref{fig:designdims:eagerness:semieager}, the right-hand-side of the binding is scheduled to run in a concurrently executing child task. Note that in Swift async applications, which are not immediately awaited, must be bound with an \textit{async let} instead of a normal let binding. The order of effects in this program is non-deterministic. \CSharp{} adopts a truly eager application, the currently executing thread will transfer execution to the body of the async function. In \Cref{fig:designdims:eagerness:eager}, the order of the print and delay statements are flipped in the body of the \code{work} function. Because applications are eagerly evaluated, the order of effects is deterministic.
+

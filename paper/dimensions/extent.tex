@@ -1,0 +1,49 @@
+\subsubsection{Scope}\label{sssec:dims:scope} The Task Scope axis defines how the execution of a \Task{} is scoped, the possible values are: region scoped, and program scoped. A system enforces \textit{region scoping} if the lifetime of a child \Task{} cannot extend past the lifetime of its parent task in the task tree. Region scoping follows traditional lexical scope rules. Our definition of region scoping is similar to the term \textit{structured concurrency}~\cite{sustrik_structured_2025,mccall_swift-evolutionproposals0304-structured-concurrencymd_nodate,elizarov_kotlin_2021} that has propagated in the wild. \Task{}s are program scoped if they are not region scoped.
+
+\ggnote{This section has not been updated}
+
+\begin{figure}[H]
+  \begin{minipage}[t]{0.49\textwidth}
+    \begin{lstlisting}[language=Swift,escapechar=|]
+func innerWork() async {
+    try? await Task.sleep(
+      for: .milliseconds(100))
+    print("done")
+}
+
+func work() async throws {
+    async let a = innerWork() /* |$T_1$| */
+    try await Task.sleep(
+      for: .milliseconds(1))
+    print("exiting")
+}
+
+try await work() /* |$T_0$| */
+\end{lstlisting}
+    \cprotect\subcaption{\Task{}s are region scoped in Swift. The \Task{} $T_1$ cannot outlive the \Task{} $T_0$. In the task tree, $T_0$ is a parent of $T_1$. This program prints ``exiting'' and then ``done.''}
+  \label{fig:designdims:scope:region}
+\end{minipage}\hfill%
+\begin{minipage}[t]{0.49\textwidth}
+\begin{lstlisting}[language=CSharp,escapechar=|]
+public static async Task InnerWork() {
+  await Task.Delay(100);
+  Console.Write("done");
+}
+
+async Task Work() {
+  var _ = InnerWork(); /* |$T_1$| */
+  await Task.Delay(1);
+  Console.Write("exiting");
+}
+
+async Task Main() {
+  await Work(); /* |$T_0$| */
+}
+\end{lstlisting}
+    \cprotect\subcaption{\Task{}s are program scoped in \CSharp{}. The \Task{} $T_1$ has no association with the \Task{} $T_0$. This program prints ``exiting,'' and the print in \code{InnerWork} is never executed.}
+    \label{fig:designdims:scope:program}
+  \end{minipage}
+  \caption{Examples of region- and program-scoped tasks.}
+  \label{fig:designdims:scope}
+\end{figure}
+
