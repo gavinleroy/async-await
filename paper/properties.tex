@@ -14,16 +14,16 @@ An orphaned task is one that is running in the background but is not synchronize
   \raggedright
 \begin{lstlisting}[language=JavaScript]
 async function saveFiles (files) {
-  files.forEach(async (file) => { 
-    await saveFile(file) 
-  }) 
+  files.forEach(async (file) => {
+    await saveFile(file)
+  })
 }
 \end{lstlisting}
   \cprotect\caption{An example of orphaned tasks that can cause a race condition. The developer has used \code{forEach} with asynchronous work, therefore, the \code{saveFiles} function will return immediately. A caller can ``await'' the task but the child workers saving the file are orphaned and will remain running in the background.}
   \label{fig:orphans}
 \end{wrapfigure}
 
-The function \code{saveFiles} in \Cref{fig:orphans} is equivalent to the most upvoted question on StackOverflow with the label \textit{async-await}~\footnote{\citeurl{https://stackoverflow.com/questions/37576685/using-async-await-with-a-foreach-loop/37576787#37576787}}. In this function the programmer has mistakenly created a list of orphaned tasks by using the synchronous \code{Array.forEach} method with async lambda values. This function starts a worker to save each file but then returns immediately.
+The function \code{saveFiles} in \Cref{fig:orphans} is equivalent to the most upvoted question on StackOverflow with the label \textit{async-await}~\footnote{\citeurlwith{https://stackoverflow.com/questions/37576685/using-async-await-with-a-foreach-loop/37576787\#37576787}}. In this function the programmer has mistakenly created a list of orphaned tasks by using the synchronous \code{Array.forEach} method with async lambda values. This function starts a worker to save each file but then returns immediately.
 
 We claim that an orphaned task with no synchronization point, i.e., edge in the task tree, with the calling context is an error. If a language can guarantee the property of no orphaned tasks, then a large class of errors is prevented. To prevent orphans a language should have region-scoped tasks.
 

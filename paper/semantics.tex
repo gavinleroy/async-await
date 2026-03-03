@@ -1,14 +1,14 @@
 \section{Semantics}\label{sec:semantics}
 
-The key contribution of this paper is a precise and neutral description of the operational behavior of several contemporary asynchronous systems. To reduce the cosmetic noise we provide the operational semantics as extensions to a simple base language. By providing the semantics in layers we highlight the control features necessary for a given language's implementation and can more easily compare the operational behavior between two languages.
-
-We start with a core language, a call-by-value variant of the $\lambda$-calculus extended with a heap and mutation. The grammar and single-step reduction are provided in \Cref{fig:lang:lc}. The reduction rule is defined over a mutable heap $\sigma$ and an expression $e$, $\langle\sigma\,e\rangle$. The reduction rules and grammar for $\lambda$ are standard so we do not elaborate further.
+% The key contribution of this paper is a precise and neutral description of the operational behavior of several contemporary asynchronous systems. To reduce the cosmetic noise we provide the operational semantics as extensions to a simple base language. By providing the semantics in layers we highlight the control features necessary for a given language's implementation and can more easily compare the operational behavior between two languages.
+%
+% We start with a core language, a call-by-value variant of the $\lambda$-calculus extended with a heap and mutation. The grammar and single-step reduction are provided in \Cref{fig:lang:lc}. The reduction rule is defined over a mutable heap $\sigma$ and an expression $e$, $\langle\sigma\,e\rangle$. The reduction rules and grammar for $\lambda$ are standard so we do not elaborate further.
 
 \begin{figure}
 \centering
   \begin{minipage}[t]{0.39\textwidth}
     {\input{./f/lc-gr.tex}
-     \cprotect\subcaption{The grammar for the base $\lambda$-calculus. Our base is a totally standard version of $\lambda$ extended with Danvy and Filinski's \code{shift} and \code{reset} operators~\cite{danvy_filinski_2000}.}
+     \cprotect\subcaption{The grammar for the base $\lambda$-calculus. Our base is a totally standard version of $\lambda$ extended with Danvy and Filinski's \code{shift} and \code{reset} operators~\cite{danvy_functional_nodate}.}
      \label{fig:lang:lc}}
   \end{minipage}\hfill%
   \begin{minipage}[t]{0.59\textwidth}
@@ -25,49 +25,48 @@ We start with a core language, a call-by-value variant of the $\lambda$-calculus
   \label{fig:lang:base}
 \end{figure}
 
-\cprotect\ggnote{We provide two base extensions for complex control flow to $\lambda$. The extension $\lambda_{exn}$ adds exceptions and $\lambda_{coro}$ adds coroutines. \Cref{fig:lang:exn} shows the grammar and reduction rule extensions for $\lambda_{exn}$, which extends $\lambda$ with \code{throw} and \code{catch} forms. \Cref{fig:lang:coro} shows the grammar and reduction rule extensions for $\lambda_{coro}$, which extends $\lambda$ with coroutines. Our coroutine provides the operational behavior for \textit{asymmetric stackful coroutines}, following a similar approach as \cite{moura_revisiting_2009}.}
-
-We now describe the configuration of the shared asynchronous grammar. \Cref{fig:lang:platform} defines the shared grammar constructs that encode the async runtime building blocks discussed in \Cref{sec:designdims}. We will refer to this shared grammar extension as the \textit{async platform.}
-
-A \textit{frame}, $F$, is written $\langle e,\,l\rangle$ and consists of an expression $e$, along with a frame label, $l$. A \textit{frame label}, $l$, is either the name of the \Task{} this frame corresponds to, or \textit{sync} to denote a synchronous frame. A \textit{frame stack}, $FS$, is a list of frames --- essentially a thread. A \textit{process}, $P$, is a collection of frame stacks. A \textit{task queue}, $Q$, stores the asynchronous frames waiting to be run. The async platform provides a few additional expressions that we will describe here.
-
-The $block\,e_{async}$ expression provides the barrier between synchronous code and asynchronous code. Languages may use a block expression to block a synchronous frame until the asynchronous expression has completed running. For most languages the block expression marks the \textit{runtime entry,} and when it returns, the \textit{runtime exit.}
-
-The form \code{os/io} is the \textsc{OmniScient IO} operation provided by the runtime system. It models real-world \textsc{io} operations that would take some non-deterministic amount of time to resolve, like receiving packets from the network or querying a database. The form is ``omniscient'' because the resulting expression is provided to the form, e.g., \code{(os/io 5 "hello")}, which means the \Task{} will resolve to the value \code{"hello"} after \textit{at least} five time steps. Thus the form is deterministic in its evaluation \textit{value}, but not in its evaluation \textit{time.}
-
-Each asynchronous language is automatically defined with the platform expressions and additional non-terminals. These represent the common operations and a base-set of interactions each asynchronous language will have with its underlying system. We will answer each of the design questions by indicating where in the semantics 
+% \cprotect\ggnote{We provide two base extensions for complex control flow to $\lambda$. The extension $\lambda_{exn}$ adds exceptions and $\lambda_{coro}$ adds coroutines. \Cref{fig:lang:exn} shows the grammar and reduction rule extensions for $\lambda_{exn}$, which extends $\lambda$ with \code{throw} and \code{catch} forms. \Cref{fig:lang:coro} shows the grammar and reduction rule extensions for $\lambda_{coro}$, which extends $\lambda$ with coroutines. Our coroutine provides the operational behavior for \textit{asymmetric stackful coroutines}, following a similar approach as \cite{moura_revisiting_2009}.}
+%
+% We now describe the configuration of the shared asynchronous grammar. \Cref{fig:lang:platform} defines the shared grammar constructs that encode the async runtime building blocks discussed in \Cref{sec:designdims}. We will refer to this shared grammar extension as the \textit{async platform.}
+%
+% A \textit{frame}, $F$, is written $\langle e,\,l\rangle$ and consists of an expression $e$, along with a frame label, $l$. A \textit{frame label}, $l$, is either the name of the \Task{} this frame corresponds to, or \textit{sync} to denote a synchronous frame. A \textit{frame stack}, $FS$, is a list of frames --- essentially a thread. A \textit{process}, $P$, is a collection of frame stacks. A \textit{task queue}, $Q$, stores the asynchronous frames waiting to be run. The async platform provides a few additional expressions that we will describe here.
+%
+% The $block\,e_{async}$ expression provides the barrier between synchronous code and asynchronous code. Languages may use a block expression to block a synchronous frame until the asynchronous expression has completed running. For most languages the block expression marks the \textit{runtime entry,} and when it returns, the \textit{runtime exit.}
+%
+% The form \code{os/io} is the \textsc{OmniScient IO} operation provided by the runtime system. It models real-world \textsc{io} operations that would take some non-deterministic amount of time to resolve, like receiving packets from the network or querying a database. The form is ``omniscient'' because the resulting expression is provided to the form, e.g., \code{(os/io 5 "hello")}, which means the \Task{} will resolve to the value \code{"hello"} after \textit{at least} five time steps. Thus the form is deterministic in its evaluation \textit{value}, but not in its evaluation \textit{time.}
+%
+% Each asynchronous language is automatically defined with the platform expressions and additional non-terminals. These represent the common operations and a base-set of interactions each asynchronous language will have with its underlying system. We will answer each of the design questions by indicating where in the semantics 
 
 \subsection{\CSharp{}}
 
-\begin{figure}[htbp]
+\begin{figure}[H]
 \centering
-  $$
-  \begin{array}{rcl}
+  $\begin{array}{rcl}
   e & ::= & \ldots \mid \text{async fun } \many{x} \to e \mid \text{await } e \\
   v & ::= & \ldots \mid \text{async fun } \many{x} \to e \\
   E & ::= & \ldots \mid \text{await } E
-  \end{array}
-  $$
-  \hline
+  \end{array}$
+
   \vspace{1em}
+
   \input{./f/cs-op.tex}
 \caption{Syntax and Operational Semantics for \CSharp{} async/await}
 \label{fig:lang:cs}
 \end{figure}
 
-Our model of \CSharp{} follows that of \cite{hutchison_pause_2012}, which provided a formal description for \CSharp{} 5.0, in addition to the prose specification provided by Microsoft. % TODO: cite
-The \CSharp{} language and relation extension is provided in \Cref{fig:lang:cs}.
-
-Rule \semrule{Async-App} applies an asynchronous function, placing the function body in a new frame at the head of the executing frame stack. This is a \textit{hot application}, because the function body is immediately running in the executing thread. This frame will continue to run until a suspension point is reached.
-
-Rules \semrule{Await-Suspend}, \semrule{Await-Continue}, and \semrule{Await-Failed} demonstrate how await points are handled. Suspension points in \CSharp{} are a \textit{subset} of all await points. That is, the rules \semrule{Await-Continue} and \semrule{Await-Failed} show that if the awaited object is complete --- with a value or an exception --- the current thread will continue executing. There is no guarantee that an await point will ever suspend the current computation, therefore, await points are unreliable.
-
-
-The grammar presented in \Cref{fig:lang:cs} does not include a $cancel$ expression. Therefore, we say that \CSharp{} has \textit{no cancellation policy}. If a computation is to be cancellable, the developer must encode this behavior themselves via standard communication mechanisms (e.g., channels, events).
-
-
-When a \Task{} is created, via \semrule{Async-App} or \semrule{Task-Run}, it has no relation to its context. Furthermore, when a task is resolved, \semrule{Task-Return}, there is no check for the status of child \Task{}s spawned during its execution. \Task{} objects freely live as any other object in \CSharp, no rule states that a \Task{} must be awaited, or even that a \Task{} must finish executing. The rule \semrule{Unblock} does not check the queue or status of executing threads for unfinished computations. Therefore, we say that both tasks and exceptions are ignorable.
-
+% Our model of \CSharp{} follows that of \cite{hutchison_pause_2012}, which provided a formal description for \CSharp{} 5.0, in addition to the prose specification provided by Microsoft. % TODO: cite
+% The \CSharp{} language and relation extension is provided in \Cref{fig:lang:cs}.
+%
+% Rule \semrule{Async-App} applies an asynchronous function, placing the function body in a new frame at the head of the executing frame stack. This is a \textit{hot application}, because the function body is immediately running in the executing thread. This frame will continue to run until a suspension point is reached.
+%
+% Rules \semrule{Await-Suspend}, \semrule{Await-Continue}, and \semrule{Await-Failed} demonstrate how await points are handled. Suspension points in \CSharp{} are a \textit{subset} of all await points. That is, the rules \semrule{Await-Continue} and \semrule{Await-Failed} show that if the awaited object is complete --- with a value or an exception --- the current thread will continue executing. There is no guarantee that an await point will ever suspend the current computation, therefore, await points are unreliable.
+%
+%
+% The grammar presented in \Cref{fig:lang:cs} does not include a $cancel$ expression. Therefore, we say that \CSharp{} has \textit{no cancellation policy}. If a computation is to be cancellable, the developer must encode this behavior themselves via standard communication mechanisms (e.g., channels, events).
+%
+%
+% When a \Task{} is created, via \semrule{Async-App} or \semrule{Task-Run}, it has no relation to its context. Furthermore, when a task is resolved, \semrule{Task-Return}, there is no check for the status of child \Task{}s spawned during its execution. \Task{} objects freely live as any other object in \CSharp, no rule states that a \Task{} must be awaited, or even that a \Task{} must finish executing. The rule \semrule{Unblock} does not check the queue or status of executing threads for unfinished computations. Therefore, we say that both tasks and exceptions are ignorable.
+%
 \subsection{JavaScript}
 \subsection{Swift}
 \subsection{Rust}

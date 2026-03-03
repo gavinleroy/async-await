@@ -190,7 +190,7 @@ async Task Main() {
 
 Languages have adopted all variants of eagerness, as shown in \Cref{fig:designdims:eagerness}. Rust employes lazy function evaluation, \Coro{} values perform work only when awaited, polled, or spawned. \Cref{fig:designdims:eagerness:lazy} shows work being performed at an await point, resulting in a deterministic order of effects. Swift's \textit{async let} construct is semi-eager, as showsn in \Cref{fig:designdims:eagerness:semieager}, the right-hand-side of the binding is scheduled to run in a concurrently executing child task. Note that in Swift async applications, which are not immediately awaited, must be bound with an \textit{async let} instead of a normal let binding. The order of effects in this program is non-deterministic. \CSharp{} adopts a truly eager application, the currently executing thread will transfer execution to the body of the async function. In \Cref{fig:designdims:eagerness:eager}, the order of the print and delay statements are flipped in the body of the \code{work} function. Because applications are eagerly evaluated, the order of effects is deterministic.
 
-\subsubsection{Scope}\label{sssec:dims:scope} The Task Scope axis defines how the execution of a \Task{} is scoped, the possible values are: region scoped, and program scoped. A system enforces \textit{region scoping} if the lifetime of a child \Task{} cannot extend past the lifetime of its parent task in the task tree. Region scoping follows traditional lexical scope rules. Our definition of region scoping is similar to the term \textit{structured concurrency}~\cite{martin_sustrik2016,swift_structured_concurrency,elizarov_kotlin_2021} that has propagated in the wild. \Task{}s are program scoped if they are not region scoped.
+\subsubsection{Scope}\label{sssec:dims:scope} The Task Scope axis defines how the execution of a \Task{} is scoped, the possible values are: region scoped, and program scoped. A system enforces \textit{region scoping} if the lifetime of a child \Task{} cannot extend past the lifetime of its parent task in the task tree. Region scoping follows traditional lexical scope rules. Our definition of region scoping is similar to the term \textit{structured concurrency}~\cite{sustrik_structured_2025,mccall_swift-evolutionproposals0304-structured-concurrencymd_nodate,elizarov_kotlin_2021} that has propagated in the wild. \Task{}s are program scoped if they are not region scoped.
 
 \begin{figure}[H]
   \begin{minipage}[t]{0.49\textwidth}
@@ -230,7 +230,7 @@ async Task Main() {
   await Work(); /* |$T_0$| */
 }
 \end{lstlisting}
-    \cprotectsubcaption{\Task{}s are program scoped in \CSharp{}. The \Task{} $T_1$ has no association with the \Task{} $T_0$. This program prints ``exiting,'' and the print in \code{InnerWork} is never executed.}
+    \cprotect\subcaption{\Task{}s are program scoped in \CSharp{}. The \Task{} $T_1$ has no association with the \Task{} $T_0$. This program prints ``exiting,'' and the print in \code{InnerWork} is never executed.}
     \label{fig:designdims:scope:program}
   \end{minipage}
   \caption{Examples of region- and program-scoped tasks.}
@@ -302,7 +302,7 @@ async Task Main() {
   await Work();
 } // ~0.6s
 \end{lstlisting}
-    \cprotectsubcaption{\CSharp{} terminates all running tasks at the end of their scope (program scope). The execution of the above program takes about 0.6 seconds. The \code{inner} \Task{} is terminated and the sleep terminates early with no warning.}
+    \cprotect\subcaption{\CSharp{} terminates all running tasks at the end of their scope (program scope). The execution of the above program takes about 0.6 seconds. The \code{inner} \Task{} is terminated and the sleep terminates early with no warning.}
     \label{fig:designdims:destruction:term}
   \end{minipage}
   \caption{Examples of await, cancel, and termination destruction semantics.}
@@ -363,7 +363,7 @@ await work() // exiting
 
 \subsubsection{Suspension} The Suspension axis defines if an await point is guaranteed to suspend. The possible values are: \textit{static,} and \textit{dynamic.}
 
-\Cref{fig:designdims:suspend:static} provides a JavaScript program that demonstrates static suspension points. The provided program will always print ``ABCABAB.'' The first ``AB'' is a result of JavaScript's \textit{eager application}, see \Cref{ssec:designdims:eagerness}, the remaining interleaved prints are a result of static suspension points. At every \code{await} keyword, JavaScript will suspend the current \Task{} to provide another a chance to make progress. \footnote{This behavior is defined as part of the ECMAScript standard (\textsection 27.7.5.3, step 3.b)~\cite{noauthor_ecmascript_nodate}.}
+\Cref{fig:designdims:suspend:static} provides a JavaScript program that demonstrates static suspension points. The provided program will always print ``ABCABAB.'' The first ``AB'' is a result of JavaScript's \textit{eager application}, see \Cref{ssec:designdims:eagerness}, the remaining interleaved prints are a result of static suspension points. At every \code{await} keyword, JavaScript will suspend the current \Task{} to provide another a chance to make progress. \footnote{This behavior is defined as part of the ECMAScript standard (\textsection 27.7.5.3, step 3.b)~\cite{ecma_ecmascript_nodate}.}
 
 \Cref{fig:designdims:suspend:dynamic} provides a Rust (SMOL) program that demonstrates dynamic suspension points. The provided program will always print ``CAAABBB'' --- none of the await expression suspend the current computation. Many languages opt for dynamic suspension points for performance reasons. If the awaited expression returns synchronously, then the executing thread has more work to do and can continue executing. Static suspension points may cause unnecessary overhead if the suspended task is immediately rescheduled.
 
@@ -480,10 +480,10 @@ In Rust a \Coro{} is represented as an enumeration. Cancelling an \Coro{} is def
 
 \begin{figure}
   \begin{minipage}[t]{0.49\linewidth}
-    \includegraphics[width=0.99\textwidth]{./assets/ai/rust-smol-cancellation.png}
+    \includegraphics[width=0.99\textwidth]{example-image-a}
   \end{minipage}\hfill%
   \begin{minipage}[t]{0.49\linewidth}
-    \includegraphics[width=0.99\textwidth]{./assets/ai/python-aio-cancellation.png}
+    \includegraphics[width=0.99\textwidth]{example-image-b}
   \end{minipage}
   \cprotect\caption{Example execution of the \code{process} function shown in \Cref{fig:cancellation}. (Left) The Rust (SMOL) implementation uses the non-cooperative memory free cancellation protocol. Both the \code{db_update} and \code{cache_udpate} are terminated, leaving the systems in a potentially inconsistent state. (Right) The Python (Asyncio) implementation uses exceptions to signal cancellation and the \code{cache_update} is left orphaned because cancellation is not signaled to it.}
   \label{fig:cancellation:swimlane}
