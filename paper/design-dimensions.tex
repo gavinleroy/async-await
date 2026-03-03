@@ -125,7 +125,7 @@ A \Task{} represents one \Coro{} that is registered in the runtime, but with coo
 
 Provided the base components for a cooperative multitasking system, language designers must decide how the async/await syntax expands expands into primitives that control the base components. In this section we provide the async/await design dimensions. The design dimensions map the async/await syntax to the runtime behavior of the desugared program. The design dimensions are: \textit{eagnerness,} \textit{scope,} \textit{destruction,} \textit{propagation,} \textit{suspension,} and \textit{cancellation.}
 
-\subsubsection{Eagerness} The Eagerness axis defines the eagerness of an async function application, the possible values are: \textit{eager,} \textit{semi-eager,} and \textit{lazy.}
+\subsubsection{Eagerness}\label{subsec:designdims:eagerness} The Eagerness axis defines the eagerness of an async function application, the possible values are: \textit{eager,} \textit{semi-eager,} and \textit{lazy.}
 
 On evaluating an eager async application, the current thread transfers execution to the body of the async function. When a suspension occurs, the application evaluates to a \Task{} value and execution of the calling context proceeds as normal. By contrast, a \textit{semi-}eager application evaluates immediately to a \Task{} value, but control does not transfer to the function body. The \Task{} is scheduled with the executor to run on the next available worker thread. A lazy application evaluates immediately to a \Coro{} object. As a reminder, \Coro{}s are not scheduled with the evaluator and perform work only when prompted.
 
@@ -237,7 +237,9 @@ async Task Main() {
   \label{fig:designdims:scope}
 \end{figure}
 
-\subsubsection{Destruction} The Task Destruction axis defines what happens to a task at the end of its scope (see \Cref{subsubsec:dims:scope}). At the end of its scope a task is either \textit{awaited,} \textit{cancelled,} or \textit{terminated.}
+\subsubsection{Destruction}\label{subsubsec:designdims:destruction} The Task Destruction axis defines what happens to a task at the end of its scope (see \Cref{subsubsec:dims:scope}). At the end of its scope a task is either \textit{awaited,} \textit{cancelled,} or \textit{terminated.} If a \Task{} is awaited then it is allowed to run to completion, potentially blocking the a scope or program exit.
+
+\Cref{fig:designdims:destruction:await} shows an example JavaScript program that waits for an unawaited \Task{} to complete, even though it was not awaited. \Cref{fig:designdims:destruction:cancel} shows an example Swift program that cancels a running task on destruction. Because that task is executing a long sleep operation, the sleep is cancelled early and the program continues executing. \Cref{fig:designdims:destruction:term} shows an example \CSharp{} program that  shows an example \CSharp{} program that terminates running \Task{}s on destruction (program scope). The termination request does not allow for \Task{}s to clean-up after themselves or react to the termination.
 
 \begin{figure}[H]
   \begin{minipage}[t]{0.30\textwidth}
@@ -255,9 +257,9 @@ async function work() {
   console.log("exiting")
 }
 
-await work() // 542ms
+await work() // ~10s
 \end{lstlisting}
-    \cprotect\subcaption{JavaScript awaits all running tasks at the end of their scope (program scope). The execution of the above program takes $\gt 500ms$ because the \code{inner} \Task{} is awaited.}
+    \cprotect\subcaption{JavaScript awaits all running tasks at the end of their scope (program scope). The execution of the above program takes about 10 seconds because the \code{inner} \Task{} is fully awaited.}
     \label{fig:designdims:destruction:await}
   \end{minipage}\hfill%
   \begin{minipage}[t]{0.32\textwidth}
@@ -278,42 +280,151 @@ func work() async throws {
   print("exiting")
 }
 
-try await work()
+try await work() // ~0.5s
 \end{lstlisting}
-    \cprotect\subcaption{\Task{}s are region scoped in Swift. The \Task{} $T_1$ cannot outlive the \Task{} $T_0$. In the task tree, $T_0$ is a parent of $T_1$. This program prints ``exiting'' and then ``done.''}
-  \label{fig:designdims:destriction:cancel}
+    \cprotect\subcaption{Swift cancels all running tasks at the end of their scope (region scope). The execution of the above program takes about 0.5 seconds and prints ``cancelled,'' because the \code{inner} \Task{} is fully cancelled and the sleep terminates early.}
+  \label{fig:designdims:destruction:cancel}
 \end{minipage}\hfill%
 \begin{minipage}[t]{0.33\textwidth}
 \begin{lstlisting}[language=CSharp,escapechar=|]
-async Task Inner() {
-  await Task.Delay(100);
+async Task InnerWork() {
+  await Task.Delay(10_000);
   Console.Write("done");
 }
 
 async Task Work() {
-  var _ = Inner();
-  await Task.Delay(1);
+  var _ = InnerWork();
+  await Task.Delay(0);
   Console.Write("exiting");
 }
 
 async Task Main() {
   await Work();
-}
+} // ~0.6s
 \end{lstlisting}
-    \cprotectsubcaption{\Task{}s are program scoped in \CSharp{}. The \Task{} $T_1$ has no association with the \Task{} $T_0$. This program prints ``exiting,'' and the print in \code{InnerWork} is never executed.}
+    \cprotectsubcaption{\CSharp{} terminates all running tasks at the end of their scope (program scope). The execution of the above program takes about 0.6 seconds. The \code{inner} \Task{} is terminated and the sleep terminates early with no warning.}
     \label{fig:designdims:destruction:term}
   \end{minipage}
   \caption{Examples of await, cancel, and termination destruction semantics.}
   \label{fig:designdims:destruction}
 \end{figure}
 
-We distignuish between the last two cases because cancellation provides running tasks the opportunity to perform clean-up actions, whereas termination does not.
+\subsubsection{Propagation} The Exception Propgation axis defines if an exception is propagated from a \Task{}s to the program if it \textit{was not awaited.} We define this axis strictly for unawaited \Task{}s because an exception propagates from a child \Task{} to its parent at an await point. The possible propagation types are: \textit{destruction} (see \Cref{subsubsec:designdims:destruction}), and \textit{never.}
 
-\subsubsection{Propagation} The Exception Propgation axis defines when an exception is propagated from a \Task{}s to the program if it \textit{was not awaited.} Every language with async/await syntax and exceptions progate exceptions at await points. What's interesting in this dimension, is when unawaited tasks propagate exceptions, the possible values are: \textit{destruction,} and \textit{never.} Exception propagation happens on destruction if a trapped exception is reraised at the end of a task's scope (see \Cref{subsubsec:dims:scope}). Unawaited task exceptions are never propagated if they are only reraised at await points.
+\Cref{fig:designdims:propagation:destruction} provides an example Python (Asyncio) program. Asyncio employes destruction exception propagation. The inner \Task{} \code{inner}, throws an exception, however, the \Task{} that launched it, \code{main}, never awaits it. On destruction (program scope), the \Task{} reraises the unawaited exception. \Cref{fig:designdims:propagation:never} provides an example Swift, which demonstrates never propagating an exception unless it's awaited. Although swift has region-scoped tasks, on destruction, a \Task{} doesn't propagate an exception.
 
-\subsubsection{Suspension} The Suspension axis defines how the set of \textit{await} points relates to the set of \textit{suspension} points, the possible values are: \textit{static,} and \textit{dynamic.} A system has \textit{static} suspension points if the language guarantees that every await point suspends the current computation. A system has \textit{dynamic} suspension points if the set of await points is a superset of the set of suspension points. Asynchronous computations may complete synchronously, in fact, a large number do, and the runtime can decide dynamically whether to actually suspend the calling \Task{} or continue with the awaited value.
+\begin{figure}[H]
+  \begin{minipage}[t]{0.49\textwidth}
+\begin{lstlisting}[language=Python]
+import asyncio
 
-\subsubsection{Cancellation} The Cancellation axis defines how a running task is cancelled, including how cancellation is signaled (if at all) and how cancellation propagates between task dependencies. A clear cancellation mechanism is what distinguishes async/await from other concurrency paradigms. Within the cancellation axis there are two design dimensions: \textit{cooperation,} and \textit{direction.}
+class Bad(Exception):
+    pass
+
+async def inner():
+    raise Bad()
+
+async def main():
+    i = asyncio.create_task(inner())
+    await asyncio.sleep(0)
+    print("exiting")
+
+asyncio.run(main())
+# exiting
+# Task exception was never retrieved
+# Bad
+\end{lstlisting}
+    \cprotect\subcaption{Python's Asyncio library reraises exceptions on destruction (program scoped). The above program prints ``exiting'' and then raises the exception \code{Bad} with an explanation, \textit{Task exception was never retrieved.}}
+    \label{fig:designdims:propagation:never}
+  \end{minipage}\hfill%
+  \begin{minipage}[t]{0.49\textwidth}
+\begin{lstlisting}[language=Swift]
+enum Err: Error { case bad }
+
+func inner() async throws {
+  throw Err.bad
+}
+
+func work() async {
+  async let _ = inner()
+  try? await Task.sleep(
+      for: .seconds(0))
+  print("exiting")
+}
+
+await work() // exiting
+\end{lstlisting}
+    \cprotect\subcaption{Swift never reraises unawaited exceptions. The above program prints ``exiting'' and exits successfully.}
+    \label{fig:designdims:propagation:destruction}
+  \end{minipage}
+  \caption{Examples of destruction and never exception propagation.}
+  \label{fig:designdims:propagation}
+\end{figure}
+
+\subsubsection{Suspension} The Suspension axis defines if an await point is guaranteed to suspend. The possible values are: \textit{static,} and \textit{dynamic.}
+
+\Cref{fig:designdims:suspend:static} provides a JavaScript program that demonstrates static suspension points. The provided program will always print ``ABCABAB.'' The first ``AB'' is a result of JavaScript's \textit{eager application}, see \Cref{subsec:designdims:eagerness}, the remaining interleaved prints are a result of static suspension points. At every \code{await} keyword, JavaScript will suspend the current \Task{} to provide another a chance to make progress. \footnote{This behavior is defined as part of the ECMAScript standard (\textsection 27.7.5.3, step 3.b)~\cite{noauthor_ecmascript_nodate}.}
+
+\Cref{fig:designdims:suspend:dynamic} provides a Rust (SMOL) program that demonstrates dynamic suspension points. The provided program will always print ``CAAABBB'' --- none of the await expression suspend the current computation. Many languages opt for dynamic suspension points for performance reasons. If the awaited expression returns synchronously, then the executing thread has more work to do and can continue executing. Static suspension points may cause unnecessary overhead if the suspended task is immediately rescheduled.
+
+\begin{figure}[H]
+  \begin{minipage}[t]{0.49\textwidth}
+\begin{lstlisting}[language=JavaScript]
+async function print(msg) {
+  console.log(msg);
+}
+
+async function work(name) {
+  await print(name);
+  await print(name);
+  await print(name);
+}
+
+async function main() {
+  let a = work("A");
+  let b = work("B");
+  await print("C")
+  await a; await b
+}
+
+await main()
+// => ABCABAB
+\end{lstlisting}
+    \cprotect\subcaption{}
+    \label{fig:designdims:suspend:static}
+  \end{minipage}\hfill%
+  \begin{minipage}[t]{0.49\textwidth}
+\begin{lstlisting}[language=Rust]
+async fn print(msg: &str) {
+  print!("{msg}");
+}
+
+async fn work(name: &str) {
+  print(name).await;
+  print(name).await;
+  print(name).await;
+}
+
+fn main() {
+  smol::block_on(async {
+    let a = smol::spawn(work("A"));
+    let b = smol::spawn(work("B"));
+    print("C").await;
+    a.await; b.await;
+    drop(signal);
+  });
+} // => CAAABBB
+\end{lstlisting}
+    \cprotect\subcaption{}
+    \label{fig:designdims:suspend:dynamic}
+  \end{minipage}
+  \caption{Examples of static and dynamic suspension.}
+  \label{fig:designdims:suspend}
+\end{figure}
+
+how the set of \textit{await} points relates to the set of \textit{suspension} points, the possible values are:  A system has \textit{static} suspension points if the language guarantees that every await point suspends the current computation. A system has \textit{dynamic} suspension points if the set of await points is a superset of the set of suspension points. Asynchronous computations may complete synchronously, in fact, a large number do, and the runtime can decide dynamically whether to actually suspend the calling \Task{} or continue with the awaited value.
+
+\subsubsection{Cancellation} The Cancellation axis defines how a running task is cancelled, including how cancellation is signaled, if at all, and how cancellation propagates between task dependencies. A clear cancellation mechanism is what distinguishes async/await from other concurrency paradigms. Within the cancellation axis there are two design dimensions: \textit{cooperation,} and \textit{direction.}
 
 In this section we will illustrate cancellation using the function \code{process} defined in \Cref{fig:cancellation} in both Rust (SMOL) and Python (AsyncIO).
 
