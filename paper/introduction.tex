@@ -1,14 +1,29 @@
-\section{Introduction}
-
 \ggnote{You will read the words \Coro{} and \Task{} in the text. In the source these are written as macros and I'm using these silly names for now fully expecting us to have a discussion on what they should be later.}
 
+\section{Introduction}
+
+Software developers have long struggled to write concurrent and parallel programs which are both correct and efficient. Programming languages have responded to this challenge by gradually lifting elements of concurrency from user-space to the level of language design. Approaches vary greatly, but the core idea shared between most modern languages is \emph{async/await}: marking blocks of code as \verb|async|, and using an \verb|await| keyword to wait for an async block to finish executing. The async/await keywords can be found in recent versions of Python, Javascript, Swift, Rust, C\#, and more.
+
+Our original motivation for studying async/await was to help developers translate their understanding of the concept from one language to another, e.g., from Javascript to Rust. In theory, both languages contain the same core concept with small differences in the details. We should be able to explain async/await just as one might explain lexically-scoped variables, if-statements, or other standardized language features\,\cite{lk:smol}. In reality, the surface similarities between async/await designs mask can deep semantic divergences. For instance: what's the difference between a coroutine, a future, a promise, and a task? What happens when you cancel a task? When are tasks required to exit, if ever? How do errors propagate across a task boundary, if it all? These questions are further complicated by languages with customizable async/await runtimes (e.g., Rust and Python), which give different answers based on the choice of runtime.
+
+Observing this conceptual chaos, we set out to perform a \emph{design space exploration} of async/await in modern languages. This paper describes the design space in five parts:
 \begin{enumerate}
-  \item \textbf{We motivate the work with case studies about the pitfalls of async/await syntax.} Async/await as a syntactic abstraction hides the semantics of the underlying concurrency model. We show how developers can easily write erroneous programs due to inconsistent terminology, mismatched guarantees, and complicated semantics that diverges between languages. (\Cref{sec:motivation})
-
-  \item \textbf{We outline the design dimensions for cooperative multitasking.} Adding asynchronous programming to a language natively requires great engineering effort. The language gains new syntactic constructs, compiler transformations, and a runtime system that all work together to provide the desired look and behavior. We find that many of these systems share a common set of architectural components, but differ in how these components are assembled. We outline these decisions and clarify mixed terminology that exists in the wild. (\Cref{sec:designdims})
-
-  \item \textbf{We provide operational semantics for several contemporary programming languages' with async/await syntax.} We show precisely where the design dimensions emerge from the operational semantics. We provide the semantics as an extension to a $\lambda$-calculus core language with \code{reset} and \code{shift} operators. (\Cref{sec:semantics})
-
-  \item \textbf{We provide a mapping of design decisions to properties of programs in the resulting language.} Language designers make trade-offs when designing their async systems. We highlight how these trade-offs impact the resulting programs developers write. This information can help developers understand the behavior of their programs, and inform language designers of the downstream impact of their design decisions. We encourage designers going forward to consider the properties they wish to provide to developers and design their systems accordingly. (\Cref{sec:properties})
+  % \item \textbf{We scope our exploration within the broader context of concurrent and parallel programming} (\Cref{sec:scope}).
+  \item \textbf{We motivate the need for a design space with case studies on how async/await designs diverge} (\Cref{sec:motivation}).
+  \item \textbf{We establish a shared vocabulary for talking about async/await, and informally describe the dimensions of the design space} (\Cref{sec:designdims}).
+  \item \textbf{We use a formal model of operational semantics to explain precisely how languages vary in the design space} (\Cref{sec:semantics}).
+  \item \textbf{We discuss the trade-offs of the design space in terms of the semantic properties enforced by the design} (\Cref{sec:properties}).
 \end{enumerate}
+
+% This paper articulates the design space we identified in both informal terms (to help language designers) and formal terms (to help language theorists). The goal of this design space is to enumerate the principal axes of an async/await system, and to explain the pros and cons of each design decision along a given axis.
+
+% \begin{enumerate}
+%   \item \textbf{We motivate the work with case studies about the pitfalls of async/await syntax.} Async/await as a syntactic abstraction hides the semantics of the underlying concurrency model. We show how developers can easily write erroneous programs due to inconsistent terminology, mismatched guarantees, and complicated semantics that diverges between languages. 
+
+%   \item \textbf{We outline the design dimensions for cooperative multitasking.} Adding asynchronous programming to a language natively requires great engineering effort. The language gains new syntactic constructs, compiler transformations, and a runtime system that all work together to provide the desired look and behavior. We find that many of these systems share a common set of architectural components, but differ in how these components are assembled. We outline these decisions and clarify mixed terminology that exists in the wild. 
+
+%   \item \textbf{We provide operational semantics for several contemporary programming languages' with async/await syntax.} We show precisely where the design dimensions emerge from the operational semantics. We provide the semantics as an extension to a $\lambda$-calculus core language with \code{reset} and \code{shift} operators. 
+
+%   \item \textbf{We provide a mapping of design decisions to properties of programs in the resulting language.} Language designers make trade-offs when designing their async systems. We highlight how these trade-offs impact the resulting programs developers write. This information can help developers understand the behavior of their programs, and inform language designers of the downstream impact of their design decisions. We encourage designers going forward to consider the properties they wish to provide to developers and design their systems accordingly. 
+% \end{enumerate}
 
