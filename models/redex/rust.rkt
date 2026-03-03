@@ -34,47 +34,12 @@
         (where σ_1 (ext σ_0 (x v) ...))
         "async-app"]
 
-   [--> (σ_0 (in-hole E (tagged x_running (in-hole E_inner (await (tag x_coro))))))
-        (σ_1 (in-hole E (tag x_running)))
+   [--> (σ (in-hole E (await (tag x_coro))))
+        (σ (in-hole E ((lambda (x) e) (void))))
 
-        (side-condition (not (term (in-tag? E_inner))))
-        (where x_dummy (gensym σ_0 dummy))
-        (where v_coro
-               (coroutine
-                (lambda (x_dummy)
-                  (in-hole E_inner
-                           (begin x_dummy
-                                  (await (resume! (tag x_coro) (void))))))))
-        (where σ_1 (ext1 σ_0 (x_running v_coro)))
-        "await-coro"]
-
-   [--> (σ (in-hole E (await v)))
-        (σ (in-hole E v))
-
-        (side-condition (not (term (awaitable? v))))
-        "await-continue"]))
-
-;; -----------------------------------------------------------------------------
-;; Metafunctions
-;; -----------------------------------------------------------------------------
-
-(define-metafunction Rust
-  async-resume : any -> any
-  [(async-resume (tag x_coro))
-   (resume! (tag x_coro) (void))]
-  [(async-resume (task x_task))
-   (task x_task)]
-  [(async-resume any)
-   ,(error 'async-resume "~e is not an awaitable" (term any))])
-
-(define-metafunction Rust
-  awaitable? : any -> boolean
-  [(awaitable? (tag _)) #true]
-  [(awaitable? (task _)) #true]
-  [(awaitable? _) #false])
-
-(define-metafunction/extension in-tag? Rust
-  in-tag?/rs : E -> boolean)
+        (where/error (coroutine (lambda (x) e))
+                     (lookup σ x_coro))
+        "await-coro"]))
 
 ;; -----------------------------------------------------------------------------
 ;; Tests

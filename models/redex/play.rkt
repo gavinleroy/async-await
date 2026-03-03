@@ -1,31 +1,16 @@
 #lang racket
 
-(require redex/reduction-semantics
-         (for-syntax racket/syntax)
-         (for-syntax syntax/parse)
-         (for-syntax racket/base))
+(require racket/control)
 
-(define-language LC
-  (e ::=
-     (e e)
-     (lambda (x) e)
-     x
-     number
-     (+ e ...))
-  (x ::= variable-not-otherwise-mentioned))
+(struct my-exception exn:fail:user ())
 
-(define-syntax (make-language stx)
-  (syntax-case stx ()
-    [(_ Lang main)
-     #'(begin
-         (define-syntax (main stx)
-           (syntax-parse stx
-             [(_ n:nat e)
-              (define nums (for/list ([i (in-range (syntax-e #'n))]) i))
-              #`(term-let ([(nums (... (... ...))) '#,nums])
-                          (term (+ (substitute e) nums (... (... ...)))
-                                #:lang Lang))])))]))
+(define-syntax-rule (catch handler body)
+  (with-handlers ([my-exception? handler])
+    body))
 
-(make-language LC main)
+(define-syntax-rule (throw e)
+  (raise (my-exception e (current-continuation-marks))))
 
-(main 4 ((lambda (i) 0) 10))
+
+(catch (lambda (e) 42)
+       (reset (+ 10 (throw "error"))))

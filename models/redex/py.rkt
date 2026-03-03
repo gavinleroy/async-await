@@ -55,8 +55,8 @@
 
         "await-coroutine"]
 
-   [--> (σ (in-hole E (throw-in (lambda (x) (reset (begin x e))) v)))
-        (σ (in-hole E (lambda (x) (reset (begin (throw v) e)))))
+   [--> (σ (in-hole E (throw-in (lambda (x) (in-hold E_inner x)) v)))
+        (σ (in-hole E (lambda (x) (in-hold E_inner (throw v)))))
 
         "throw-in"]))
 

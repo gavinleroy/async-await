@@ -190,9 +190,9 @@
    AsyncIO #:domain (t σ Q P)
 
    [--> (t_0 σ Q_0 (FS_main FS_0 ... (stack) FS_1 ...))
-        (t_1 σ Q_1 (FS_main FS_0 ... (stack q-head) FS_1 ...))
+        (t_1 σ Q_1 (FS_main FS_0 ... (stack next-frame) FS_1 ...))
 
-        (where ((name q-head (frame _ x_async)) Q_1) (q-pop Q_0))
+        (where ((name next-frame (frame _ x_async)) Q_1) (q-pop Q_0))
         (side-condition (not (term (task-cancelled? (lookup σ x_async)))))
         (side-condition (term (all-busy? FS_0 ...)))
         (where t_1 (step t_0))
