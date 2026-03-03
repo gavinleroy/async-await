@@ -10,7 +10,7 @@ A cooperative multitasking system requires several key architectural components.
 
 \begin{figure}
   \centering
-  \includegraphics[width=0.98\textwidth]{./assets/cooperative-multitasking.pdf}
+  \includegraphics[width=0.98\textwidth]{./f/arch-overview.pdf}
   \caption{Cooperative Multitasking Architecture}
   \label{fig:architecture-diagram}
 \end{figure}
@@ -452,7 +452,7 @@ async fn process(
 }
   \end{lstlisting}
   \end{minipage}\hfill%
-  \begin{minipage}[t]{0.49\textwidth} 
+  \begin{minipage}[t]{0.49\textwidth}
 \begin{lstlisting}[language=Python, linebackgroundcolor={\lineEq{11}}]
 async def process(db, cache, request):
   response = await compute_response(
@@ -488,7 +488,6 @@ In Rust a \Coro{} is represented as an enumeration. Cancelling an \Coro{} is def
   \cprotect\caption{Example execution of the \code{process} function shown in \Cref{fig:cancellation}. (Left) The Rust (SMOL) implementation uses the non-cooperative memory free cancellation protocol. Both the \code{db_update} and \code{cache_udpate} are terminated, leaving the systems in a potentially inconsistent state. (Right) The Python (Asyncio) implementation uses exceptions to signal cancellation and the \code{cache_update} is left orphaned because cancellation is not signaled to it.}
   \label{fig:cancellation:swimlane}
 \end{figure}
-
 
 Shown in \Cref{fig:cancellation:swimlane}, if the executing Rust function \code{process} is cancelled at line fifteen, then the memory for \code{process}, \code{db_update}, and \code{cache_update} are all freed. Neither the database update nor the cache update can rollback partially-made changes, so unless both operations completed fully before the cancellation, the system is left in an inconsistent state.
 
