@@ -14,7 +14,6 @@
 \usepackage[listings,skins]{tcolorbox}
 \usepackage{cprotect}
 \usepackage{xhfill}
-\usepackage{cleveref}
 \usepackage{mathpartir}
 \usepackage{framed}
 \usepackage{wrapfig}
@@ -26,6 +25,23 @@
 \usepackage{subcaption}
 \usepackage{tcolorbox}
 \usepackage{lstlinebgrd}
+\usepackage{cancel}
+\usepackage{cleveref}
+
+%%%%
+%% TIKZ packages
+\usetikzlibrary{
+  positioning,
+  fit,
+  automata,
+  arrows.meta,
+  patterns.meta
+}
+
+%%%%
+%% Customize the formatting of subfigure rangereferences
+\crefname{subfigure}{Figure}{Figures}
+\crefrangelabelformat{subfigure}{#3#1#4--#5#2#6}
 
 \setenumerate{leftmargin=*%,itemsep=-1ex
 }
@@ -153,6 +169,56 @@
 \newcommand{\Tasks}{\textsc{Ecstatics}\xspace}
 \newcommand{\task}{\textsc{ecstatic}\xspace}
 \newcommand{\tasks}{\textsc{ecstatics}\xspace}
+
+%%%%
+%% TIKZ Styles
+
+\tikzset{callout/.style={%
+  shape=circle,
+  draw=black,
+  line width=1pt,
+  inner sep=1pt,
+  align=center,
+  font=\bfseries\sffamily\tiny}}
+
+\tikzset{connect/.style={->,>=stealth,thick,shorten >=2pt,shorten <=2pt}}
+
+\tikzset{cancelled/.style={%
+  draw=gray,             % Boundary line color
+  dashed,                % Make it dashed
+  line width=0.8pt,      % Boundary line thickness
+  inner sep=8pt,         % Add padding around the enclosed bubbles
+  opacity=0.5,
+  % The complex strikethrough pattern:
+  pattern={Lines[angle=135, distance={5pt}, color=gray!50]}}}
+
+\tikzset{coro/.style={%
+  draw,
+  rounded corners=4pt,
+  inner sep=6pt,
+  fill=white,
+  node,
+  font=\sffamily\small}}
+
+%% For diagram styles
+\tikzset{
+    automaton global/.style={
+        scale=0.65, transform shape,
+        >={Stealth[scale=1]},
+        node distance=1.5cm,
+        auto
+    },
+    terminal/.style={
+        shape=rectangle, rounded corners=4pt, draw=black,
+        double, double distance=1pt, inner sep=6pt, font=\ttfamily\small
+    },
+    dead/.style={
+        draw=gray!45, text=gray!45
+    }
+}
+
+\newcommand*\circled[1]{\tikz[baseline=(char.base)]{%
+  \node[callout] (char) {#1};}}
 
 %%%%
 %% Typesetting OP sematnics

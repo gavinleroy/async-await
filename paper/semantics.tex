@@ -54,43 +54,43 @@
 \label{fig:lang:cs}
 \end{figure}
 
-% Our model of \CSharp{} follows that of \cite{hutchison_pause_2012}, which provided a formal description for \CSharp{} 5.0, in addition to the prose specification provided by Microsoft. % TODO: cite
-% The \CSharp{} language and relation extension is provided in \Cref{fig:lang:cs}.
-%
-% Rule \semrule{Async-App} applies an asynchronous function, placing the function body in a new frame at the head of the executing frame stack. This is a \textit{hot application}, because the function body is immediately running in the executing thread. This frame will continue to run until a suspension point is reached.
-%
-% Rules \semrule{Await-Suspend}, \semrule{Await-Continue}, and \semrule{Await-Failed} demonstrate how await points are handled. Suspension points in \CSharp{} are a \textit{subset} of all await points. That is, the rules \semrule{Await-Continue} and \semrule{Await-Failed} show that if the awaited object is complete --- with a value or an exception --- the current thread will continue executing. There is no guarantee that an await point will ever suspend the current computation, therefore, await points are unreliable.
-%
-%
-% The grammar presented in \Cref{fig:lang:cs} does not include a $cancel$ expression. Therefore, we say that \CSharp{} has \textit{no cancellation policy}. If a computation is to be cancellable, the developer must encode this behavior themselves via standard communication mechanisms (e.g., channels, events).
-%
-%
-% When a \Task{} is created, via \semrule{Async-App} or \semrule{Task-Run}, it has no relation to its context. Furthermore, when a task is resolved, \semrule{Task-Return}, there is no check for the status of child \Task{}s spawned during its execution. \Task{} objects freely live as any other object in \CSharp, no rule states that a \Task{} must be awaited, or even that a \Task{} must finish executing. The rule \semrule{Unblock} does not check the queue or status of executing threads for unfinished computations. Therefore, we say that both tasks and exceptions are ignorable.
-%
-\subsection{JavaScript}
-\subsection{Swift}
-\subsection{Rust}
-\subsubsection{Tokio}
-\subsubsection{SMOL}
-\subsection{Python}
-\subsubsection{AsyncIO}
-\subsubsection{Trio}
-\subsection{Summary of Language Decisions}
+% % Our model of \CSharp{} follows that of \cite{hutchison_pause_2012}, which provided a formal description for \CSharp{} 5.0, in addition to the prose specification provided by Microsoft. % TODO: cite
+% % The \CSharp{} language and relation extension is provided in \Cref{fig:lang:cs}.
+% %
+% % Rule \semrule{Async-App} applies an asynchronous function, placing the function body in a new frame at the head of the executing frame stack. This is a \textit{hot application}, because the function body is immediately running in the executing thread. This frame will continue to run until a suspension point is reached.
+% %
+% % Rules \semrule{Await-Suspend}, \semrule{Await-Continue}, and \semrule{Await-Failed} demonstrate how await points are handled. Suspension points in \CSharp{} are a \textit{subset} of all await points. That is, the rules \semrule{Await-Continue} and \semrule{Await-Failed} show that if the awaited object is complete --- with a value or an exception --- the current thread will continue executing. There is no guarantee that an await point will ever suspend the current computation, therefore, await points are unreliable.
+% %
+% %
+% % The grammar presented in \Cref{fig:lang:cs} does not include a $cancel$ expression. Therefore, we say that \CSharp{} has \textit{no cancellation policy}. If a computation is to be cancellable, the developer must encode this behavior themselves via standard communication mechanisms (e.g., channels, events).
+% %
+% %
+% % When a \Task{} is created, via \semrule{Async-App} or \semrule{Task-Run}, it has no relation to its context. Furthermore, when a task is resolved, \semrule{Task-Return}, there is no check for the status of child \Task{}s spawned during its execution. \Task{} objects freely live as any other object in \CSharp, no rule states that a \Task{} must be awaited, or even that a \Task{} must finish executing. The rule \semrule{Unblock} does not check the queue or status of executing threads for unfinished computations. Therefore, we say that both tasks and exceptions are ignorable.
+% %
+% \subsection{JavaScript}
+% \subsection{Swift}
+% \subsection{Rust}
+% \subsubsection{Tokio}
+% \subsubsection{SMOL}
+% \subsection{Python}
+% \subsubsection{AsyncIO}
+% \subsubsection{Trio}
+% \subsection{Summary of Language Decisions}
 
 \begin{table}
   \begin{tabular}{lllllll}
     \toprule
-    System           & Eagerness   & Task Scope      & Destruction  & Propagation  & Suspension  \\
+    System           & Eagerness   & Extent   & Destruction  & Propagation  & Suspension  \\
     \midrule
-    \CSharp          & eager       & program scoped  & terminated   & awaited      & dynamic     \\
-    JavaScript       & eager       & unscoped        & awaited      & reraise      & static      \\
-    Swift            & semi-eager  & region scoped   & cancelled    & awaited      & dynamic     \\
+    \CSharp          & eager       & program  & terminated   & never        & dynamic     \\
+    JavaScript       & eager       & program  & awaited      & destruction  & static      \\
+    Swift            & semi-eager  & region   & cancelled    & never        & dynamic     \\
     \midrule
-    Tokio (Rust)     & lazy        & program scoped  & cancelled*   & -            & dynamic     \\
-    SMOL (Rust)      & lazy        & region scoped   & cancelled*   & -            & dynamic     \\
+    Tokio (Rust)     & lazy        & program  & cancelled*   & -            & dynamic     \\
+    SMOL (Rust)      & lazy        & region   & cancelled*   & -            & dynamic     \\
     \midrule
-    AsyncIO (Python) & lazy        & program scoped  & terminated   & reraise      & dynamic     \\
-    Trio (Python)    & lazy        & region scoped   & awaited      & reraise      & dynamic     \\
+    AsyncIO (Python) & lazy        & program  & terminated   & destruction  & dynamic     \\
+    Trio (Python)    & lazy        & region   & awaited      & destruction  & dynamic     \\
     \bottomrule
   \end{tabular}
   \caption{Overview of semantic decisions make by language/system designers. *Rust's cancellation semantics are a variant of termination.}
@@ -110,4 +110,3 @@
   \caption{Overview of cancellation decisions make by language/system designers}
   \label{tab:cancellation-overview}
 \end{table}
-
