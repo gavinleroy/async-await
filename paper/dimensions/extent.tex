@@ -1,14 +1,14 @@
-\subsubsection{Extent}\label{sssec:dims:scope} The Task Extent axis defines the period of existence in which a \task can run, the possible values are: \textit{dynamic}, \textit{region,} and \textit{indefinite} exent.
+\subsubsection{Extent}\label{sssec:dims:extent} The \Task Extent axis defines the interval of time during which references to a \task may occur. The possible values are: \textit{dynamic}, and \textit{indefinite} exent.
 
-\ggnote{I'm going to try and rewrite this section using these design points. If it works I'll update the table.}
+A system has dynamic extent if references may occur at any time in the interval between the construction and destruction of a \task. As a rule, in a system with dynamic extent, a \task is destructed when the execution of the establishing construct (e.g., the current asynchronous function) completes or is otherwise terminated. Systems with dynamic extent obey a stack-like discipline, but with a strict tree construct instead of a linear callstack. The idea of dynamic extent for \tasks has propagated in the wild under the term \textit{structured concurrency}~\cite{sustrik_structured_2025,mccall_swift-evolutionproposals0304-structured-concurrencymd_nodate,elizarov_kotlin_2021}.
 
-A system enforces region extent if the lifetime of a child \Task{} cannot extend past the lifetime of its parent task in the task tree. Region scoping follows traditional lexical scope rules. Our definition of region scoping is similar to the term \textit{structured concurrency}~\cite{sustrik_structured_2025,mccall_swift-evolutionproposals0304-structured-concurrencymd_nodate,elizarov_kotlin_2021} that has propagated in the wild. \Task{}s are program scoped if they are not region scoped.
-
-\ggnote{This section has not been updated}
+A system has indefinite extent if a \task continues to exist as long as the possibility of a reference remains. An implementation may destroy the \task if it can prove that reference to the \task is no longer possible. Systems may or may not consider references from the Executor/Reactor as strong references.
 
 \begin{figure}[H]
-  \begin{minipage}[t]{0.49\textwidth}
-    \begin{lstlisting}[language=Swift,escapechar=|]
+  \begin{subfigure}[t]{0.49\textwidth}
+\begin{tikzpicture}[baseline=(current bounding box.north)]
+    \node[codeblock] (state0) {
+\begin{lstlisting}[language=Swift,numbers=none]
 func innerWork() async {
     try? await Task.sleep(
       for: .milliseconds(100))
@@ -16,38 +16,55 @@ func innerWork() async {
 }
 
 func work() async throws {
-    async let a = innerWork() /* |$T_1$| */
+\end{lstlisting}
+    };
+
+    \node[codeblock] (stateA) at ([yshift=-2pt]state0.south west) {
+\begin{lstlisting}[language=Swift,numbers=none,escapechar=|]
+    async let a /* |$T_1$| */ = innerWork()
     try await Task.sleep(
       for: .milliseconds(1))
     print("exiting")
+\end{lstlisting}
+    };
+
+    \node[codeblock] (stateB) at ([yshift=-1pt]stateA.south west) {
+\begin{lstlisting}[language=Swift,numbers=none]
 }
 
-try await work() /* |$T_0$| */
+try await work()
 \end{lstlisting}
-    \cprotect\subcaption{\Task{}s are region scoped in Swift. The \Task{} $T_1$ cannot outlive the \Task{} $T_0$. In the task tree, $T_0$ is a parent of $T_1$. This program prints ``exiting'' and then ``done.''}
-  \label{fig:designdims:scope:region}
-\end{minipage}\hfill%
-\begin{minipage}[t]{0.49\textwidth}
-\begin{lstlisting}[language=CSharp,escapechar=|]
+    };
+
+    \node[dashedbox, fit=(stateA)] {};
+\end{tikzpicture}
+      \cprotect\caption{\Tasks have dynamic extent in Swift. References to the \task $T_1$ cannot be made after its calling construct, the \code{work} function outlined in \dashed{gray,} terminates --- including references made by the runtime system. The program prints ``exiting'' and then ``done.''}
+    \label{fig:designdims:scope:region}
+    \end{subfigure}\hfill%
+    \begin{subfigure}[t]{0.49\textwidth}
+\begin{lstlisting}[language=CSharp,numbers=none,escapechar=|]
 public static async Task InnerWork() {
   await Task.Delay(100);
   Console.Write("done");
 }
 
 async Task Work() {
-  var _ = InnerWork(); /* |$T_1$| */
+  var a  /* |$T_1$| */ = InnerWork();
   await Task.Delay(1);
   Console.Write("exiting");
 }
 
 async Task Main() {
-  await Work(); /* |$T_0$| */
+  await Work();
 }
 \end{lstlisting}
-    \cprotect\subcaption{\Task{}s are program scoped in \CSharp{}. The \Task{} $T_1$ has no association with the \Task{} $T_0$. This program prints ``exiting,'' and the print in \code{InnerWork} is never executed.}
+\cprotect\caption{\Tasks have indefinite extent in in \CSharp. \Task $T_1$ may continue to be referenced after the \code{Work} function has terminated. References made by the runtime are strong references. This program prints ``exiting,'' and the print in \code{InnerWork} is never executed.}
     \label{fig:designdims:scope:program}
-  \end{minipage}
-  \caption{Examples of region- and program-scoped tasks.}
+  \end{subfigure}
+  \caption{Examples of dynamic and indefinite extent.}
   \label{fig:designdims:scope}
 \end{figure}
 
+Advocates for dynamic extent argue two main points: no resources are leaked and control flow better resembles synchronous code. In the context of asynchronous programming, the resource potentially leaked by a \task with indefinite extent is \abbr{cpu} time. As previously mentioned, a common argument for async/await syntax is that asynchronous code looks like synchronous code. Systems with dynamic extent push this argument further because, as is the case with synchronous code, a callee cannot outlive its caller. Developers in a dynamic extent system can know with certainty that no hidden background work remains after a block finishes executing.
+
+Although dynamic extent systems provide many attractive benefits, the execution model can be overly restrictive. A dynamic extent system imposes a strict tree structure on the executing \tasks, however, that structure is insufficient to express some programs. Consider a high-traffic endpoint that fetches a large, slow-to-compute dataset from a database. If multiple users request this endpoint within the same time frame, instead of computing the result multiple times, it would be best to cache the work --- computing it once --- and have all users wait for that single result. A tree structure is insufficient to express this pattern and instead requires a \task graph, which would allow multiple \tasks to wait on another. Even though systems like Swift and Trio (Python) enforce dynamic extent by default, they provide additional constructs that enjoy indefinite extent.

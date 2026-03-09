@@ -94,11 +94,13 @@ A \task represents one \coro that is registered in the runtime. To understand th
 
 Language designers must decide how the async/await syntax will expand into the set of asynchronous building blocks. The expansion is often influenced by patterns in the pre-existing base language as well as performance and memory expectations of the community.
 
-In this section we provide the async/await design dimensions. The design dimensions map the async/await syntax to the runtime behavior of the desugared program. The design dimensions are: \textit{eagnerness,} \textit{extent,} \textit{destruction,} \textit{propagation,} \textit{suspension,} and \textit{cancellation.}
+In this section we provide the async/await design dimensions. The design dimensions map the async/await syntax to the runtime behavior of the desugared program. The design dimensions are: \textit{eagnerness,} \textit{extent,} \textit{references,} \textit{destruction,} \textit{propagation,} \textit{suspension,} and \textit{cancellation.}
 
-\input{./dimensions/scope.tex}
+\input{./dimensions/eagerness.tex}
 
 \input{./dimensions/extent.tex}
+
+\input{./dimensions/references.tex}
 
 \input{./dimensions/destruct.tex}
 

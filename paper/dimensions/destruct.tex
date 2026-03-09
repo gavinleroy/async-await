@@ -1,11 +1,13 @@
-\subsubsection{Destruction}\label{sssec:designdims:destruction} The Task Destruction axis defines what happens to a task at the end of its scope (see \Cref{sssec:dims:scope}). At the end of its scope a task is either \textit{awaited,} \textit{cancelled,} or \textit{terminated.} If a \Task{} is awaited then it is allowed to run to completion, potentially blocking the a scope or program exit.
+\subsubsection{Destruction}\label{sssec:designdims:destruction} The \Task Destruction axis defines what happens to a task at the end of its extent (see \Cref{sssec:dims:extent}) and is destructed. The possible values are: \textit{awaited,} \textit{cancelled,} or \textit{terminated.}
 
-\ggnote{This section has not been updated}
+\Cref{fig:designdims:destruction:await} shows an example JavaScript program that waits for an unawaited \task to complete, even though there is no explicit \code{await} keyword. The program terminates after 10 seconds and prints ``exiting'' and ``done.''
 
-\Cref{fig:designdims:destruction:await} shows an example JavaScript program that waits for an unawaited \Task{} to complete, even though it was not awaited. \Cref{fig:designdims:destruction:cancel} shows an example Swift program that cancels a running task on destruction. Because that task is executing a long sleep operation, the sleep is cancelled early and the program continues executing. \Cref{fig:designdims:destruction:term} shows an example \CSharp{} program that  shows an example \CSharp{} program that terminates running \Task{}s on destruction (program scope). The termination request does not allow for \Task{}s to clean-up after themselves or react to the termination.
+\Cref{fig:designdims:destruction:cancel} shows an example Swift program that cancels a running task on destruction. Because that task is executing a long sleep operation, the sleep is cancelled --- on cancellation \code{Task.sleep} raises an exception that we suppress with the \code{try?} keyword --- and the program continues executing. The program terminates after ~0.5 seconds and prints ``exiting,'' ``cancelled'' and ``done.''
+
+\Cref{fig:designdims:destruction:term} shows an example \CSharp program that terminates running \tasks on destruction. The program terminates after ~0.5 seconds and prints ``exiting.''
 
 \begin{figure}[H]
-  \begin{minipage}[t]{0.30\textwidth}
+  \begin{subfigure}[t]{0.30\textwidth}
 \begin{lstlisting}[language=JavaScript,escapechar=|]
 async function inner() {
   await new Promise(r =>
@@ -22,10 +24,10 @@ async function work() {
 
 await work() // ~10s
 \end{lstlisting}
-    \cprotect\subcaption{JavaScript awaits all running tasks at the end of their scope (program scope). The execution of the above program takes about 10 seconds because the \code{inner} \Task{} is fully awaited.}
+    \cprotect\caption{JavaScript awaits all running tasks at the end of their scope (program scope). The execution of the above program takes about 10 seconds and prints ``exiting,'' and ``done,'' because the leaked \task is fully awaited.}
     \label{fig:designdims:destruction:await}
-  \end{minipage}\hfill%
-  \begin{minipage}[t]{0.32\textwidth}
+  \end{subfigure}\hfill%
+  \begin{subfigure}[t]{0.32\textwidth}
     \begin{lstlisting}[language=Swift,escapechar=|]
 func inner() async {
   try? await Task.sleep(
@@ -45,10 +47,10 @@ func work() async throws {
 
 try await work() // ~0.5s
 \end{lstlisting}
-    \cprotect\subcaption{Swift cancels all running tasks at the end of their scope (region scope). The execution of the above program takes about 0.5 seconds and prints ``cancelled,'' because the \code{inner} \Task{} is fully cancelled and the sleep terminates early.}
+    \cprotect\caption{Swift cancels all running tasks on destruction. The execution of the above program takes about 0.5 seconds and prints ``exiting,'' ``cancelled,'' and ``done.''}
   \label{fig:designdims:destruction:cancel}
-\end{minipage}\hfill%
-\begin{minipage}[t]{0.33\textwidth}
+\end{subfigure}\hfill%
+\begin{subfigure}[t]{0.33\textwidth}
 \begin{lstlisting}[language=CSharp,escapechar=|]
 async Task InnerWork() {
   await Task.Delay(10_000);
@@ -63,12 +65,13 @@ async Task Work() {
 
 async Task Main() {
   await Work();
-} // ~0.6s
+} // ~0.5s
 \end{lstlisting}
-    \cprotect\subcaption{\CSharp{} terminates all running tasks at the end of their scope (program scope). The execution of the above program takes about 0.6 seconds. The \code{inner} \Task{} is terminated and the sleep terminates early with no warning.}
+    \cprotect\caption{\CSharp{} terminates all running tasks at the end of their scope (program scope). The execution of the above program takes about 0.6 seconds. The \code{inner} \Task{} is terminated and the sleep terminates early with no warning.}
     \label{fig:designdims:destruction:term}
-  \end{minipage}
+  \end{subfigure}
   \caption{Examples of await, cancel, and termination destruction semantics.}
   \label{fig:designdims:destruction}
 \end{figure}
 
+Where your language falls on the destruction axis informs the safety and responsiveness of the system. Awaited destruction prioritizes data integrity and completeness at the expense of responsiveness. Cancel destruction allows \tasks to safely reclaim resources --- depending on the language's chosen cancellation semantics, see \Cref{} --- however, programs may still suffer from responsiveness issues if cancelling a \task takes too long (or doesn't terminate). Terminate destruction prioritizes speed over safety. A running \task may hold system resources or be in the middle of an operation, by cancelling the \task the system risks deadlocks and breaking logical invariants.

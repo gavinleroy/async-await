@@ -1,15 +1,4 @@
-% === Personal notes ===
-% 668 task dependencies -> task tree
-% 669 it isn't what "distinguishes" async/await, but it is an important part given the ephemerality of spawned tasks
-% 670 why are there two dimensions? bc cancellation is much more involved than the others
-% FIGURE we don't need a single program for all of cancellation, we can use one program for each axis
-% 682 why is freeing a value cancellation? this isn't really cancellation but rather something that is guaranteed by the language. bc the code is reified as an object, the "Rust semantics" state that any object can be forgotten. There is no guarantee that the coroutine need be finished iterating. After all, it's just an object.
-% FIGURE we should probably write a function that does the cancelling and the function that's getting cancelled. It makes the program clearer and we can write trees for it
-% FIGURE do it in terms of an invariant update (the mutex with an option) and a timeout
-% FIGURE make the code much simpler, an inner function with a mutex grab and sleep, and then a timeout wrapping the called program
-%
-
-\subsubsection{Cancellation} The Cancellation axis defines how a running task is cancelled, including how cancellation is signaled, if at all, and how a cancellation signal propagates through the task tree. A clear cancellation mechanism is an important feauture of the asynchronous programming paradigm. Cancellation is a sufficiently complex mechanism that it itself contains two design dimensions:\textit{cooperation,} and \textit{direction.}
+\subsubsection{Cancellation}\label{sssec:designdims:cancellation} The Cancellation axis defines how a running task is cancelled, including how cancellation is signaled, if at all, and how a cancellation signal propagates through the task tree. A clear cancellation mechanism is an important feauture of the asynchronous programming paradigm. Cancellation is a sufficiently complex mechanism that it itself contains two design dimensions:\textit{cooperation,} and \textit{direction.}
 
 \paragraph{Cooperation} The Cancellation Cooperation axis defines if a \bum receives a cancellation signal (awareness) and if it can react to that signal. We define cancellation as a property of a \bum because the \bum is the reification of the program code. Therefore, cooperative cancellation allows the developer to write code in an asynchronous function that reacts to a cancellation signal.
 
@@ -248,7 +237,7 @@ In Python when a \coro goes out of scope its destructor is run, however, unlike 
     }
 
     \node[codeblock] (state0) {
-\begin{lstlisting}[language=Rust,numbers=none]
+\begin{lstlisting}[language=Python,numbers=none]
 async def process_payment(user_id):
   # ...
 
@@ -257,13 +246,13 @@ async def checkout(lock, store, user, item):
     };
 
     \node[codeblock] (stateA) at ([yshift=-1pt]state0.south west) {
-\begin{lstlisting}[language=Rust,numbers=none]
+\begin{lstlisting}[language=Python,numbers=none]
     async with lock:
 \end{lstlisting}
     };
 
     \node[codeblock] (stateB) at ([yshift=-6pt]stateA.south west) {
-\begin{lstlisting}[language=Rust,numbers=none]
+\begin{lstlisting}[language=Python,numbers=none]
       stock = store.get(item, 0)
       if stock == 0:
         raise Exception("out of stock")
@@ -276,7 +265,7 @@ async def checkout(lock, store, user, item):
     };
 
     \node[codeblock] (stateC) at ([yshift=-6pt]stateB.south west) {
-\begin{lstlisting}[language=Rust,numbers=none]
+\begin{lstlisting}[language=Python,numbers=none]
       finally:
         store[item] = stock + 1
 \end{lstlisting}

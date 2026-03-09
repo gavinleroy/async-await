@@ -203,27 +203,35 @@
 
 %% For diagram styles
 \tikzset{
-    automaton global/.style={
-      scale=0.65, transform shape,
-      >={Stealth[scale=1]},
-      node distance=1.5cm,
-      auto
-    },
-    terminal/.style={
-      shape=rectangle, rounded corners=4pt, draw=black,
-      double, double distance=1pt, inner sep=6pt, font=\ttfamily\small
-    },
-    dead/.style={
-      draw=gray!45, text=gray!45
-    },
-    dashedbox/.style={
-      draw=gray!50,
-      dashed,
-      thick,
-      inner sep=1.5pt,
-      rounded corners=2pt
-    }
+  automaton global/.style={
+    scale=0.65, transform shape,
+    >={Stealth[scale=1]},
+    node distance=1.5cm,
+    auto
+  },
+  terminal/.style={
+    shape=rectangle, rounded corners=4pt, draw=black,
+    double, double distance=1pt, inner sep=6pt, font=\ttfamily\small
+  },
+  dead/.style={
+    draw=gray!45, text=gray!45
+  },
+  dashedbox/.style={
+    draw=gray!50,
+    dashed,
+    thick,
+    inner sep=1.5pt,
+    rounded corners=2pt,
+  },
+  codeblock/.style={
+    anchor=north west,
+    inner sep=0pt,
+    outer sep=0pt
+  }
 }
+
+\newcommand*\dashed[1]{\tikz[baseline=(char.base)]{%
+  \node (char) {#1};\node[draw=gray!50,dashed,thick,inner sep=0.25, fit=(char)]}}
 
 \newcommand*\circled[1]{\tikz[baseline=(char.base)]{%
   \node[callout] (char) {#1};}}
@@ -254,9 +262,9 @@
 
 %%%%
 %% Languages with special typesetting
-\newcommand{\CSharp}{\textsc{C\#}}
-\newcommand{\FSharp}{\textsc{F\#}}
-\newcommand{\Cpp}{\textsc{C++}}
+\newcommand{\CSharp}{\textsc{C\#}\xspace}
+\newcommand{\FSharp}{\textsc{F\#}\xspace}
+\newcommand{\Cpp}{\textsc{C++}\xspace}
 
 \newcommand{\EEXN}{\textsc{eexn}}
 \newcommand{\ERUN}{\textsc{erun}}
