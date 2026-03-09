@@ -1,6 +1,6 @@
-\subsubsection{Cancellation}\label{sssec:designdims:cancellation} The Cancellation axis defines how a running task is cancelled, including how cancellation is signaled, if at all, and how a cancellation signal propagates through the task tree. A clear cancellation mechanism is an important feauture of the asynchronous programming paradigm. Cancellation is a sufficiently complex mechanism that it itself contains two design dimensions:\textit{cooperation,} and \textit{direction.}
+\subsection{Cancellation}\label{ssec:designdims:cancellation} The Cancellation axis defines how a running task is cancelled, including how cancellation is signaled, if at all, and how a cancellation signal propagates through the task tree. A clear cancellation mechanism is an important feauture of the asynchronous programming paradigm. Cancellation is a sufficiently complex mechanism that it itself contains two design dimensions:\textit{cooperation,} and \textit{direction.}
 
-\paragraph{Cooperation} The Cancellation Cooperation axis defines if a \bum receives a cancellation signal (awareness) and if it can react to that signal. We define cancellation as a property of a \bum because the \bum is the reification of the program code. Therefore, cooperative cancellation allows the developer to write code in an asynchronous function that reacts to a cancellation signal.
+\subsubsection{Cooperation} The Cancellation Cooperation axis defines if a \bum receives a cancellation signal (awareness) and if it can react to that signal. We define cancellation as a property of a \bum because the \bum is the reification of the program code. Therefore, cooperative cancellation allows the developer to write code in an asynchronous function that reacts to a cancellation signal.
 
 \begin{figure}
   \centering
@@ -169,7 +169,7 @@ tokio::select! {
 
           (start) edge[thick] node {recv} (cancel);
     \end{tikzpicture}
-    \cprotect\caption{An example run of the state machine where $item = ``Chair''$. The user cancelled the transaction while \code{checkout} was in state \circled{B}, which had decremented the item count from 4 to 3.}
+    \cprotect\caption{An example run of the state machine where $item = $``Chair''. The user cancelled the transaction while \code{checkout} was in state \circled{B}, which had decremented the item count from 4 to 3.}
     \label{fig:cooperation:rust:diag2}
   \end{subfigure}
   \begin{subfigure}[b]{\textwidth}
@@ -307,7 +307,7 @@ This cancellation policy provided by Python implies that a \coro becomes aware o
 
 Given the ability to perform cleanup, it may seem like an obvious win to choose a cooperative cancellation mechanism. However, there are benefits and drawbacks to both styles. We showed previously that non-cooperative cancellation can lead to broken program invariants because a \coro value cannot clean up used resources or restore broken invariants. Nevertheless, non-cooperative cancellation guarantees that a cancelled \coro performs no further asynchronous work, and therefore, terminates.\footnote{Assuming that destructing the \coro value terminates. Destruction cannot perform asynchronous work.}
 
-\paragraph{Propagation direction}
+\subsubsection{Propagation direction}
 
 \ggnote{This paragraph has not been updated}
 

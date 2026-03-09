@@ -1,4 +1,4 @@
-\subsubsection{Destruction}\label{sssec:designdims:destruction} The \Task Destruction axis defines what happens to a task at the end of its extent (see \Cref{sssec:dims:extent}) and is destructed. The possible values are: \textit{awaited,} \textit{cancelled,} or \textit{terminated.}
+\subsection{Destruction}\label{ssec:designdims:destruction} The \Task Destruction axis defines what happens to a task at the end of its extent (see \Cref{sssec:dims:extent}) and is destructed. The possible values are: \textit{awaited,} \textit{cancelled,} or \textit{terminated.}
 
 \Cref{fig:designdims:destruction:await} shows an example JavaScript program that waits for an unawaited \task to complete, even though there is no explicit \code{await} keyword. The program terminates after 10 seconds and prints ``exiting'' and ``done.''
 
