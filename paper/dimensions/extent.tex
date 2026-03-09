@@ -1,4 +1,8 @@
-\subsubsection{Scope}\label{sssec:dims:scope} The Task Scope axis defines how the execution of a \Task{} is scoped, the possible values are: region scoped, and program scoped. A system enforces \textit{region scoping} if the lifetime of a child \Task{} cannot extend past the lifetime of its parent task in the task tree. Region scoping follows traditional lexical scope rules. Our definition of region scoping is similar to the term \textit{structured concurrency}~\cite{sustrik_structured_2025,mccall_swift-evolutionproposals0304-structured-concurrencymd_nodate,elizarov_kotlin_2021} that has propagated in the wild. \Task{}s are program scoped if they are not region scoped.
+\subsubsection{Extent}\label{sssec:dims:scope} The Task Extent axis defines the period of existence in which a \task can run, the possible values are: \textit{dynamic}, \textit{region,} and \textit{indefinite} exent.
+
+\ggnote{I'm going to try and rewrite this section using these design points. If it works I'll update the table.}
+
+A system enforces region extent if the lifetime of a child \Task{} cannot extend past the lifetime of its parent task in the task tree. Region scoping follows traditional lexical scope rules. Our definition of region scoping is similar to the term \textit{structured concurrency}~\cite{sustrik_structured_2025,mccall_swift-evolutionproposals0304-structured-concurrencymd_nodate,elizarov_kotlin_2021} that has propagated in the wild. \Task{}s are program scoped if they are not region scoped.
 
 \ggnote{This section has not been updated}
 

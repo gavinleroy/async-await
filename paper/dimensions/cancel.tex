@@ -25,13 +25,6 @@
             anchor=north west,
             inner sep=0pt,
             outer sep=0pt
-        },
-        dashedbox/.style={
-            draw=gray!50,
-            dashed,
-            thick,
-            inner sep=1.5pt,
-            rounded corners=2pt
         }
     }
 
@@ -232,35 +225,104 @@ tokio::select! {
   \label{fig:cooperation:rust}
 \end{figure}
 
-Since version 1.0, Rust the language has stated that destructors for an object may not run~\cite{chricton_rfc_2015}. This statement has had many effects on the language and also affects the semantics of Rust's cancellation. 
-
-An async function in Rust gets rewritten into a \coro, a reification of the developers code as a state machine object. This state machine is periodically resumed by the runtime (if it's wrapped in a \task) object or by manually polling the \coro (using a macro like \code{tokio::select}). The implication of Rust's drop policy is that every time an async state machine yields it may never be resumed, and its associated memory can be deallocated (without running a destructor). This form of cancellation is \textit{non-cooperative} because the state machine object is never aware that it's being cancelled and thus it cannot react to being cancelled.
+An async function in Rust gets rewritten into a \coro, a reification of the developers code as a state machine object. This state machine is periodically resumed by the runtime (if it's wrapped in a \task) or by manually polling the \coro (using a macro like \code{tokio::select}). When a \coro goes out of scope it invokes the value's destructor, just as with any other value. The default destructor for a Rust \coro simply deallocates the memory. Therefore, memory deallocation is a valid strategy to cancel the execution of a \coro. The implication of Rust's cancellation policy is that an async function may never be resumed after suspending, even if there's more work to be done. This form of cancellation is \textit{non-cooperative} because the state machine object is never aware that it's being cancelled and thus it cannot react to being cancelled.
 
 \Cref{fig:cooperation:rust} provides an in-depth example of how this cancellation policy can quickly lead to bugs in business logic. The provided code in \Cref{fig:cooperation:rust:code} is an implementation of the checkout functionality for an e-commerce website. A common use case of mutexes is to temporarily \textit{violate} system invariants and release the lock after invariants have been restored. In this example the store's inventory is protected by a mutex, which the \code{checkout} function locks during checkout. The inventory for the purchased item is decremented and the payment processed. Acquiring the mutex lock and processing the payment are asynchronous operations that represent multiple states that the \coro can be in. \Cref{fig:cooperation:rust:client} shows an example of how the system might call \code{checkout} and racing its completion against a cancellation signal (by e.g., the user cancelling the purchase).
 
 \Cref{fig:cooperation:rust:diag1,fig:cooperation:rust:diag2,fig:cooperation:rust:diag3} show the state transition diagrams that can lead to a loss of inventory without selling any actual merchandise. The problem occurs when the user cancels the transaction while payment is processing. At this point, the inventory has already been decremented, but after the cancellation signal is received the \coro is deallocated. A widely known problem with Tokio mutexes is that they can be held across await points~\cite{paharia_400_2025,paharia_cancelling_2025}. If cancellation occurs during these awaits, the mutex lock is released and system-wide invariants can remain broken, which leads to subtle bugs.
 
-\ggnote{I stopped editing here}
+In Python when a \coro goes out of scope its destructor is run, however, unlike Rust, the destructor will throw an exception \textit{into} the \coro object. By throwing into the \coro, Python ensures that finalizers are properly run for referenced objects. It also ensures that generators that can't be resume do not remain part of an uncollectable reference cycle.
 
-Cancellation in Python is handled by raising an exception at the next await point blocking the task. Refering to the code in \Cref{fig:cancellation}, if the \code{process} function is cancelled at line eleven, the exception will be raised at an await point within the \code{update_db} function. Because \code{process} is waiting on \code{db_update}, an await point blocking the task is within the dynamic extent of \code{update_db}. The \textit{expectation} is that \code{update_db} will allow the exception to propagate, or reraise the exception if it needs to do some cleanup.
+\begin{figure}
+  \begin{minipage}[t]{0.49\textwidth}
+    \vspace{0pt}
+    \begin{subfigure}{\textwidth}
+\begin{tikzpicture}[baseline=(current bounding box.north)]
+    \tikzset{
+        label distance=0.5em,
+        codeblock/.style={
+            anchor=north west,
+            inner sep=0pt,
+            outer sep=0pt
+        }
+    }
 
-\begin{wrapfigure}{r}{0.35\textwidth}
-  \raggedright
-\begin{lstlisting}[language=Python,numbers=none]
-async def db_update(db r):
-  snap = await db.snapshot()
-  try:
-    # .. cancelled in here ..
-  except:
-    await db_rollback(snap)
+    \node[codeblock] (state0) {
+\begin{lstlisting}[language=Rust,numbers=none]
+async def process_payment(user_id):
+  # ...
+
+async def checkout(lock, store, user, item):
 \end{lstlisting}
-  \cprotect\caption{An example of a Python function swalling a cancellation request. The function \code{db_update} is not cooperating in the cancellation protocol by using a try/except block, which catches all exceptions.}
-  \label{fig:cancellation:cooperative}
-\end{wrapfigure}
+    };
 
-The \code{db_update} function may choose to, or be mistakenly programmed to, not cooperate with cancellation. \Cref{fig:cancellation:cooperative} provides an illustrative implementation of the \code{db_update} function that does not cooperate with the Asyncio cancellation protocol. A \code{asyncio.CancellationError} will get raised within the \code{db_update} function, however, since the function body is wrapped in a try/except block, the cancellation request is never propagated to the \code{process} function. \code{process} is unaware that the database was not updated and the database and cache are now out of sync.
+    \node[codeblock] (stateA) at ([yshift=-1pt]state0.south west) {
+\begin{lstlisting}[language=Rust,numbers=none]
+    async with lock:
+\end{lstlisting}
+    };
 
-\paragraph{Propagation direction} The Propagation Direction axis defines where in the waiting tree of dependencies cancellation is signaled first and how that signal is propagated to the rest of the waiting nodes. The possible values are \textit{top-down,} \textit{bottom-up,} and \textit{simultaneous.}
+    \node[codeblock] (stateB) at ([yshift=-6pt]stateA.south west) {
+\begin{lstlisting}[language=Rust,numbers=none]
+      stock = store.get(item, 0)
+      if stock == 0:
+        raise Exception("out of stock")
+
+      store[item] = stock - 1
+
+      try:
+        return await process_payment(user)
+\end{lstlisting}
+    };
+
+    \node[codeblock] (stateC) at ([yshift=-6pt]stateB.south west) {
+\begin{lstlisting}[language=Rust,numbers=none]
+      finally:
+        store[item] = stock + 1
+\end{lstlisting}
+    };
+
+    \node[dashedbox, fit=(stateA), label={[callout]right:A}] {};
+    \node[dashedbox, fit=(stateB), label={[callout]right:B}] {};
+    \node[dashedbox, fit=(stateC), label={[callout]right:C}] {};
+\end{tikzpicture}
+    \cprotect\caption{\todo{caption me!}}
+    \label{fig:cooperation:python:code}
+    \end{subfigure}
+  \end{minipage}\hfill%
+  \begin{minipage}[t]{0.49\textwidth}
+    \vspace{0pt}
+    \begin{subfigure}{\textwidth}
+\begin{lstlisting}[language=Python,numbers=none]
+try:
+  async with asyncio.timeout(4):
+    await checkout(lock, store, user, item)
+  print("success")
+except asyncio.TimeoutError:
+  print("timed out")
+\end{lstlisting}
+      \caption{\todo{client code}}
+      \label{fig:cooperation:python:client}
+    \end{subfigure}
+    \begin{subfigure}{\textwidth}
+      \includegraphics[width=0.95\textwidth]{example-image-a}
+      \caption{\todo{make the diagram}}
+      \label{fig:cooperation:python:diag}
+    \end{subfigure}
+  \end{minipage}
+  \cprotect\caption{\todo{caption me!}}
+  \label{fig:cooperation:python}
+\end{figure}
+
+This cancellation policy provided by Python implies that a \coro becomes aware of its cancellation and developers can use this fact to properly perform cleanup and resinstate program invariants. \Cref{fig:cooperation:python} shows an example implementation of the e-commerce \code{checkout} function in Python using the Asyncio runtime. The Python implementation allows for the developer of \code{checkout} to increment the inventory when an error occurs during payment, this error includes an exception thrown to cancel the \coro.
+
+Given the ability to perform cleanup, it may seem like an obvious win to choose a cooperative cancellation mechanism. However, there are benefits and drawbacks to both styles. We showed previously that non-cooperative cancellation can lead to broken program invariants because a \coro value cannot clean up used resources or restore broken invariants. Nevertheless, non-cooperative cancellation guarantees that a cancelled \coro performs no further asynchronous work, and therefore, terminates.\footnote{Assuming that destructing the \coro value terminates. Destruction cannot perform asynchronous work.}
+
+\paragraph{Propagation direction}
+
+\ggnote{This paragraph has not been updated}
+
+The Propagation Direction axis defines where in the waiting tree of dependencies cancellation is signaled first and how that signal is propagated to the rest of the waiting nodes. The possible values are \textit{top-down,} \textit{bottom-up,} and \textit{simultaneous.}
 
 Before specifying exactly what the direction of cancellation propagation is, we first need to specify through what cancellation is propagating. Cancellation propagates through the \textit{task tree,} specifically, the task tree rooted at the cancelled task. Not all languages explicitly build a task tree in the runtime.
 

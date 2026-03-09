@@ -7,6 +7,7 @@
     listings,
     ./sty/listings-rust,
     ./sty/listings-js,
+    ./sty/listings-py,
     ./sty/listings-swift,
     ./sty/listings-kotlin,
     ./sty/listings-csharp,
@@ -203,17 +204,24 @@
 %% For diagram styles
 \tikzset{
     automaton global/.style={
-        scale=0.65, transform shape,
-        >={Stealth[scale=1]},
-        node distance=1.5cm,
-        auto
+      scale=0.65, transform shape,
+      >={Stealth[scale=1]},
+      node distance=1.5cm,
+      auto
     },
     terminal/.style={
-        shape=rectangle, rounded corners=4pt, draw=black,
-        double, double distance=1pt, inner sep=6pt, font=\ttfamily\small
+      shape=rectangle, rounded corners=4pt, draw=black,
+      double, double distance=1pt, inner sep=6pt, font=\ttfamily\small
     },
     dead/.style={
-        draw=gray!45, text=gray!45
+      draw=gray!45, text=gray!45
+    },
+    dashedbox/.style={
+      draw=gray!50,
+      dashed,
+      thick,
+      inner sep=1.5pt,
+      rounded corners=2pt
     }
 }
 
