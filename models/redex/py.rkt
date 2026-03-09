@@ -1,34 +1,22 @@
-#lang racket
+#lang racket/base
 
 (require redex
-         "lc.rkt"
-         (only-in "lc+exn.rkt" LC+Exn -->exn))
+         "core.rkt"
+         (only-in "exn.rkt" Exn -->exn))
 
 (provide Py -->py/core -->py)
 
-(define-extended-language Py LC+Exn
+(define-extended-language Py Exn
   (e ::= ....
      (async/lambda (x_!_ ...) e)
-     (await e)
-     (throw-in e_coro e_exn))
+     (await e))
 
   (v ::= ....
      (async/lambda (x_!_ ...) e))
 
-  (E ::= ....
-     (await E)
-     (throw-in E e)
-     (throw-in v E))
-
-  (M ::= ....
-     (await M)
-     (throw-in M e)
-     (throw-in v M))
-
-  (G ::= ....
-     (await G)
-     (throw-in G e)
-     (throw-in v G))
+  (E ::= .... (await E))
+  (M ::= .... (await M))
+  (G ::= .... (await G))
 
   #:binding-forms
   (async/lambda (x ...) e #:refers-to (shadow x ...)))
@@ -53,12 +41,7 @@
    [--> (σ (in-hole E (await (lambda (x) (reset (begin x e))))))
         (σ (in-hole E e))
 
-        "await-coroutine"]
-
-   [--> (σ (in-hole E (throw-in (lambda (x) (in-hold E_inner x)) v)))
-        (σ (in-hole E (lambda (x) (in-hold E_inner (throw v)))))
-
-        "throw-in"]))
+        "await-coroutine"]))
 
 (define -->py
   (union-reduction-relations
@@ -70,7 +53,7 @@
 ;; -----------------------------------------------------------------------------
 
 (module+ test
-  (require (submod "lc.rkt" niceties)
+  (require (submod "core.rkt" niceties)
            (submod "lc.rkt" test/helpers))
 
   (define-metafunction Py
@@ -82,6 +65,7 @@
     (test-->> -->py #:equiv prog/equiv (term (() e)) v)))
 
 (module+ test
+
   (py-->>=
    (resume! ((async/lambda (x) 42) 0) (void))
    42)
@@ -128,5 +112,18 @@
             [transparent (async/lambda ()
                            (let ([ret (append-it)])
                              (begin (print "B") ret)))])
-       (throw-in (resume! (transparent) (void)) "C")))
-   "B"))
+       (catch (lambda (e) (print "D"))
+              (throw-in (resume! (transparent) (void)) "C"))))
+   "BD")
+
+  (py-->>=
+   (trace-stdout (print)
+     (let* ([append-it (async/lambda ()
+                         (catch (lambda (e) (print e))
+                                (print "A")))]
+            [transparent (async/lambda ()
+                           (let ([ret (append-it)])
+                             (begin (print "B") ret)))])
+       (catch (lambda (e) (print "D"))
+              (throw-in (resume! (transparent) (void)) "C"))))
+   "BD"))

@@ -1,76 +1,85 @@
-#lang racket
+#lang racket/base
 
 (require redex
-         "lc.rkt"
-         (prefix-in lib: (submod "lc.rkt" niceties))
-         "lc+coro.rkt")
+         "core.rkt"
+         (only-in "lc.rkt" LC -->lc))
 
-(provide Rust -->rs)
+(provide Rust -->rs/core -->rs)
 
-(define-extended-language Rust LC+Coro
+(define-extended-language Rust LC
   (e ::= ....
      (async/lambda (x_!_ ...) e)
      (await e))
 
-  (E ::= ....
-     (await E))
-  
   (v ::= ....
      (async/lambda (x_!_ ...) e))
 
-  #:binding-forms
+  (E ::= .... (await E))
+  (M ::= .... (await M))
 
+  #:binding-forms
   (async/lambda (x ...) e #:refers-to (shadow x ...)))
 
-(define -->rs
-  (extend-reduction-relation
-   -->coro Rust
+;; -----------------------------------------------------------------------------
+;; Operational Semantics
+;; -----------------------------------------------------------------------------
 
-   [--> (σ_0 (in-hole E ((async/lambda (x ...) e) v ...)))
-        (σ_1 (in-hole E (coro (lambda (x_dummy)
-                                (begin x_dummy e)))))
+(define -->rs/core
+  (reduction-relation
+   Rust
+   #:domain (σ e)
 
-        (where x_dummy (gensym σ_0 dummy))
-        (where σ_1 (ext σ_0 (x v) ...))
+   [--> (σ_0 (in-hole E ((async/lambda (x ..._1) e_body) v ..._1)))
+        (σ_1 (in-hole E (reset (begin (shift x_k x_k) e_subst))))
+
+        (where/error (x_fresh ...) (gensyms (σ e_body) (x ...)))
+        (where/error σ_1 (ext σ_0 (x_fresh v) ...))
+        (where/error e_subst (substitute* e_body (x x_fresh) ...))
         "async-app"]
 
-   [--> (σ (in-hole E (await (tag x_coro))))
-        (σ (in-hole E ((lambda (x) e) (void))))
+   [--> (σ (in-hole E (await (lambda (x) (reset (begin x e))))))
+        (σ (in-hole E e))
 
-        (where/error (coroutine (lambda (x) e))
-                     (lookup σ x_coro))
-        "await-coro"]))
+        "await-coroutine"]))
+
+(define -->rs
+  (union-reduction-relations
+   (extend-reduction-relation -->lc Rust)
+   -->rs/core))
 
 ;; -----------------------------------------------------------------------------
 ;; Tests
 ;; -----------------------------------------------------------------------------
 
 (module+ test
-  (require (submod "lc.rkt" niceties)
-           (submod "lc.rkt" test))
+  (require (submod "core.rkt" niceties)
+           (submod "lc.rkt" test/helpers))
 
-  (define-metafunction/extension main Rust
-    main/rs : e -> (σ e))
-  
   (define-syntax-rule (rs-->>= e v)
-    (test-->> -->rs #:equiv prog/equiv (term (main/rs e)) v))
-  
+    (test-->> -->rs #:equiv prog/equiv (term (() e)) v))
+
+  (define-metafunction Rust
+    resume! : e e -> e
+    [(resume! e_coro e_val)
+     (e_coro e_val)]))
+
+(module+ test
+
   (rs-->>=
    (resume! ((async/lambda (x) 42) 0) (void))
    42)
-  
-  (rs-->>= 
+
+  (rs-->>=
    (trace-stdout (print)
      (let* ([suspend (async/lambda () (void))]
             [work (async/lambda (msg)
                     (begin (await (suspend))
                            (print msg)))]
             [c (work "A")])
-       (begin (resume! c (void))
-              (resume! c (void)))))
+       (resume! c (void))))
    "A")
 
-  (rs-->>= 
+  (rs-->>=
    (trace-stdout (print)
      (let* ([suspend (async/lambda () (void))]
             [work (async/lambda (msg)
@@ -81,10 +90,7 @@
                            (await (suspend))
                            (print msg)))]
             [c (work "A")])
-       (begin (resume! c (void))
-              (resume! c (void))
-              (resume! c (void))
-              (resume! c (void)))))
+       (resume! c (void))))
    "AAA")
 
   (rs-->>=

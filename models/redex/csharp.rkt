@@ -2,28 +2,26 @@
 
 (require redex
          "core.rkt"
-         "lc+exn.rkt"
+         "exn.rkt"
          "platform.rkt")
 
 (provide C# -->c#)
 
 (define-extended-ev-system C#
   #:def-reduction -->c#/sys
-  #:def-threaded-lang Sys
-  #:with-base-lang LC+Exn
+  #:def-exn-reduction -->c#/sys/exn
+  #:with-base-lang Exn
   #:with-base-reduction -->exn
 
   (e ::= ....
      (async/lambda (x_!_ ...) e)
-     (await e)
-     (block e))
+     (await e))
 
   (v ::= ....
      (async/lambda (x_!_ ...) e))
 
   (E ::= ....
-     (await E)
-     (block E))
+     (await E))
 
   (M ::= .... (await M))
   (G ::= .... (await G))
@@ -50,7 +48,7 @@
                                            (os/start-soon (task:get-waiters x_task)))))
                                 (label (in-hole E x_task)) F ...) FS_1 ...))
 
-        (where/error (σ_1 v_task) (task:allocate σ_0 label))
+        (where/error (σ_1 v_task) (task:allocate σ_0))
         (where/error (x_task x_fresh ...) (gensyms (σ_1 e_body) (task x ...)))
         (where/error σ_2 (ext σ_1 (x_task v_task) (x_fresh v) ...))
         (where/error e_subst (substitute* e_body (x x_fresh) ...))
@@ -70,46 +68,12 @@
         (where/error t_1 (step t_0))
         "await"]
 
-   [--> (t_0 σ Q T ((thread (root (in-hole E (block v_awaitable)))) FS ...))
-        (t_1 σ Q T ((thread (root (in-hole E (task:get-result v_awaitable)))) FS ...))
-
-        (side-condition (term (task:settled? σ v_awaitable)))
-        (where/error t_1 (step t_0))
-        "block"]
-
-   [--> (t_0 σ_0 Q T (FS_0 ... (thread (label (in-hole E (os/io t v))) F ...) FS_1 ...))
-        (t_1 σ_2 Q T (FS_0 ... (thread
-                                (x_io (os/start-later (+ (os/time) t)
-                                                      x_io
-                                                      (lambda (none)
-                                                        (begin
-                                                          none
-                                                          (task:set-done! x_io v)
-                                                          (os/start-soon (task:get-waiters x_io))))))
-
-                                (label (in-hole E x_io)) F ...) FS_1 ...))
-
-        (where/error (σ_1 v_task) (task:allocate σ_0 label))
-        (where/error (x_io) (gensyms σ_1 (io)))
-        (where/error σ_2 (ext1 σ_1 (x_io v_task)))
-        (where/error t_1 (step t_0))
-        "os/io"]))
-
-#;
-(define -->c#/sys
-  (reduction-relation
-   C#
-   #:domain (t σ Q T P)
-
-   [--> (t_0 σ Q T (_ ..._1 (thread (throw v)) _ ..._2))
-        (t_1 σ Q T ((thread (throw v)) (thread) ..._1 (thread) ..._2))
-
-        (where/error t_1 (step t_0))
-        "sys/halt"]))
-
+   ))
 
 (define -->c#
-  (union-reduction-relations -->c#/sys -->c#/async/await))
+  (union-reduction-relations
+   (make-big-step (union-reduction-relations -->c#/sys -->c#/sys/exn))
+   -->c#/async/await))
 
 ;; -----------------------------------------------------------------------------
 ;; Tests
@@ -128,11 +92,11 @@
 
 (module+ test
   (c#-->>=
-   (block ((async/lambda () 42)))
+   (os/block ((async/lambda () 42)))
    42)
 
   (c#-->>=
-   (block ((async/lambda (x) x) 42))
+   (os/block ((async/lambda (x) x) 42))
    42)
 
   (c#-->>=
@@ -141,7 +105,7 @@
                 (begin
                   (await (suspend))
                   x))])
-     (block (id 42)))
+     (os/block (id 42)))
    42)
 
   (c#-->>=
@@ -153,13 +117,13 @@
                             (await (mk-t1))
                             x)))])
 
-     (block (mk-t2 0)))
+     (os/block (mk-t2 0)))
    42)
 
   (c#-->>=
    (let ([work (async/lambda ()
                  (await (os/io 5 42)))])
-     (block (work)))
+     (os/block (work)))
    42)
 
   (c#-->>=
@@ -168,7 +132,7 @@
                     (begin
                       (print (await (os/io 1 msg)))
                       (print (await (os/io 1 msg)))))])
-       (block (work "A"))))
+       (os/block (work "A"))))
    "AA")
 
   (c#-->>=
@@ -192,7 +156,7 @@
                       (begin (print "C")
                              (await task0)
                              (await task1))))])
-       (block (main))))
+       (os/block (main))))
    "AAABBBC")
 
   (c#-->>∈
@@ -206,7 +170,7 @@
                       (begin
                         (await task0)
                         (await task1))))])
-       (block (main))))
+       (os/block (main))))
    (list "AB" "BA"))
 
   (c#-->>∈
@@ -220,5 +184,5 @@
                       (begin (print "C")
                              (await task0)
                              (await task1))))])
-       (block (main))))
+       (os/block (main))))
    (string-permutations "ABC")))

@@ -3,25 +3,32 @@
 (require redex/reduction-semantics
          "lc.rkt")
 
-(provide LC+Exn -->exn/core -->exn)
+(provide Exn -->exn/core -->exn)
 
-(define-extended-language LC+Exn LC
+(define-extended-language Exn LC
   (e ::= ....
      (throw e)
-     (catch e_handle e_try))
+     (catch e_handle e_try)
+     (throw-in e_coro e_exn))
 
   (E ::= ....
      (throw E)
      (catch E e)
-     (catch v E))
+     (catch v E)
+     (throw-in E e)
+     (throw-in v E))
 
   (M ::= ....
      (throw M)
      (catch M e)
-     (catch v M))
+     (catch v M)
+     (throw-in M e)
+     (throw-in v M))
 
   (G ::=
      (throw G)
+     (throw-in G e)
+     (throw-in v G)
 
      ;; Copied from the base LC
      hole
@@ -62,7 +69,7 @@
 
 (define -->exn/core
   (reduction-relation
-   LC+Exn #:domain (σ e)
+   Exn #:domain (σ e)
 
    [--> (σ (in-hole E (catch (lambda (x) e) (in-hole G (throw v)))))
         (σ (in-hole E ((lambda (x) e) v)))
@@ -75,10 +82,15 @@
 
    [--> (σ (in-hole E (catch _ v)))
         (σ (in-hole E v))
-        "catch-value"]))
+        "catch-value"]
+
+   [--> (σ (in-hole E (throw-in (lambda (x) (in-hole E_inner x)) v)))
+        (σ (in-hole E (in-hole E_inner (throw v))))
+
+        "throw-in"]))
 
 (define -->lc/base
-  (extend-reduction-relation -->lc LC+Exn))
+  (extend-reduction-relation -->lc Exn))
 
 (define -->exn
   (union-reduction-relations -->lc/base -->exn/core))
