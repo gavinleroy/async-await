@@ -1,19 +1,12 @@
-\subsection{Propagation}\label{ssec:designdims:propagation} The Exception Propgation axis defines if an exception is propagated from a \Task{}s to the program if it \textit{was not awaited.} We define this axis strictly for unawaited \Task{}s because an exception propagates from a child \Task{} to its parent at an await point. The possible propagation types are: \textit{destruction} (see \Cref{sssec:designdims:destruction}), and \textit{never.}
-
-\ggnote{This section has not been updated}
-
-\Cref{fig:designdims:propagation:destruction} provides an example Python (Asyncio) program. Asyncio employes destruction exception propagation. The inner \Task{} \code{inner}, throws an exception, however, the \Task{} that launched it, \code{main}, never awaits it. On destruction (program scope), the \Task{} reraises the unawaited exception. \Cref{fig:designdims:propagation:never} provides an example Swift, which demonstrates never propagating an exception unless it's awaited. Although swift has region-scoped tasks, on destruction, a \Task{} doesn't propagate an exception.
+\subsection{Propagation}\label{ssec:designdims:propagation} The Exception Propgation axis defines if an exception propagates out of \textit{unawaited} \tasks into the calling context. We define this axis strictly for unawaited \tasks because an exception always propagates at explicit synchronization points (i.e., await points). The possible values are: \textit{destruction}, and \textit{never.}
 
 \begin{figure}[H]
   \begin{minipage}[t]{0.49\textwidth}
 \begin{lstlisting}[language=Python]
 import asyncio
 
-class Bad(Exception):
-    pass
-
 async def inner():
-    raise Bad()
+    raise Exception()
 
 async def main():
     i = asyncio.create_task(inner())
@@ -21,9 +14,9 @@ async def main():
     print("exiting")
 
 asyncio.run(main())
-# exiting
+# "exiting"
 # Task exception was never retrieved
-# Bad
+# Exception
 \end{lstlisting}
     \cprotect\subcaption{Python's Asyncio library reraises exceptions on destruction (program scoped). The above program prints ``exiting'' and then raises the exception \code{Bad} with an explanation, \textit{Task exception was never retrieved.}}
     \label{fig:designdims:propagation:never}
@@ -43,7 +36,7 @@ func work() async {
   print("exiting")
 }
 
-await work() // exiting
+await work() // "exiting"
 \end{lstlisting}
     \cprotect\subcaption{Swift never reraises unawaited exceptions. The above program prints ``exiting'' and exits successfully.}
     \label{fig:designdims:propagation:destruction}
@@ -52,3 +45,6 @@ await work() // exiting
   \label{fig:designdims:propagation}
 \end{figure}
 
+\Cref{fig:designdims:propagation:destruction} provides an example Python (Asyncio) program. Asyncio employes destruction exception propagation. The inner \task \code{inner}, throws an exception, however, the \task that launched it, \code{main}, never awaits it. On destruction, the \task reraises the unawaited exception. 
+
+\Cref{fig:designdims:propagation:never} provides the same code in Swift, which demonstrates never propagating an exception unless it's awaited. Although swift enforces dynamic-extent (see \Cref{ssec:dims:extent}), on destruction, a \task doesn't propagate exceptions.

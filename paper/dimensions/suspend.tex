@@ -1,10 +1,6 @@
-\subsection{Suspension}\label{ssec:designdims:suspension} The Suspension axis defines if an await point is guaranteed to suspend. The possible values are: \textit{static,} and \textit{dynamic.}
+\subsection{Suspension}\label{ssec:designdims:suspension}
 
-\ggnote{This section has not been updated}
-
-\Cref{fig:designdims:suspend:static} provides a JavaScript program that demonstrates static suspension points. The provided program will always print ``ABCABAB.'' The first ``AB'' is a result of JavaScript's \textit{eager application}, see \Cref{ssec:designdims:eagerness}, the remaining interleaved prints are a result of static suspension points. At every \code{await} keyword, JavaScript will suspend the current \Task{} to provide another a chance to make progress. \footnote{This behavior is defined as part of the ECMAScript standard (\textsection 27.7.5.3, step 3.b)~\cite{ecma_ecmascript_nodate}.}
-
-\Cref{fig:designdims:suspend:dynamic} provides a Rust (SMOL) program that demonstrates dynamic suspension points. The provided program will always print ``CAAABBB'' --- none of the await expression suspend the current computation. Many languages opt for dynamic suspension points for performance reasons. If the awaited expression returns synchronously, then the executing thread has more work to do and can continue executing. Static suspension points may cause unnecessary overhead if the suspended task is immediately rescheduled.
+The Suspension axis defines if an await point is guaranteed to suspend. The possible values are: \textit{static,} and \textit{dynamic.}
 
 \begin{figure}[H]
   \begin{minipage}[t]{0.49\textwidth}
@@ -61,5 +57,10 @@ fn main() {
   \label{fig:designdims:suspend}
 \end{figure}
 
-how the set of \textit{await} points relates to the set of \textit{suspension} points, the possible values are:  A system has \textit{static} suspension points if the language guarantees that every await point suspends the current computation. A system has \textit{dynamic} suspension points if the set of await points is a superset of the set of suspension points. Asynchronous computations may complete synchronously, in fact, a large number do, and the runtime can decide dynamically whether to actually suspend the calling \Task{} or continue with the awaited value.
+\Cref{fig:designdims:suspend:static} provides a JavaScript program that demonstrates static suspension points. The provided program will always print ``ABCABAB.'' The first ``AB'' is a result of JavaScript's \textit{eager application}, see \Cref{ssec:designdims:eagerness}, the remaining interleaved prints are a result of static suspension points. At every \code{await} keyword, JavaScript will suspend the current \Task{} to provide another a chance to make progress. \footnote{This behavior is defined as part of the ECMAScript standard (\textsection 27.7.5.3, step 3.b)~\cite{ecma_ecmascript_nodate}.}
 
+\Cref{fig:designdims:suspend:dynamic} provides a Rust (SMOL) program that demonstrates dynamic suspension points. The provided program will always print ``CAAABBB'' --- none of the await expression suspend the current computation. Many languages opt for dynamic suspension points for performance reasons. If the awaited expression returns synchronously, then the executing thread has more work to do and can continue executing. Static suspension points may cause unnecessary overhead if the suspended task is immediately rescheduled.
+
+When deciding between suspension strategies language designers make a trade off between starvation and performance. Asynchronous programming relies on \tasks to \textit{cooperatively} suspend in order for another to make progress. A static suspension policy ensures that a \task suspends exaxtly as many times as it was programmed to. The developer knows how many times an asynchronous function will suspend by counting the syntacticly-present await keywords.
+
+A static suspension policy comes at the cost of performance and allocation. Many asynchronous function calls execute synchronously: and a \task could be suspended just to be immediately rescheduled. A dynamic suspension policy takes advantage of this by only paying the cost of suspension when a result is not ready. The downside to dynamic suspension is that a running \task might not suspend as often as a developer thinks. A common practice is to profile a system against a real-world workload and insert hard suspension points to force \tasks to suspend.

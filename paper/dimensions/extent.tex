@@ -1,8 +1,8 @@
-\subsection{Extent}\label{ssec:dims:extent} The \Task Extent axis defines the interval of time during which references to a \task may occur. The possible values are: \textit{dynamic}, and \textit{indefinite} exent.
+\subsection{Extent}\label{ssec:dims:extent} The \Task Extent axis defines the interval of time during which a \task may exist. The possible values are: \textit{dynamic}, and \textit{indefinite} exent.
 
-A system has dynamic extent if references may occur at any time in the interval between the construction and destruction of a \task. As a rule, in a system with dynamic extent, a \task is destructed when the execution of the establishing construct (e.g., the current asynchronous function) completes or is otherwise terminated. Systems with dynamic extent obey a stack-like discipline, but with a strict tree construct instead of a linear callstack. The idea of dynamic extent for \tasks has propagated in the wild under the term \textit{structured concurrency}~\cite{sustrik_structured_2025,mccall_swift-evolutionproposals0304-structured-concurrencymd_nodate,elizarov_kotlin_2021}.
+A system enforces dynamic extent if a \task exists only during the block or procedure in which it was constructed. The idea of dynamic extent for \tasks has propagated in the wild under the term \textit{structured concurrency}~\cite{sustrik_structured_2025,mccall_swift-evolutionproposals0304-structured-concurrencymd_nodate,elizarov_kotlin_2021}.
 
-A system has indefinite extent if a \task continues to exist as long as the possibility of a reference remains. An implementation may destroy the \task if it can prove that reference to the \task is no longer possible. Systems may or may not consider references from the Executor/Reactor as strong references.
+A system has indefinite extent if a \task continues to exist as long as it is referenced. An implementation may destroy the \task if it can prove that reference to the \task is no longer possible --- a garbage collector may provide such a proof. Note that references in the asynchronous runtime \textit{may not} be strong references; we discuss this dimension in \Cref{ssec:designdims:references}.
 
 \begin{figure}[H]
   \begin{subfigure}[t]{0.49\textwidth}

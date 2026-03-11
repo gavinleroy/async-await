@@ -77,36 +77,3 @@
 % \subsubsection{Trio}
 % \subsection{Summary of Language Decisions}
 
-\begin{table}
-  \begin{tabular}{lllllll}
-    \toprule
-    System           & Eagerness   & Extent   & Destruction  & Propagation  & Suspension  \\
-    \midrule
-    \CSharp          & eager       & program  & terminated   & never        & dynamic     \\
-    JavaScript       & eager       & program  & awaited      & destruction  & static      \\
-    Swift            & semi-eager  & region   & cancelled    & never        & dynamic     \\
-    \midrule
-    Tokio (Rust)     & lazy        & program  & cancelled*   & -            & dynamic     \\
-    SMOL (Rust)      & lazy        & region   & cancelled*   & -            & dynamic     \\
-    \midrule
-    AsyncIO (Python) & lazy        & program  & terminated   & destruction  & dynamic     \\
-    Trio (Python)    & lazy        & region   & awaited      & destruction  & dynamic     \\
-    \bottomrule
-  \end{tabular}
-  \caption{Overview of semantic decisions make by language/system designers. *Rust's cancellation semantics are a variant of termination.}
-  \label{tab:semantics-overview}
-\end{table}
-
-\begin{table}
-  \begin{tabular}{lll}
-    \toprule
-    Language         & Cooperation      & Direction    \\
-    \midrule
-    Rust             & non-cooperative  & top-down     \\
-    Swift            & cooperative      & simultaneous \\
-    Python           & cooperative      & bottom-up    \\
-    \bottomrule
-  \end{tabular}
-  \caption{Overview of cancellation decisions make by language/system designers}
-  \label{tab:cancellation-overview}
-\end{table}

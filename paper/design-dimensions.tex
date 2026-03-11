@@ -2,7 +2,7 @@
 
 Language designers must decide how the async/await syntax will expand into the set of asynchronous building blocks. The expansion is often influenced by patterns in the pre-existing base language as well as performance and memory expectations of the community.
 
-In this section we provide the async/await design dimensions. The design dimensions map the async/await syntax to the runtime behavior of the desugared program. The design dimensions are: \textit{eagnerness,} \textit{extent,} \textit{references,} \textit{destruction,} \textit{propagation,} \textit{suspension,} and \textit{cancellation.}
+In this section we provide the async/await design dimensions. The design dimensions map the async/await syntax to the runtime behavior of the desugared program. The design dimensions are: \textit{eagnerness,} \textit{extent,} \textit{reference strength,} \textit{destruction,} \textit{propagation,} \textit{suspension,} and \textit{cancellation.}
 
 \input{./dimensions/eagerness.tex}
 
@@ -17,3 +17,39 @@ In this section we provide the async/await design dimensions. The design dimensi
 \input{./dimensions/suspend.tex}
 
 \input{./dimensions/cancel.tex}
+
+\subsection{Summary of Language Semantics}
+
+\begin{table}
+  \begin{tabular}{lllllll}
+    \toprule
+    System           & Eagerness   & Extent       & References   & Destruction  & Propagation  & Suspension  \\
+    \midrule
+    \CSharp          & eager       & indefinite   & strong       & terminated   & never        & dynamic     \\
+    JavaScript       & eager       & indefinite   & strong       & awaited      & destruction  & static      \\
+    Swift            & semi-eager  & dynamic      & weak         & cancelled    & never        & dynamic     \\
+    \midrule
+    Tokio (Rust)     & lazy        & indefinite   & strong       & cancelled    & -            & dynamic     \\
+    SMOL (Rust)      & lazy        & indefinite   & weak         & cancelled    & -            & dynamic     \\
+    \midrule
+    AsyncIO (Python) & lazy        & indefinite   & weak         & terminated   & destruction  & dynamic     \\
+    Trio (Python)    & lazy        & dynamic      & weak         & awaited      & destruction  & dynamic     \\
+    \bottomrule
+  \end{tabular}
+  \caption{Overview of semantic decisions make by language/system designers.}
+  \label{tab:semantics-overview}
+\end{table}
+
+\begin{table}
+  \begin{tabular}{lll}
+    \toprule
+    Language         & Cooperation      & Direction    \\
+    \midrule
+    Rust             & non-cooperative  & top-down     \\
+    Swift            & cooperative      & simultaneous \\
+    Python           & cooperative      & bottom-up    \\
+    \bottomrule
+  \end{tabular}
+  \caption{Overview of cancellation decisions make by language/system designers}
+  \label{tab:cancellation-overview}
+\end{table}

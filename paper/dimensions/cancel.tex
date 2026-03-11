@@ -1,5 +1,10 @@
 \subsection{Cancellation}\label{ssec:designdims:cancellation} The Cancellation axis defines how a running task is cancelled, including how cancellation is signaled, if at all, and how a cancellation signal propagates through the task tree. A clear cancellation mechanism is an important feauture of the asynchronous programming paradigm. Cancellation is a sufficiently complex mechanism that it itself contains two design dimensions:\textit{cooperation,} and \textit{direction.}
 
+\ggnote{I still need to rewrite this section, skip for now.}
+
+A \task represents one \coro that is registered in the runtime. To understand the behavior of an asynchronous system we will scrutinize not a single \task, but its relationship to other \tasks. We will describe \task relationships using a \textit{task tree.} The nodes in the task tree are the set of all executing \tasks in the runtime system. The task tree may be a reified data structure held explicitly by the runtime system, or may be held implicitly, e.g., through object pointers or registered callbacks. As we will discuss in \Cref{ssec:designdims}, how the task tree is constructed and destructed affects the runtime semantics.
+
+
 \subsubsection{Cooperation} The Cancellation Cooperation axis defines if a \bum receives a cancellation signal (awareness) and if it can react to that signal. We define cancellation as a property of a \bum because the \bum is the reification of the program code. Therefore, cooperative cancellation allows the developer to write code in an asynchronous function that reacts to a cancellation signal.
 
 \begin{figure}
