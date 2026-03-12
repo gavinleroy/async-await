@@ -171,6 +171,38 @@
 
 %%%%
 %% Components
+\newcommand{\Eagerness}{Eagerness\xspace}
+\newcommand{\eagerness}{Eagerness\xspace}
+\newcommand{\eager}{eager\xspace}
+\newcommand{\seager}{semi-eager\xspace}
+\newcommand{\lazy}{lazy\xspace}
+
+\newcommand{\Extent}{Extent\xspace}
+\newcommand{\extent}{extent\xspace}
+\newcommand{\indef}{indefinite\xspace}
+\newcommand{\dyn}{dynamic\xspace}
+
+\newcommand{\References}{References\xspace}
+\newcommand{\references}{references\xspace}
+\newcommand{\strong}{strong\xspace}
+\newcommand{\weak}{weak\xspace}
+
+\newcommand{\Destruction}{Destruction\xspace}
+\newcommand{\destruction}{destruction\xspace}
+\newcommand{\terminated}{terminated\xspace}
+\newcommand{\awaited}{awaited\xspace}
+\newcommand{\cancelled}{cancelled\xspace}
+
+\newcommand{\Propagation}{Propagation\xspace}
+\newcommand{\propagation}{propagation\xspace}
+\newcommand{\never}{never\xspace}
+\newcommand{\destruction}{destruction\xspace}
+
+\newcommand{\Suspension}{Suspension\xspace}
+\newcommand{\suspension}{suspension\xspace}
+\newcommand{\static}{static\xspace}
+\newcommand{\dynamic}{dynamic\xspace}
+
 \newcommand{\coro}{\textsc{coroutine}\xspace}
 \newcommand{\coros}{\textsc{coroutines}\xspace}
 \newcommand{\Coro}{\textsc{Coroutine}\xspace}
@@ -180,6 +212,24 @@
 \newcommand{\Tasks}{\textsc{Tasks}\xspace}
 \newcommand{\task}{\textsc{task}\xspace}
 \newcommand{\tasks}{\textsc{tasks}\xspace}
+
+\newlist{pros}{itemize}{1}
+\setlist[pros]{
+  label=\textbullet,
+  nosep,
+  leftmargin=*,
+  % before=\vspace*{-\baselineskip}, % <-- Added an asterisk (*) and increased the pull
+  after=\vspace*{5pt}              % <-- Set this to 0pt to fix the bottom overlap
+}
+
+\newenvironment{tricolumn}
+  {\begin{tabular}[t]{@{} p{0.26\textwidth} p{0.26\textwidth} p{0.26\textwidth} @{}}}
+  {\end{tabular}}
+
+
+\newenvironment{bicolumn}
+  {\begin{tabular}[t]{@{} p{0.4\textwidth} p{0.4\textwidth} @{}}}
+  {\end{tabular}}
 
 %%%%
 %% TIKZ Styles
@@ -275,12 +325,6 @@
 \newcommand{\CSharp}{\textsc{C\#}\xspace}
 \newcommand{\FSharp}{\textsc{F\#}\xspace}
 \newcommand{\Cpp}{\textsc{C++}\xspace}
-
-\newcommand{\EEXN}{\textsc{eexn}}
-\newcommand{\ERUN}{\textsc{erun}}
-\newcommand{\ETERM}{\textsc{eterm}}
-\newcommand{\APARENT}{\textsc{aown}}
-\newcommand{\MPAR}{\textsc{mpar}}
 
 \newif\ifcameraready
 %\camerareadytrue

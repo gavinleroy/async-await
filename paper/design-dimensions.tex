@@ -4,6 +4,150 @@ Language designers must decide how the async/await syntax will expand into the s
 
 In this section we provide the async/await design dimensions. The design dimensions map the async/await syntax to the runtime behavior of the desugared program. The design dimensions are: \textit{eagnerness,} \textit{extent,} \textit{reference strength,} \textit{destruction,} \textit{propagation,} \textit{suspension,} and \textit{cancellation.}
 
+\begin{table}[H]
+  \centering
+  \begin{tabular}{ll}
+    \toprule
+    \Eagerness   &%
+      \footnotesize%
+      \begin{tricolumn}
+        \textsc{\lazy} & \textsc{\seager} & \textsc{\eager} \\
+        \begin{pros}
+          \item Predictable allocation
+          \item Predictable execution
+          \item User-space implementable runtime
+        \end{pros}  & 
+        \begin{pros}
+          \item Intuitive
+          \item Protect current thread
+          \item Maximize multi-core \abbr{cpu} usage
+        \end{pros}  &
+        \begin{pros}
+          \item Intuitive
+          \item May avoid \task allocation
+        \end{pros}  \\
+        \begin{tabular}[t]{@{}ll@{}}
+          JavaScript & \CSharp
+        \end{tabular} &
+        \begin{tabular}[t]{@{}ll@{}}
+          Swift & Smol
+        \end{tabular} &
+        \begin{tabular}[t]{@{}lll@{}}
+          Tokio & Asyncio & Trio
+        \end{tabular}
+      \end{tricolumn} \\
+
+    \midrule
+    \Extent &
+      \footnotesize%
+      \begin{bicolumn}
+        \textsc{\dyn} & \textsc{\indef} \\
+        \begin{pros}
+          \item Prevent resource leaks
+          \item Resemble synchronous execution
+        \end{pros}  &
+        \begin{pros}
+          \item Flexible
+          \item Intuitive to developers (akin to GC)
+        \end{pros}  \\
+        \begin{tabular}[t]{@{}llll@{}}
+          JavaScript & \CSharp & Tokio & Smol
+        \end{tabular} &
+        \begin{tabular}[t]{@{}ll@{}}
+          Swift & Trio
+        \end{tabular}
+      \end{bicolumn} \\
+
+    \midrule
+    \References  &
+      \footnotesize%
+      \begin{bicolumn}
+        \textsc{\strong} & \textsc{\weak} \\
+        \begin{pros}
+          \item Deterministic destruction
+          \item \Tasks run to completion (intuitive)
+        \end{pros}  &
+        \begin{pros}
+          \item Prevent resource leaks
+        \end{pros}  \\
+        \begin{tabular}[t]{@{}lll@{}}
+          JavaScript & \CSharp & Tokio
+        \end{tabular} &
+        \begin{tabular}[t]{@{}ll@{}}
+          Asyncio & Smol
+        \end{tabular}
+      \end{bicolumn} \\
+
+    \midrule
+    \Destruction &
+      \footnotesize%
+      \begin{tricolumn}
+        \textsc{\awaited} & \textsc{\cancelled} & \textsc{\terminated} \\
+        \begin{pros}
+          \item Prioritize data integrity
+          \item Usable by systems with no built-in cancellation
+        \end{pros}  &
+        \begin{pros}
+          \item Prioritize data integrity
+        \end{pros}  &
+        \begin{pros}
+          \item Prioritize responsiveness
+        \end{pros}  \\
+        \begin{tabular}[t]{@{}lll@{}}
+          JavaScript & Tokio
+        \end{tabular} &
+        \begin{tabular}[t]{@{}ll@{}}
+          Swift & Tokio & Smol & Asyncio
+        \end{tabular} &
+        \begin{tabular}[t]{@{}l@{}}
+          \CSharp
+        \end{tabular}
+      \end{tricolumn} \\
+
+
+    \midrule
+    \Propagation &
+      \footnotesize%
+      \begin{bicolumn}
+        \textsc{\destruction} & \textsc{\never} \\
+        \begin{pros}
+          \item Prioritize data integrity
+          \item Usable by systems with no built-in cancellation
+        \end{pros}  &
+        \begin{pros}
+          \item Prioritize responsiveness
+        \end{pros}  \\
+        \begin{tabular}[t]{@{}lll@{}}
+          JavaScript & Asyncio & Trio
+        \end{tabular} &
+        \begin{tabular}[t]{@{}ll@{}}
+          \CSharp & Swift
+        \end{tabular}
+      \end{bicolumn} \\
+
+
+    \midrule
+    \Suspension  &
+      \footnotesize%
+      \begin{bicolumn}
+        \textsc{\static} & \textsc{\dynamic} \\
+        \begin{pros}
+          \item Reduce starvation
+        \end{pros}  &
+        \begin{pros}
+          \item Reduce overhead
+        \end{pros}  \\
+        \begin{tabular}[t]{@{}l@{}}
+          JavaScript
+        \end{tabular} &
+        \begin{tabular}[t]{@{}llll@{}}
+          \CSharp & Swift   & Asyncio & Trio    & Tokio   & Smol
+        \end{tabular}
+      \end{bicolumn} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
 \input{./dimensions/eagerness.tex}
 
 \input{./dimensions/extent.tex}
@@ -23,17 +167,17 @@ In this section we provide the async/await design dimensions. The design dimensi
 \begin{table}
   \begin{tabular}{lllllll}
     \toprule
-    System           & Eagerness   & Extent       & References   & Destruction  & Propagation  & Suspension  \\
+    System           & \Eagerness   & \Extent       & \References   & \Destruction  & \Propagation  & \Suspension  \\
     \midrule
-    \CSharp          & eager       & indefinite   & strong  & terminated   & never        & dynamic     \\
-    JavaScript       & eager       & indefinite   & strong  & awaited      & destruction  & static      \\
-    Swift            & semi-eager  & dynamic      & -       & cancelled    & never        & dynamic     \\
+    \CSharp          & \eager       & \indef        & \strong       & \terminated   & \never        & \dynamic     \\
+    JavaScript       & \eager       & \indef        & \strong       & \awaited      & \destruction  & \static      \\
+    Swift            & \seager      & \dyn          & -             & \cancelled    & \never        & \dynamic     \\
     \midrule
-    Tokio (Rust)     & lazy        & indefinite   & strong  & cancelled    & -            & dynamic     \\
-    Smol (Rust)      & lazy        & indefinite   & weak    & cancelled    & -            & dynamic     \\
+    Tokio (Rust)     & \lazy        & \indef        & \strong       & \cancelled    & -             & \dynamic     \\
+    Smol (Rust)      & \lazy        & \indef        & \weak         & \cancelled    & -             & \dynamic     \\
     \midrule
-    AsyncIO (Python) & lazy        & indefinite   & weak    & terminated   & destruction  & dynamic     \\
-    Trio (Python)    & lazy        & dynamic      & -       & awaited      & destruction  & dynamic     \\
+    Asyncio (Python) & \lazy        & \indef        & \weak         & \cancelled    & \destruction  & \dynamic     \\
+    Trio (Python)    & \lazy        & \dyn          & -             & \awaited      & \destruction  & \dynamic     \\
     \bottomrule
   \end{tabular}
   \caption{Overview of semantic decisions make by language/system designers.}
