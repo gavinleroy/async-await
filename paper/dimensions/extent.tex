@@ -1,8 +1,10 @@
-\subsection{Extent}\label{ssec:dims:extent} The \Task Extent axis defines the interval of time during which a \task may exist. The possible values are: \textit{dynamic}, and \textit{indefinite} exent.
+\subsection{Extent}\label{ssec:designdims:extent}
+
+The \Task Extent axis defines the interval of time during which a \task may exist. The possible values are: \textit{dynamic}, and \textit{indefinite} exent.
 
 A system enforces dynamic extent if a \task exists only during the block or procedure in which it was constructed. The idea of dynamic extent for \tasks has propagated in the wild under the term \textit{structured concurrency}~\cite{sustrik_structured_2025,mccall_swift-evolutionproposals0304-structured-concurrencymd_nodate,elizarov_kotlin_2021}.
 
-A system has indefinite extent if a \task continues to exist as long as it is referenced. An implementation may destroy the \task if it can prove that reference to the \task is no longer possible --- a garbage collector may provide such a proof. Note that references in the asynchronous runtime \textit{may not} be strong references; we discuss this dimension in \Cref{ssec:designdims:references}.
+A system has indefinite extent if a \task continues to exist as long as it is referenced. An implementation may destroy the \task if it can prove that reference to the \task is no longer possible --- a garbage collector may provide such a proof. Note that references in the asynchronous runtime \textit{may not} be strong references; we discuss this design choice in \Cref{ssec:designdims:references}.
 
 \begin{figure}[H]
   \begin{subfigure}[t]{0.49\textwidth}
@@ -65,6 +67,6 @@ async Task Main() {
   \label{fig:designdims:scope}
 \end{figure}
 
-Advocates for dynamic extent argue two main points: no resources are leaked and control flow better resembles synchronous code. In the context of asynchronous programming, the resource potentially leaked by a \task with indefinite extent is \abbr{cpu} time. As previously mentioned, a common argument for async/await syntax is that asynchronous code looks like synchronous code. Systems with dynamic extent push this argument further because, as is the case with synchronous code, a callee cannot outlive its caller. Developers in a dynamic extent system can know with certainty that no hidden background work remains after a block finishes executing.
+Advocates for dynamic extent argue two main points: no resources are leaked and control flow better resembles synchronous code~\cite{mccall_swift_2021,elizarov_kotlin_2021}. In the context of asynchronous programming, the resource potentially leaked by a \task with indefinite extent is \abbr{cpu} time. As previously mentioned, a common argument for async/await syntax is that asynchronous code looks like synchronous code. Systems with dynamic extent push this argument further because, as is the case with synchronous code, a callee cannot outlive its caller. Developers in a dynamic extent system can know with certainty that no hidden background work remains after a block finishes executing.
 
 Although dynamic extent systems provide many attractive benefits, the execution model can be overly restrictive. A dynamic extent system imposes a strict tree structure on the executing \tasks, however, that structure is insufficient to express some programs. Consider a high-traffic endpoint that fetches a large, slow-to-compute dataset from a database. If multiple users request this endpoint within the same time frame, instead of computing the result multiple times, it would be best to cache the work --- computing it once --- and have all users wait for that single result. A tree structure is insufficient to express this pattern and instead requires a \task graph, which would allow multiple \tasks to wait on another. Even though systems like Swift and Trio (Python) enforce dynamic extent by default, they provide additional constructs that enjoy indefinite extent.

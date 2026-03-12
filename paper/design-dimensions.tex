@@ -25,15 +25,15 @@ In this section we provide the async/await design dimensions. The design dimensi
     \toprule
     System           & Eagerness   & Extent       & References   & Destruction  & Propagation  & Suspension  \\
     \midrule
-    \CSharp          & eager       & indefinite   & strong       & terminated   & never        & dynamic     \\
-    JavaScript       & eager       & indefinite   & strong       & awaited      & destruction  & static      \\
-    Swift            & semi-eager  & dynamic      & weak         & cancelled    & never        & dynamic     \\
+    \CSharp          & eager       & indefinite   & strong  & terminated   & never        & dynamic     \\
+    JavaScript       & eager       & indefinite   & strong  & awaited      & destruction  & static      \\
+    Swift            & semi-eager  & dynamic      & -       & cancelled    & never        & dynamic     \\
     \midrule
-    Tokio (Rust)     & lazy        & indefinite   & strong       & cancelled    & -            & dynamic     \\
-    SMOL (Rust)      & lazy        & indefinite   & weak         & cancelled    & -            & dynamic     \\
+    Tokio (Rust)     & lazy        & indefinite   & strong  & cancelled    & -            & dynamic     \\
+    Smol (Rust)      & lazy        & indefinite   & weak    & cancelled    & -            & dynamic     \\
     \midrule
-    AsyncIO (Python) & lazy        & indefinite   & weak         & terminated   & destruction  & dynamic     \\
-    Trio (Python)    & lazy        & dynamic      & weak         & awaited      & destruction  & dynamic     \\
+    AsyncIO (Python) & lazy        & indefinite   & weak    & terminated   & destruction  & dynamic     \\
+    Trio (Python)    & lazy        & dynamic      & -       & awaited      & destruction  & dynamic     \\
     \bottomrule
   \end{tabular}
   \caption{Overview of semantic decisions make by language/system designers.}

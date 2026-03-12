@@ -7,8 +7,8 @@ On evaluating an eager async application, the current thread transfers execution
   \begin{minipage}[t]{0.30\textwidth}
 \begin{lstlisting}[language=Rust]
 async fn work(msg: &str) {
-  sleep(one_ms).await
   print!("{msg}");
+  sleep(one_ms).await
 }
 
 #[tokio::main]
@@ -26,9 +26,9 @@ async fn main() {
 \begin{lstlisting}[language=Swift]
 func work(msg: String
 ) async throws {
+  print(msg)
   try await Task.sleep(
     for: .milliseconds(1))
-  print(msg)
 }
 
 async let a = work(msg: "A")
@@ -37,7 +37,7 @@ print("C")
 try await a; try await b
 // => CAB, CBA, BCA, ACB, ...
 \end{lstlisting}
-    \cprotect\subcaption{Swift function applications are semi-eager. The right-hand-side of an async let binding is evaluated in a concurrently executing \textit{child} task, control of the executing task does not jump to the body of the async function. The print order of the program is any permutation of the string ``ABC''.}
+\cprotect\subcaption{Swift function applications are semi-eager. The right-hand-side of an async let binding is evaluated in a concurrently executing \task, execution of the current thread does not transfer to the body of the applied function. The print order of the program is any permutation of the string ``ABC,'' though typically it will begin with `C.'}
     \label{fig:designdims:eagerness:semieager}
   \end{minipage}\hfill%
   \begin{minipage}[t]{0.33\textwidth}
@@ -54,21 +54,24 @@ async Task Main() {
   await a; await b;
 } // => ABC
 \end{lstlisting}
-    \cprotect\subcaption{\CSharp{} function applications are eager. In this example the order of statements in the \code{work} function are flipped, the print happens before the delay. When \code{work} is called the executing thread transfers control to the body of the async function until it is suspended. The print order of this program is always ``ABC''.}
+    \cprotect\subcaption{\CSharp{} function applications are eager. When \code{work} is called the executing thread transfers control to the body of the async function until it is suspended. The print order of this program is always ``ABC''.}
     \label{fig:designdims:eagerness:eager}
   \end{minipage}
   \caption{Examles of lazy, semi-eager, and eager async function application.}
   \label{fig:designdims:eagerness}
 \end{figure}
 
-Languages have adopted all variants of eagerness, as shown in \Cref{fig:designdims:eagerness}. Rust employes lazy function evaluation, \coro values perform work only when awaited, polled, or spawned. \Cref{fig:designdims:eagerness:lazy} shows work being performed at an await point, resulting in a deterministic order of effects.
+\Cref{fig:designdims:eagerness} provides an example of lazy, semi-eager, and eager function application in Rust, Swift, and \CSharp, respectively. Rust employes lazy function evaluation, \coro values perform work only when awaited, polled, or spawned. The program in \Cref{fig:designdims:eagerness:lazy} always results in the print order ``CAB'' because the lazy \coro values produced by asynchronous function applications do no work until forced.
 
-Swift's \textit{async let} construct is semi-eager, as shown in \Cref{fig:designdims:eagerness:semieager}, the right-hand-side of the binding is scheduled to run in a concurrently executing child task. Note that in Swift async applications, which are not immediately awaited, must be bound with an \textit{async let} instead of a normal let binding. The order of effects in this program is non-deterministic.
+Swift's \textit{async let} construct is semi-eager, as shown in \Cref{fig:designdims:eagerness:semieager}, the right-hand-side of the binding is scheduled to run in a \task concurrently executing with the main program. The order of effects is non-deterministic when the program is run on a multi-core \abbr{cpu}.
 
-\CSharp adopts a truly eager application, the currently executing thread will transfer execution to the body of the async function. In \Cref{fig:designdims:eagerness:eager}, the order of the print and delay statements are flipped in the body of the \code{work} function. Because applications are eagerly evaluated, the order of effects is deterministic.
+\CSharp adopts eager function application. In \Cref{fig:designdims:eagerness:eager}, the execution of the main thread will transfer to the body of \code{Work} and continue executing until a suspension point is hit. As a result of the eager evaluation the program always prints ``ABC.''
 
-The choice of eagnerness is a tradfeoff in predictability, maximizing \abbr{cpu} utilization, and optimizing for fast paths. Lazy evaluation has three main benefits. First, lazy evaluation can provide predictable memory allocation. Asynchronous function applications evaluate directly to a \bum value that can be stack allocated. If the \bum needs to run in parallel or be stored on the heap, the developer must explicitly make this operation. Predictable memory allocation is one main motivation for Rust's async/await design~\cite{withoutboats_why_2023}. Second, lazy evaluation provides predictable performance and effect orderings. In lazily-evaluated async/await, developers compose computations using declarative functions and then run the staged computation when its value is awaited. Developers explicitly state when two computations can proceed concurrently and how errors (e.g., raised exceptions) from one affect concurrently running computation --- for example, the \code{join!} vs \code{try_join!} operator in Tokio (Rust). Third, lazily-evaluated languages that \bum values can provide the Executor and Reactor as user-space libraries, instead of shipping them bundled in the language runtime. Communities can then provide their own asynchronous runtime that is tailored towards a specific need when a preexisting runtime is insufficient.
+The choice of eagnerness is a tradeoff in predictability, maximizing \abbr{cpu} multi-core utilization, and optimizing the execution of synchronous-executing \tasks.
+
+Lazy evaluation has three main benefits. First, lazy evaluation can provide predictable memory allocation. Asynchronous function applications evaluate directly to a \coro value that can be stack allocated. If the \coro needs to run in parallel or be stored on the heap, the developer must explicitly make this operation. Predictable memory allocation is one main motivation for Rust's async/await design~\cite{withoutboats_why_2023}. Second, lazy evaluation provides predictable performance and effect orderings. In lazily-evaluated async/await, developers compose computations using declarative functions and then run the staged computation when its value is awaited. Developers explicitly state when two computations can proceed concurrently and how errors (e.g., raised exceptions) from one affect concurrently running computation --- for example, the \code{join!} vs \code{try_join!} operator in Tokio (Rust). Third, lazily-evaluated languages that \coro values can provide the Executor and Reactor as user-space libraries, instead of shipping them bundled in the language runtime. Communities can then provide their own asynchronous runtime that is tailored towards a specific need when a preexisting runtime is insufficient.
 
 Semi-eager evaluation maximizes \abbr{cpu} utilization while protecting the calling thread. Protecting the current thread is important for responsiveness in App/UI development, such as in the SwiftUI framework.
 
-Eager evaluation is beneficial to optimize the fast paths in synchronous-executing functions. Asynchronous functions \textit{may} perform asynchronous operations, but many do not. For example, a function that performs network \abbr{io} may want to buffer data so that subsequent calls execute synchronously; they simply read from the buffer and do not go to the network. Eagerly-evaluating systems can avoid the runtime and memory overhead of asynchronous function calls when the calls terminate synchronously.
+Eager evaluation is beneficial to remove the asynchronous overhead for for synchronous-executing functions. Asynchronous functions \textit{may} perform asynchronous operations and it is widely believed that many do not~\cite{msft_how_2023}. % NOTE: so many posts (especially in the C# world) make this claim, I will go back around and add more cites here when I find them again.
+For example, a function that performs network \abbr{io} may buffer data so that subsequent calls execute synchronously; they simply read from the buffer and do not go to the network. Eagerly-evaluating systems can avoid the runtime and memory overhead of asynchronous function calls when the execution completes without suspension. Further optimizations can be made by using dynamic suspension points, a design choice we will discuss in \Cref{ssec:designdims:suspension}.

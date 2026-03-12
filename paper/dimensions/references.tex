@@ -31,7 +31,7 @@ fn main() {
   })
 } // => "....AB"
 \end{lstlisting}
-    \cprotect\caption{An  example of  weak  runtime references. The SMOL (Rust) framework does not hold strong references to running \tasks. The program prints ``....AB'' with never any trailing periods after the `B.'}
+    \cprotect\caption{An  example of  weak  runtime references. The Smol (Rust) framework does not hold strong references to running \tasks. The program prints ``....AB'' with never any trailing periods after the `B.'}
     \label{fig:designdims:refs:weak}
   \end{subfigure}\hfill%
   \begin{subfigure}[t]{0.49\textwidth}
@@ -68,8 +68,12 @@ async fn main() {
   \label{fig:designdims:refs}
 \end{figure}
 
-The \task reference strength held by the runtime is important for systems with \textit{indefinite} \task extent (see \Cref{ssec:dims:extent}). Shown in \Cref{fig:designdims:refs:weak} the SMOL (Rust) system holds weak pointers to running \tasks.\footnote{The \code{.detach()} method can be invoked on \tasks to transfer ownership to the runtime system, turning the default weak references into strong references.} When no more references exist to the \task \code{t}, established on line 14, the \task is cancelled and deallocated. The output will have no trailing periods printed  because the heartbeat task is cancelled on line 17 when the reference \code{t} goes out of scope.
+The \task reference strength held by the runtime is important for systems with \textit{indefinite} \task extent (see \Cref{ssec:designdims:extent}). Shown in \Cref{fig:designdims:refs:weak} the Smol (Rust) system holds weak pointers to running \tasks.\cprotect\footnote{The \code{.detach()} method can be invoked on \tasks to transfer ownership to the runtime system, turning the default weak references into strong references.} When no more references exist to the \task \code{t}, established on line 14, the \task is cancelled and deallocated. The output will have no trailing periods printed  because the heartbeat task is cancelled on line 17 when the reference \code{t} goes out of scope.
 
 In contrast, the Tokio (Rust) system holds strong references to \tasks. The \task referenced by \code{t} is not destroyed when \code{t} goes out of scope, because the runtime continues to hold a reference to the \task. The output will contain some number of trailing periods after the `B,' as the heartbeat \task continues to execute while the main function sleeps on line 23.
 
-Weak runtime references are used by SMOL (Rust) to prevent dangling \tasks from consuming resources without the devlopers knowledge. A \task is automatically cancelled and deallocated when no further references to it exist; a deterministic effect thanks to Rusts ownership type system. This behavior parallels the behavior of memory allocation in Rust. Asyncio (Python) also holds weak references to \tasks, which is a source of controversy in the ecosystem~\cite{hartl_asyncio_2022}. At the time of writing, Asyncio's use of weak references is marked as a bug, however, the community is hesitant to change the design without understanding why it was designed this way to begin with; a fact that is undocumented and not remembered by the core developers.
+Weak runtime references are used by Smol (Rust) to prevent dangling \tasks from consuming resources without the devlopers knowledge. A \task is automatically cancelled and deallocated when no further references to it exist; a deterministic effect thanks to Rusts ownership type system. This behavior parallels the behavior of memory allocation in Rust. Asyncio (Python) also holds weak references to \tasks, a fact that is marked as a bug on the repository. However, maintainers are hesitant to change the reference semantics without understanding why they were designed with weak references to begin with. A core Python maintainer commented with the following:
+
+\begin{displayquote}
+Rather than rhetoric about impact or how trivial the fix would be, we need a discussion on why we designed tasks this way in the first place. \ldots I'm not sure why we designed it this way, and (from private email) @1st1 doesn't seem to recall either. But it was definitely designed with some purpose in mind -- the code is quite complex and was updated every time an issue with it was discovered, and we've had many opportunities to change this behavior but instead chose to update the docs \citegithub{https://github.com/python/cpython/pull/29163}, even when asyncio itself suffered \citegithub{https://github.com/python/cpython/issues/90467}}.~\cite{hartl_asyncio_2022}
+\end{displayquote}
