@@ -1,12 +1,14 @@
-\section{Motivation}\label{sec:motivation}
+\section{Defining Asynchrony}\label{sec:motivation}
 
-Async/await is about expressing \emph{asynchronous programming}, a concept which is related to, but not synonymous with, concurrent and/or parallel programming. We will start by attempting to disentangle these three concepts at a high level. In this paper, we will define concurrency as a logical property of a computation, whereby two subcomputations can execute interleaved: one computation begins before another ends. Parallelism is a physical property of a computation, whereby two subcomputations can execute simultaneously: both compuations overlap at the same point in time. Concurrency implies parallelism but not vice versa. For instance, embedded operating systems running on a single core are concurrent but not parallel.
+Async/await is about expressing \emph{asynchronous programming}, or more simply, \emph{asynchrony}. Asynchrony is related to, but not the same as, concurrency or parallelism. Many prior works have offered their own definition of asynchronous programming. For instance, \citet{spl:fsharp-async} say that ``asynchronous programming is characterized by many simultaneously pending reactions to internal or external events.'' While a reasonable starting point, our goal in this paper is to offer an expanded view on asynchrony that encompasses the full scope of features found in modern languages. 
+
+\subsection{Asynchrony vs. Concurrency vs. Parallelism  }
+
+We will define concurrency as a logical property of a computation, whereby two subcomputations can execute interleaved: one computation begins before another ends. Parallelism is a physical property of a computation, whereby two subcomputations can execute simultaneously: both compuations overlap at the same point in time. Concurrency implies parallelism but not vice versa. For instance, an embedded operating system running on a single core is concurrent but not parallel.
 
 Concurrency and parallelism have programming paradigms. Paradigms of concurrent computing include shared-memory concurrency (e.g. POSIX C), communicating sequential processes (Open MPI, Go), and actors (Erlang). Paradigms of parallel computing include fork-join parallelism (Cilk, OpenMP), collection parallelism (MapReduce, Spark), and index-space parallelism (OpenGL, CUDA).  Like all paradigms, these labels are useful but leaky, such as how complex parallel programs often involve shared-memory concurrency. Ultimately, a paradigm is about focusing a set of related mechanisms (\verb|spawn|, mutexes) on a set of related problems (sorting a list, running a database).
 
-We think of asynchronous programming as a concurrency paradigm. Its central mechanism is the \emph{\task}. A \task is a controllable unit of computation. Typical controls include spawning a \task into a thread pool, awaiting on the completion of a \task, or cancelling/aborting a \task. \Tasks are cooperative, meaning outside control can only be exerted at designated yield points. Asynchronous programming contrasts with shared-memory concurrency because coordinates between \tasks is generally performed through returning values over an \verb|await|, rather than synchronizing on shared data structures. Asynchronous programming contrasts with CSP/actors by focusing on smaller, more ephemeral units of computation than long-running processes talking over channels. However, one can naturally combine asynchronous programming with mutexes or channels to push the edges of the paradigm.
-
-Languages have historically arrived at asynchronous programming from different angles. For example, \CSharp{}, Javascript, and Swift developed async/await features to simplify the hellish structure of callback-based concurrency. C++ and Rust developed async/await features to simplify the hellish structure of high-event-loop-based concurrency. But across all languages, the key motivation for asynchronous programming is to provide a surface syntax for concurrent code that looks comparable to non-concurrent (synchronous) code. For example, below are excerpts from async/await proposal documents across a few languages:
+Asynchrony also has paradigms. Callback asynchrony uses higher-order functions to provide a continuation for the completion of a computation, most notably found in \CSharp{}, Javascript, and Swift. Event-loop asynchrony structures a program around a main loop which dispatches reactions to an event stream, most notably found in C++ and Rust. Languages have historically developed async/await to address the ergonomic problems associated with these two asynchrony paradigms. More generally, a key motivation is to provide a surface syntax for concurrent code that looks comparable to non-concurrent (synchronous) code. For example, below are excerpts from async/await proposal documents across a few languages:
 
 \begin{displayquote}%c#
   \textbf{(\CSharp{})} Notice first how similar it is to the synchronous code. \ldots The control flow is completely unaltered, and there are no callbacks in sight. That doesn’t mean that there are no callbacks, but the compiler takes care of creating and signing them up \ldots~\cite{torgersen_asynchronous_nodate}
@@ -24,15 +26,53 @@ Languages have historically arrived at asynchronous programming from different a
   \textbf{(Rust)} In brief, an asynchronous function returns a future, rather than evaluating immediately when it is called. Inside the function, other futures can be awaited using an await expression, which causes them to yield control while the future is being polled. From a user's perspective, they can use async/await as if it were synchronous code, and only need to annotate their functions and calls.~\cite{withoutboats_2394-async_await_nodate}
 \end{displayquote}
 
+We will define the paradigm encompassing async/await as \emph{straight-line asynchrony}, given its fundamental organizing principle of eliminating complex control flow in source code to present straight-line code.
+
+\subsection{Straight-line Asynchrony}
+
+In the paradigm of straight-line asynchrony, users write code in blocks marked as \verb|async|, often (but not necessarily) functions. Within an async block, the \verb|await| keyword can be used to wait until another asynchronous computation is finished, and extract its return value. Async blocks cannot be as easily invoked from non-async blocks, leading to the ``function coloring'' problem\,\cite{n:function-coloring}.
+
+In an async block, await expressions will generally yield control, either to a parent async block or to an async runtime.
+
+[TODO: PICK UP FROM HERE]
+
+% Typical controls include spawning a \task into a thread pool, awaiting on the completion of a \task, or cancelling/aborting a \task. \Tasks are cooperative, meaning outside control can only be exerted at designated yield points. \Tasks are create
+
+% \Task asynchrony contrasts with shared-memory concurrency because coordinates between \tasks is generally performed through returning values over an \verb|await|, rather than synchronizing on shared data structures. \Task asynchrony contrasts with CSP/actors by focusing on smaller, more ephemeral units of computation than long-running processes talking over channels. However, one can naturally combine \task asynchrony with mutexes or channels to push the edges of the paradigm.
+
+% We think of asynchronous programming as a concurrency paradigm. Its central mechanism is the \emph{\task}. 
+
+
 % \begin{displayquote}%swift
 %   \textbf{(Swift)} Modern Swift development involves a lot of asynchronous (or ``async'') programming using closures and completion handlers, but these APIs are hard to use. This gets particularly problematic when many asynchronous operations are used, error handling is required, or control flow between asynchronous calls gets complicated. This proposal describes a language extension to make this a lot more natural and less error prone.~\cite{noauthor_swift-evolutionproposals0296-async-awaitmd_nodate}
 % \end{displayquote}
 
-Our thesis is that this design goal --- that asynchronous programming permits synchronous reasoning --- is at best only partially true for programs using only the most basic asynchronous programming mechanisms. The reason is that async/await designs require many design decisions for which there is no obvious ``right'' answer. Different languages make reasonably different decisions, which means similar-looking programs can have divergent behavior. To make this point concrete, we will provide several illustrative examples of surprising async/await program behavior.
+% Our thesis is that this design goal --- that asynchronous programming permits synchronous reasoning --- is at best only partially true for programs using only the most basic asynchronous programming mechanisms. The reason is that async/await designs require many design decisions for which there is no obvious ``right'' answer. Different languages make reasonably different decisions, which means similar-looking programs can have divergent behavior. To make this point concrete, we will provide several illustrative examples of surprising async/await program behavior.
 
 % Put another way, the asynchronous programming paradigm shares in common with collections parallelism the value of introducing 
 
 % It's true that the async/await version of our illustrative example strongly resembles the synchronous version, however, the sad reality is that it does not take advantage of concurrency. Not only is the syntax of the async/await function similar to the synchronous version, so is its execution. The truth is that async/await is a syntactic abstraction over complicated semantics. Reasoning about async/await programs is no easier than reasoning about any concurrent program. In this section we provide examples of surprising async/await program behavior, which require deeper knowledge of concurrent semantics than the async/await abstraction may lead you to believe.
+
+\newpage
+
+\begin{lstlisting}[language=Swift]
+func timeout<T: Sendable>(
+  duration: Duration,
+  task: @escaping @Sendable () async -> T
+) async -> T? {
+  await withTaskGroup(of: T?.self) { group in
+    group.addTask { await task() }
+    group.addTask {
+      try? await Task.sleep(for: duration)
+      return nil
+    }
+
+    let result = await group.next()!
+    group.cancelAll()
+    return result
+  }
+}
+\end{lstlisting}
 
 \newpage
 

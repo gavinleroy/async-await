@@ -28,6 +28,7 @@
 \usepackage{lstlinebgrd}
 \usepackage{cancel}
 \usepackage{cleveref}
+\usepackage{natbib}
 
 %%%%
 %% TIKZ packages
@@ -105,6 +106,14 @@
 
 \lstset{style=grayish}
 
+\lstdefinelanguage{Pseudo}{
+  morekeywords={async, fn, await, spawn},
+  sensitive=true,
+  morecomment=[l]{//},
+  morestring=[b]",
+  morestring=[b]',
+}
+
 \definecolor{codeborder}{RGB}{240, 240, 240}
 
 
@@ -161,15 +170,15 @@
 
 %%%%
 %% Components
-\newcommand{\coro}{\textsc{bum}\xspace}
-\newcommand{\coros}{\textsc{bums}\xspace}
-\newcommand{\Coro}{\textsc{Bum}\xspace}
-\newcommand{\Coros}{\textsc{Bums}\xspace}
+\newcommand{\coro}{\textsc{coroutine}\xspace}
+\newcommand{\coros}{\textsc{coroutines}\xspace}
+\newcommand{\Coro}{\textsc{Coroutine}\xspace}
+\newcommand{\Coros}{\textsc{Coroutines}\xspace}
 
-\newcommand{\Task}{\textsc{Ecstatic}\xspace}
-\newcommand{\Tasks}{\textsc{Ecstatics}\xspace}
-\newcommand{\task}{\textsc{ecstatic}\xspace}
-\newcommand{\tasks}{\textsc{ecstatics}\xspace}
+\newcommand{\Task}{\textsc{Task}\xspace}
+\newcommand{\Tasks}{\textsc{Tasks}\xspace}
+\newcommand{\task}{\textsc{task}\xspace}
+\newcommand{\tasks}{\textsc{tasks}\xspace}
 
 %%%%
 %% TIKZ Styles
