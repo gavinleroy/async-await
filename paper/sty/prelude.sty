@@ -19,7 +19,6 @@
 \usepackage{wrapfig}
 \usepackage{xstring}
 \usepackage{mathtools}
-\usepackage{enumitem}
 \usepackage{csquotes}
 \usepackage{caption}
 \usepackage{subcaption}
@@ -28,6 +27,11 @@
 \usepackage{cancel}
 \usepackage{cleveref}
 \usepackage{natbib}
+\usepackage{tabularx}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{array}
+
 
 %%%%
 %% TIKZ packages
@@ -182,8 +186,8 @@
 \newcommand{\indef}{indefinite\xspace}
 \newcommand{\dyn}{dynamic\xspace}
 
-\newcommand{\References}{References\xspace}
-\newcommand{\references}{references\xspace}
+\newcommand{\References}{\Task References\xspace}
+\newcommand{\references}{\task references\xspace}
 \newcommand{\strong}{strong\xspace}
 \newcommand{\weak}{weak\xspace}
 
@@ -223,23 +227,29 @@
 \newcommand{\task}{\textsc{task}\xspace}
 \newcommand{\tasks}{\textsc{tasks}\xspace}
 
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+
 \newlist{pros}{itemize}{1}
 \setlist[pros]{
   label=\textbullet,
   nosep,
   leftmargin=*,
-  % before=\vspace*{-\baselineskip}, % <-- Added an asterisk (*) and increased the pull
-  after=\vspace*{5pt}              % <-- Set this to 0pt to fix the bottom overlap
+  before=\raggedright,
+  after=\vspace*{5pt}
 }
 
 \newenvironment{tricolumn}
-  {\begin{tabular}[t]{@{} p{0.26\textwidth} p{0.26\textwidth} p{0.26\textwidth} @{}}}
+  {\begin{tabular}[t]{@{} L{\dimexpr(\linewidth-4\tabcolsep)/3\relax} 
+                          L{\dimexpr(\linewidth-4\tabcolsep)/3\relax} 
+                          L{\dimexpr(\linewidth-4\tabcolsep)/3\relax} @{}}}
   {\end{tabular}}
-
 
 \newenvironment{bicolumn}
-  {\begin{tabular}[t]{@{} p{0.4\textwidth} p{0.4\textwidth} @{}}}
+  {\begin{tabular}[t]{@{} L{\dimexpr(\linewidth-2\tabcolsep)/2\relax} 
+                          L{\dimexpr(\linewidth-2\tabcolsep)/2\relax} @{}}}
   {\end{tabular}}
+
+\newcommand*\dimdesc[1]{\par\vspace*{0.6em}{\raggedright\footnotesize\itshape #1\par}}
 
 %%%%
 %% TIKZ Styles

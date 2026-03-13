@@ -1,5 +1,3 @@
-% \ggnote{You will read the words \Coro{} and \Task{} in the text. In the source these are written as macros and I'm using these silly names for now fully expecting us to have a discussion on what they should be later.}
-
 \section{Introduction}
 
 Software developers have long struggled to write concurrent and parallel programs that are both correct and efficient. Programming languages have responded to this challenge by gradually lifting elements of concurrency from user-space to the level of language design. Approaches vary greatly, but the core idea shared between most modern languages is \emph{async/await}: marking blocks of code as \verb|async|, and using an \verb|await| keyword to wait for an async block to finish executing. The async/await keywords can be found in recent versions of Python, JavaScript, Swift, Rust, \CSharp{}, and more.
@@ -11,6 +9,7 @@ Our original motivation for studying async/await was to help developers translat
     \begin{lstlisting}[language=Pseudo]
 async fn write_to_log():
   print("start")
+  // simulate log write
   await sleep(2)
   print("end")
 
@@ -18,12 +17,12 @@ async fn process_await():
   task = spawn write_to_log()
   // do other work ... 
   await task
-  
+
 async fn process_detach():
   spawn write_to_log()
   // do other work ...
 \end{lstlisting}
-  \caption{Two examples of functions which spawn a task to write data to a log, one which waits for the task, and another which doesn't.}
+  \caption{Two examples of functions that spawn a task to write data to a log, one that waits for the task, and another that doesn't.}
   \label{fig:motivating-example-process}
   \end{subfigure}
   \hfill
@@ -31,7 +30,7 @@ async fn process_detach():
     \begin{lstlisting}[language=Pseudo]
 async fn ex1():
   await process_detach()
-  
+
 async fn ex2():
   task = spawn process_await()
   await sleep(1)
@@ -50,25 +49,25 @@ async fn ex3():
     \vspace{0pt} 
     \begin{tabular}{lcccc}
     \toprule
-    & \verb|ex1| & \verb|ex2| & \verb|ex3| \\
+                 & \verb|ex1| & \verb|ex2|          & \verb|ex3| \\
     \midrule
     Rust \\
-    ~~ Tokio & SE & SE & SE \\
-    ~~ Smol  & S     & $\varepsilon$       & $\varepsilon$       \\
+    ~~ Tokio     & SE         & SE                  & SE \\
+    ~~ Smol      & S          & $\varepsilon$       & $\varepsilon$       \\
     Python \\
-    ~~ Asyncio   & SE & $\varepsilon$       & SE \\
-    ~~ Trio  & SE & S     & SE \\
-    Swift & S     & S     & S     \\
+    ~~ Asyncio   & SE         & $\varepsilon$       & SE \\
+    ~~ Trio      & SE         & S                   & SE \\
+    Swift        & S          & S                   & S     \\
     \bottomrule
-    \end{tabular}    
+    \end{tabular}
     \caption{A table of outcomes when translating the programs on the left into different languages and runtimes. $\varepsilon$ indicates no output, S means prints ``start'' but not ``end'', and SE means prints ``start'' and ``end.'' }
     \label{fig:motivating-example-outcomes}
   \end{subfigure}
-  \caption{An example of an asynchronous programming pattern which exhibits different behavior under five modern async/await languages and runtimes.}
+  \caption{An example of an asynchronous programming pattern that exhibits different behavior under five modern async/await languages and runtimes.}
   \label{fig:motivating-example}
 \end{figure}
 
-As a concrete example, consider the pseudocode in \Cref{fig:motivating-example}, showing two ways to run a background task which writes information to a log.  Languages differ with respect to what happens with tasks at the end of their spawning scope. Languages also differ in terms of when and how running tasks are stopped in the event of cancellation. As shown in \Cref{fig:motivating-example-outcomes}, when comparing five modern approaches to async/await, none of them exhibit the same behavior on all three examples.
+As a concrete example, consider the pseudocode in \Cref{fig:motivating-example}, showing two ways to run a background task that writes information to a log.  Languages differ with respect to what happens with tasks at the end of their spawning scope. Languages also differ in terms of when and how running tasks are stopped in the event of cancellation. As shown in \Cref{fig:motivating-example-outcomes}, when comparing five modern approaches to async/await, none of them exhibit the same behavior on all three examples.
 
 Observing this conceptual chaos, we set out to perform a \emph{design space exploration} of async/await in modern languages. This paper describes the design space in four parts:
 \begin{enumerate}
