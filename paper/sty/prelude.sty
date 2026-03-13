@@ -175,6 +175,12 @@
 
 %%%%
 %% Components
+\newcommand{\Executor}{Executor\xspace}
+\newcommand{\executor}{executor\xspace}
+\newcommand{\Reactor}{Reactor\xspace}
+\newcommand{\reactor}{reactor\xspace}
+
+
 \newcommand{\Eagerness}{Eagerness\xspace}
 \newcommand{\eagerness}{Eagerness\xspace}
 \newcommand{\eager}{eager\xspace}
@@ -254,6 +260,12 @@
 %%%%
 %% TIKZ Styles
 
+\newsavebox{\aastateA}
+\newsavebox{\aastateB}
+\newsavebox{\aastateC}
+\newsavebox{\aastateD}
+\newsavebox{\aastateE}
+
 \tikzset{callout/.style={%
   shape=circle,
   draw=black,
@@ -311,10 +323,18 @@
 }
 
 \newcommand*\dashed[1]{\tikz[baseline=(char.base)]{%
-  \node (char) {#1};\node[draw=gray!50,dashed,thick,inner sep=0.25, fit=(char)]}}
+  \node (char) {#1};\node[draw=gray!50,dashed,thick,inner sep=0.25, fit=(char)];}}
 
 \newcommand*\circled[1]{\tikz[baseline=(char.base)]{%
   \node[callout] (char) {#1};}}
+
+\newcommand{\missingcite}{%
+  \textcolor{red}{%
+    \tikz[baseline=(char.base)]{
+      \node[shape=circle, draw=red, thick, inner sep=0.5pt] (char) {\tiny\textbf{?}};
+    }%
+  }\xspace%
+}
 
 %%%%
 %% Typesetting OP sematnics

@@ -1,10 +1,6 @@
-\subsection{Destruction}\label{ssec:designdims:destruction} The \Task Destruction axis defines what happens to a task when the \task object is destroyed by the system. The possible values are: \textit{awaited,} \textit{cancelled,} or \textit{terminated.}
+\subsection{Destruction}\label{ssec:designdims:destruction} 
 
-\Cref{fig:designdims:destruction:await} shows an example JavaScript program that waits for an unawaited \task to complete, even though there is no explicit \code{await} keyword. The program terminates after 10 seconds and prints ``exiting'' and ``done.''
-
-\Cref{fig:designdims:destruction:cancel} shows an example Swift program that cancels a running task on destruction. Because that task is executing a long sleep operation, the sleep is cancelled --- on cancellation \code{Task.sleep} raises an exception that we suppress with the \code{try?} keyword --- and the program continues executing. The program terminates after ~0.5 seconds and prints ``exiting,'' ``cancelled'' and ``done.''
-
-\Cref{fig:designdims:destruction:term} shows an example \CSharp program that terminates running \tasks on destruction. The program terminates after ~0.5 seconds and prints ``exiting.''
+The \Task Destruction axis defines what happens to a task when the \task object is destroyed by the system. The possible values are: \textit{awaited,} \textit{cancelled,} or \textit{terminated.}
 
 \begin{figure}[H]
   \begin{subfigure}[t]{0.30\textwidth}
@@ -74,4 +70,14 @@ async Task Main() {
   \label{fig:designdims:destruction}
 \end{figure}
 
-Where your language falls on the destruction axis informs the safety and responsiveness of the system. Awaited destruction prioritizes data integrity and completeness at the expense of responsiveness. Cancel destruction allows \tasks to safely reclaim resources --- depending on the language's chosen cancellation semantics, see \Cref{} --- however, programs may still suffer from responsiveness issues if cancelling a \task takes too long (or doesn't terminate). Terminate destruction prioritizes speed over safety. A running \task may hold system resources or be in the middle of an operation, by cancelling the \task the system risks deadlocks and breaking logical invariants.
+\Cref{fig:designdims:destruction:await} shows an example JavaScript program that awaits \tasks on destruction~\missingcite, even though there is no explicit \code{await} keyword. The program terminates after 10 seconds and prints ``exiting'' and ``done.''
+
+\Cref{fig:designdims:destruction:cancel} shows an example Swift program that cancels a running task on destruction~\missingcite. Because that task is executing a long sleep operation, the sleep is cancelled --- on cancellation \code{Task.sleep} raises an exception that we suppress with the \code{try?} keyword --- and the program continues executing. The program terminates after ~0.5 seconds and prints ``exiting,'' ``cancelled'' and ``done.''
+
+\Cref{fig:designdims:destruction:term} shows an example \CSharp program that terminates running \tasks on destruction~\missingcite. The program terminates after ~0.5 seconds and prints ``exiting.''
+
+Where your language falls on the destruction axis informs the safety and responsiveness of the system. Await destruction allows running \tasks to complete, which provides data/invariant integrity for the program at the expense of responsiveness.
+
+Cancel destruction may provide \tasks the chance to safely reclaim resources --- depending on the language's chosen cancellation semantics --- however, programs may still suffer from responsiveness issues if cancelling a \task requires the \task's cooperation. We discuss cancellation semantics in \Cref{ssec:designdims:cancellation}.
+
+Terminate destruction prioritizes speed over safety. A running \task may hold system resources or be in the middle of an operation, by cancelling the \task the system risks deadlocks and breaking logical invariants.

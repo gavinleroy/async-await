@@ -1,4 +1,6 @@
-\subsection{Propagation}\label{ssec:designdims:propagation} The Exception Propgation axis defines if an exception propagates out of \textit{unawaited} \tasks into the calling context. We define this axis strictly for unawaited \tasks because an exception always propagates at explicit synchronization points (i.e., await points). The possible values are: \textit{destruction}, and \textit{never.}
+\subsection{Propagation}\label{ssec:designdims:propagation} 
+
+The Exception Propgation axis defines if an exception propagates out of \textit{unawaited} \tasks into the calling context. We define this axis strictly for unawaited \tasks because an exception always propagates at explicit synchronization points (i.e., await points). The possible values are: \textit{destruction}, and \textit{never.}
 
 \begin{figure}[H]
   \begin{minipage}[t]{0.49\textwidth}
@@ -47,4 +49,4 @@ await work() // "exiting"
 
 \Cref{fig:designdims:propagation:destruction} provides an example Python (Asyncio) program. Asyncio employes destruction exception propagation. The inner \task \code{inner}, throws an exception, however, the \task that launched it, \code{main}, never awaits it. On destruction, the \task reraises the unawaited exception. 
 
-\Cref{fig:designdims:propagation:never} provides the same code in Swift, which demonstrates never propagating an exception unless it's awaited. Although swift enforces dynamic-extent (see \Cref{ssec:dims:extent}), on destruction, a \task doesn't propagate exceptions.
+\Cref{fig:designdims:propagation:never} provides the same code in Swift, which demonstrates never propagating an exception unless it's awaited. Although swift enforces dynamic-extent (see \Cref{ssec:designdims:extent}), on destruction, a \task doesn't propagate exceptions.

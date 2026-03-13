@@ -6,6 +6,57 @@ When a cancelled \coro or \task depends on another (\coro or \task) all dependen
 
 \subsubsection{Cooperation} The Cancellation Cooperation axis defines if a \coro receives a cancellation signal (awareness) and if it can react to that signal. We define cancellation as a property of a \coro because the \coro is the reification of the program code. Therefore, cooperative cancellation allows the developer to write code in an asynchronous function that reacts to a cancellation signal.
 
+
+\begin{lrbox}{\aastateA}
+\begin{lstlisting}[language=Rust,numbers=none]
+async fn process_payment(
+  id: UserId
+) -> Result<()> { /* ... */ }
+
+async fn checkout(
+  store: Arc<Mutex<HashMap<Uuid, u32>>>,
+  user: UserId,
+  item: ItemId
+) -> Result<()> {
+\end{lstlisting}
+\end{lrbox}
+
+\begin{lrbox}{\aastateB}
+\begin{lstlisting}[language=Rust,numbers=none]
+  let mut store = store.lock().await
+\end{lstlisting}
+\end{lrbox}
+
+\begin{lrbox}{\aastateC}
+\begin{lstlisting}[language=Rust,numbers=none]
+  let stock = store.entry(item)
+    .or_insert(0);
+
+  if *stock == 0 {
+    anyhow::bail!("out of stock");
+  }
+
+  *stock -= 1;
+
+  let res = process_payment(user).await;
+\end{lstlisting}
+\end{lrbox}
+
+\begin{lrbox}{\aastateD}
+\begin{lstlisting}[language=Rust,numbers=none]
+  if res.is_err() {
+    *stock += 1;
+  }
+  res
+\end{lstlisting}
+\end{lrbox}
+
+\begin{lrbox}{\aastateE}
+\begin{lstlisting}[language=Rust,numbers=none]
+}
+\end{lstlisting}
+\end{lrbox}
+
 \begin{figure}
   \centering
   \begin{minipage}[t]{0.48\textwidth}
@@ -21,55 +72,11 @@ When a cancelled \coro or \task depends on another (\coro or \task) all dependen
         }
     }
 
-    \node[codeblock] (state0) {
-\begin{lstlisting}[language=Rust,numbers=none]
-async fn process_payment(
-  id: UserId
-) -> Result<()> { /* ... */ }
-
-async fn checkout(
-  store: Arc<Mutex<HashMap<Uuid, u32>>>,
-  user: UserId,
-  item: ItemId
-) -> Result<()> {
-\end{lstlisting}
-    };
-
-    \node[codeblock] (stateA) at ([yshift=-1pt]state0.south west) {
-\begin{lstlisting}[language=Rust,numbers=none]
-  let mut store = store.lock().await
-\end{lstlisting}
-    };
-
-    \node[codeblock] (stateB) at ([yshift=-6pt]stateA.south west) {
-\begin{lstlisting}[language=Rust,numbers=none]
-  let stock = store.entry(item)
-    .or_insert(0);
-
-  if *stock == 0 {
-    anyhow::bail!("out of stock");
-  }
-
-  *stock -= 1;
-
-  let res = process_payment(user).await;
-\end{lstlisting}
-    };
-
-    \node[codeblock] (stateC) at ([yshift=-6pt]stateB.south west) {
-\begin{lstlisting}[language=Rust,numbers=none]
-  if res.is_err() {
-    *stock += 1;
-  }
-  res
-\end{lstlisting}
-    };
-
-    \node[codeblock] (stateZ) at ([yshift=-0pt]stateC.south west) {
-\begin{lstlisting}[language=Rust,numbers=none]
-}
-\end{lstlisting}
-    };
+    \node[codeblock] (state0) {\usebox{\aastateA}};
+    \node[codeblock] (stateA) at ([yshift=-1pt]state0.south west) {\usebox{\aastateB}};
+    \node[codeblock] (stateB) at ([yshift=-6pt]stateA.south west) {\usebox{\aastateC}};
+    \node[codeblock] (stateC) at ([yshift=-6pt]stateB.south west) {\usebox{\aastateD}};
+    \node[codeblock] (stateZ) at ([yshift=-0pt]stateC.south west) {\usebox{\aastateE}};
 
     \node[dashedbox, fit=(stateA), label={[callout]right:A}] {};
     \node[dashedbox, fit=(stateB), label={[callout]right:B}] {};
@@ -98,30 +105,30 @@ tokio::select! {
   \end{subfigure}
 
   \begin{subfigure}[b]{\textwidth}
-\begin{tikzpicture}[
-    automaton global,
-    every initial by arrow/.style={dashed},
-    callout/.append style={font=\bfseries\sffamily\normalsize}
-]
-  \node[initial above, initial text=, callout] (start) {select};
-  \node[callout, left=4.5cm of start] (A) {A};
-  \node[callout, below=1.25cm of start] (C) {C};
-  \node[terminal, right=2cm of start] (cancel) {Some(())};
-  \node[callout, left=2.5cm of C] (B) {B};
-  \node[terminal] (ok) at (C -| cancel) {Ok(())};
-
-  \path[->]
-      (start) edge[dashed, bend right=15] node[swap] {poll} (A)
-      (A)     edge[dashed] node[swap] {suspend} (start)
-
-      (start) edge[dashed, bend right=25] node[very near end,swap] {[mutex acquired]} (B)
-      (B)     edge[dashed] node[near start,swap] {suspend} (start)
-
-      (start) edge[dashed] node {[payment processed]} (C)
-      (C)     edge[dashed] node {} (ok)
-
-      (start) edge[dashed] node {[recv]} (cancel);
-\end{tikzpicture}
+% \begin{tikzpicture}[
+%     automaton global,
+%     every initial by arrow/.style={dashed},
+%     callout/.append style={font=\bfseries\sffamily\normalsize}
+% ]
+%   \node[initial above, initial text=, callout] (start) {select};
+%   \node[callout, left=4.5cm of start] (A) {A};
+%   \node[callout, below=1.25cm of start] (C) {C};
+%   \node[terminal, right=2cm of start] (cancel) {Some(())};
+%   \node[callout, left=2.5cm of C] (B) {B};
+%   \node[terminal] (ok) at (C -| cancel) {Ok(())};
+%
+%   \path[->]
+%       (start) edge[dashed, bend right=15] node[swap] {poll} (A)
+%       (A)     edge[dashed] node[swap] {suspend} (start)
+%
+%       (start) edge[dashed, bend right=25] node[very near end,swap] {[mutex acquired]} (B)
+%       (B)     edge[dashed] node[near start,swap] {suspend} (start)
+%
+%       (start) edge[dashed] node {[payment processed]} (C)
+%       (C)     edge[dashed] node {} (ok)
+%
+%       (start) edge[dashed] node {[recv]} (cancel);
+% \end{tikzpicture}
     \cprotect\caption{The initial state machine created by the expansion of the \code{select!} macro.}
     \label{fig:cooperation:rust:automaton}
   \end{subfigure}
@@ -221,6 +228,49 @@ A widely known problem with Tokio mutexes is that they can be held across await 
 
 In Python when a \coro goes out of scope its destructor is run, however, unlike Rust, the destructor will throw an exception \textit{into} the \coro object. By throwing into the \coro, Python ensures that finalizers are properly run for referenced objects. It also ensures that generators that can't be resumed do not remain part of an uncollectable reference cycle.
 
+
+\begin{lrbox}{\aastateA}
+\begin{lstlisting}[language=Python,numbers=none]
+async def process_payment(user_id):
+  # ...
+
+async def checkout(lock, store, user, item):
+\end{lstlisting}
+\end{lrbox}
+
+\begin{lrbox}{\aastateB}
+\begin{lstlisting}[language=Python,numbers=none]
+    async with lock:
+\end{lstlisting}
+\end{lrbox}
+
+\begin{lrbox}{\aastateC}
+\begin{lstlisting}[language=Python,numbers=none]
+      stock = store.get(item, 0)
+      if stock == 0:
+        raise Exception("out of stock")
+
+      store[item] = stock - 1
+
+      try:
+        await process_payment(user)
+\end{lstlisting}
+\end{lrbox}
+
+\begin{lrbox}{\aastateD}
+\begin{lstlisting}[language=Python,numbers=none]
+      except Exception as e:
+        store[item] = stock + 1
+        raise e
+\end{lstlisting}
+\end{lrbox}
+
+\begin{lrbox}{\aastateE}
+\begin{lstlisting}[language=Python,numbers=none]
+    return
+\end{lstlisting}
+\end{lrbox}
+
 \begin{figure}
   \begin{minipage}[t]{0.49\textwidth}
     \vspace{0pt}
@@ -235,47 +285,11 @@ In Python when a \coro goes out of scope its destructor is run, however, unlike 
         }
     }
 
-    \node[codeblock] (state0) {
-\begin{lstlisting}[language=Python,numbers=none]
-async def process_payment(user_id):
-  # ...
-
-async def checkout(lock, store, user, item):
-\end{lstlisting}
-    };
-
-    \node[codeblock] (stateA) at ([yshift=-1pt]state0.south west) {
-\begin{lstlisting}[language=Python,numbers=none]
-    async with lock:
-\end{lstlisting}
-    };
-
-    \node[codeblock] (stateB) at ([yshift=-6pt]stateA.south west) {
-\begin{lstlisting}[language=Python,numbers=none]
-      stock = store.get(item, 0)
-      if stock == 0:
-        raise Exception("out of stock")
-
-      store[item] = stock - 1
-
-      try:
-        await process_payment(user)
-\end{lstlisting}
-    };
-
-    \node[codeblock] (stateC) at ([yshift=-6pt]stateB.south west) {
-\begin{lstlisting}[language=Python,numbers=none]
-      except Exception as e:
-        store[item] = stock + 1
-        raise e
-\end{lstlisting}
-    };
-
-    \node[codeblock] (stateD) at ([yshift=-6pt]stateC.south west) {
-\begin{lstlisting}[language=Python,numbers=none]
-    return
-\end{lstlisting}
-    };
+    \node[codeblock] (state0) {\usebox{\aastateA}};
+    \node[codeblock] (stateA) at ([yshift=-1pt]state0.south west) {\usebox{\aastateB}};
+    \node[codeblock] (stateB) at ([yshift=-6pt]stateA.south west) {\usebox{\aastateC}};
+    \node[codeblock] (stateC) at ([yshift=-6pt]stateB.south west) {\usebox{\aastateD}};
+    \node[codeblock] (stateD) at ([yshift=-6pt]stateC.south west) {\usebox{\aastateE}};
 
     \node[dashedbox, fit=(stateA), label={[callout]right:A}] {};
     \node[dashedbox, fit=(stateB), label={[callout]right:B}] {};
