@@ -144,6 +144,41 @@ In this section we provide the async/await design dimensions. The design dimensi
           \CSharp & Swift   & Asyncio & Trio    & Tokio   & Smol
         \end{tabular}
       \end{bicolumn} \\
+
+    \midrule
+    \Cancellation  &
+      \footnotesize%
+      \begin{tabular}[t]{@{}l@{}}
+        \begin{bicolumn}
+          \textsc{\noncoop} & \textsc{\coop} \\
+          \begin{pros}
+            \item \Task termination
+          \end{pros}  &
+          \begin{pros}
+            \item Program correctness
+          \end{pros}  \\
+          \begin{tabular}[t]{@{}l@{}}
+            Rust
+          \end{tabular} &
+          \begin{tabular}[t]{@{}ll@{}}
+            Swift & Python
+          \end{tabular}
+        \end{bicolumn} \\
+        \midrule
+        \begin{tricolumn}
+          \textsc{\tdown} & \textsc{\bup} & \textsc{\simultaneous} \\
+          \begin{pros}
+            \item Dependencies react first
+          \end{pros}  &
+          \begin{pros}
+            \item Dependents react first
+          \end{pros}  &
+          \begin{pros}
+            \item Guaranteed communication
+          \end{pros}  \\
+          Rust & Python & Swift
+        \end{tricolumn}
+      \end{tabular}
     \bottomrule
   \end{tabular}
 \end{table}
