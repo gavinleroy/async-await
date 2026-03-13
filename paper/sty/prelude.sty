@@ -206,7 +206,7 @@
 \newcommand{\Propagation}{Propagation\xspace}
 \newcommand{\propagation}{propagation\xspace}
 \newcommand{\never}{never\xspace}
-% \newcommand{\destruction}{destruction\xspace}
+\newcommand{\destruct}{destruction\xspace}
 
 \newcommand{\Suspension}{Suspension\xspace}
 \newcommand{\suspension}{suspension\xspace}
@@ -323,7 +323,7 @@
 }
 
 \newcommand*\dashed[1]{\tikz[baseline=(char.base)]{%
-  \node (char) {#1};\node[draw=gray!50,dashed,thick,inner sep=0.25, fit=(char)];}}
+  \node (char) {#1};\node[draw=gray!50,dashed,thick,inner sep=0.25, fit=(char)] {};}}
 
 \newcommand*\circled[1]{\tikz[baseline=(char.base)]{%
   \node[callout] (char) {#1};}}
