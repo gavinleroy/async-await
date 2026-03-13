@@ -8,10 +8,10 @@ Our original motivation for studying async/await was to help developers translat
   \begin{subfigure}[t]{0.33\linewidth}
     \begin{lstlisting}[language=Pseudo]
 async fn write_to_log():
-  print("start")
+  print("A")
   // simulate log write
   await sleep(2)
-  print("end")
+  print("B")
 
 async fn process_await():
   task = spawn write_to_log()
@@ -52,15 +52,15 @@ async fn ex3():
                  & \verb|ex1| & \verb|ex2|          & \verb|ex3| \\
     \midrule
     Rust \\
-    ~~ Tokio     & SE         & SE                  & SE \\
-    ~~ Smol      & S          & $\varepsilon$       & $\varepsilon$       \\
+    ~~ Tokio     & AB         & AB                  & AB \\
+    ~~ Smol      & A          & $\varepsilon$       & $\varepsilon$       \\
     Python \\
-    ~~ Asyncio   & SE         & $\varepsilon$       & SE \\
-    ~~ Trio      & SE         & S                   & SE \\
-    Swift        & S          & S                   & S     \\
+    ~~ Asyncio   & AB         & $\varepsilon$       & AB \\
+    ~~ Trio      & AB         & A                   & AB \\
+    Swift        & A          & A                   & A     \\
     \bottomrule
     \end{tabular}
-    \caption{A table of outcomes when translating the programs on the left into different languages and runtimes. $\varepsilon$ indicates no output, S means prints ``start'' but not ``end'', and SE means prints ``start'' and ``end.'' }
+    \caption{A table of outcomes when running the programs translated from the pseudocode into different languages. $\varepsilon$ indicates no output.}
     \label{fig:motivating-example-outcomes}
   \end{subfigure}
   \caption{An example of an asynchronous programming pattern that exhibits different behavior under five modern async/await languages and runtimes.}
@@ -69,14 +69,16 @@ async fn ex3():
 
 As a concrete example, consider the pseudocode in \Cref{fig:motivating-example}, showing two ways to run a background task that writes information to a log.  Languages differ with respect to what happens with tasks at the end of their spawning scope. Languages also differ in terms of when and how running tasks are stopped in the event of cancellation. As shown in \Cref{fig:motivating-example-outcomes}, when comparing five modern approaches to async/await, none of them exhibit the same behavior on all three examples.
 
-Observing this conceptual chaos, we set out to perform a \emph{design space exploration} of async/await in modern languages. This paper describes the design space in four parts:
+Observing this conceptual chaos, we set out to perform a \emph{design space exploration} of async/await in modern languages. The contribution of this paper is the results of that exploration, articulated in three parts:
 \begin{enumerate}
-  % \item \textbf{We scope our exploration within the broader context of concurrent and parallel programming} (\Cref{sec:scope}).
-  \item \textbf{We motivate the need for a design space with case studies on how async/await designs diverge} (\Cref{sec:motivation}).
-  \item \textbf{We establish a shared vocabulary for talking about async/await, and informally describe the dimensions of the design space} (\Cref{sec:designdims}).
-  \item \textbf{We use a formal model of operational semantics to explain precisely how languages vary in the design space} (\Cref{sec:semantics}).
-  \item \textbf{We discuss the trade-offs of the design space in terms of the semantic properties enforced by the design} (\Cref{sec:properties}).
+  \item \textbf{We start by situating the paper with a high-level overview of asynchronous programming} (\Cref{sec:motivation}). We contrast asynchrony against concurrency and parallelism, and introduce common asynchrony mechanisms such as racing and cancellation. 
+  
+  \item \textbf{We describe the core design dimensions of asynchrony designs in modern languages} (\Cref{sec:designdims}). Our goal is to capture all of the most fundamental distinctions between designs, with a focus on design choices that cause similar-looking programs to exhibit divergent semantics (not just performance).
+  
+  \item \textbf{We provide a precise description of each design dimension as operational semantics} (\Cref{sec:semantics}). [WRITE ME ONCE SECTION IS COMPLETED.]
 \end{enumerate}
+
+We conclude by discussing connections to related work (\Cref{sec:relatedwork}) and connections to languages with emerging asynchrony designs (\Cref{sec:discussion}).
 
 % This paper articulates the design space we identified in both informal terms (to help language designers) and formal terms (to help language theorists). The goal of this design space is to enumerate the principal axes of an async/await system, and to explain the pros and cons of each design decision along a given axis.
 

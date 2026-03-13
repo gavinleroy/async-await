@@ -1,9 +1,9 @@
 import Foundation
 import _Concurrency
 
-func timeout<T>(
+func timeout<T: Sendable>(
   duration: Duration,
-  f: () async throws -> T
+  f: @Sendable () async throws -> T
 ) async throws -> T? {
   try await withoutActuallyEscaping(f) { f in
     try await withThrowingTaskGroup(of: T?.self) { group in
