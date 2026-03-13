@@ -5,7 +5,6 @@ Language designers must decide how the async/await syntax will expand into the s
 In this section we provide the async/await design dimensions. The design dimensions map the async/await syntax to the runtime behavior of the desugared program. The design dimensions are: \textit{eagnerness,} \textit{extent,} \textit{reference strength,} \textit{destruction,} \textit{propagation,} \textit{suspension,} and \textit{cancellation.}
 
 \begin{table}[H]
-  \centering
   \begin{tabular}{ll}
     \toprule
     \Eagerness   &%
@@ -181,6 +180,8 @@ In this section we provide the async/await design dimensions. The design dimensi
       \end{tabular}
     \bottomrule
   \end{tabular}
+  \caption{Overview of the design dimensions, the points along each axis, and the benefit each point provides.}
+  \label{fig:dims:overview}
 \end{table}
 
 \input{./dimensions/eagerness.tex}
