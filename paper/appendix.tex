@@ -1,0 +1,133 @@
+\appendix
+\section{Appendix}
+
+\subsection{Translating Pseudocode to Each Language}
+
+[DESCRIBE THE PROCESS]
+
+\subsection{Design Documents Describing Straight-Line Asynchrony}
+\label{app:design-docs}
+
+\begin{displayquote}%js
+  \textbf{(JavaScript)} With async functions, all the remaining boilerplate is removed, leaving only the semantically meaningful code in the program text.~\cite{noauthor_async_nodate-1}
+\end{displayquote}
+
+\begin{displayquote}%swift
+  \textbf{(Swift)} Modern Swift development involves a lot of asynchronous (or ``async'') programming using closures and completion handlers, but these APIs are hard to use. This gets particularly problematic when many asynchronous operations are used, error handling is required, or control flow between asynchronous calls gets complicated. This proposal describes a language extension to make this a lot more natural and less error prone.~\cite{noauthor_swift-evolutionproposals0296-async-awaitmd_nodate}
+\end{displayquote}
+
+\subsection{Additional Implementations of timeout}
+\label{app:timeout-impls}
+
+\textbf{\Js}
+
+\begin{lstlisting}[language=Javascript]
+function sleepCancellable(duration: number, opts?: { signal?: AbortSignal }): Promise<null> {
+  let timerId: number;
+  let signalHandler: () => void;
+  const timer = new Promise<null>((accept, reject) => {
+    signalHandler = () => reject(opts?.signal?.reason);
+    opts?.signal?.addEventListener("abort", signalHandler, { once: true });
+    timerId = setTimeout(() => accept(null), duration);
+  })
+
+  return timer.finally(() => {
+    clearTimeout(timerId);
+    opts?.signal?.removeEventListener("abort", signalHandler);
+  });
+}
+
+async function timeoutCancellable<T>(  
+  duration: number,
+  controller: AbortController,
+  f: (signal: AbortSignal) => Promise<T>,    
+): Promise<T | null> {
+  const result = await Promise.race([
+    sleepCancellable(duration, { signal: controller.signal }), 
+    f(controller.signal)
+  ]);
+  if (result === null) controller.abort();  
+  return result;
+}
+\end{lstlisting}
+
+\textbf{Rust+Smol}
+
+\begin{lstlisting}[language=Rust]
+async fn timeout_task<T, Fut>(duration: Duration, task: Fut) -> Option<T>
+where
+  T: Send + 'static,
+  Fut: Future<Output = T> + Send + 'static,
+{
+  let mut handle = smol::spawn(task);
+  let result = (&mut handle)
+    .map(Some)
+    .or(sleep(duration).map(|_| None))
+    .await;
+  if result.is_none() {
+    handle.cancel().await;
+  }
+  result
+}
+\end{lstlisting}
+
+\subsection{\Eagerness Programs}
+
+\begin{figure}[th]
+  \raggedright
+  \begin{minipage}[t]{0.30\textwidth}
+\begin{lstlisting}[language=Rust]
+async fn work(msg: &str) {
+  print!("{msg}");
+  sleep(one_ms).await
+}
+
+#[tokio::main]
+async fn main() {
+  let a = work("A");
+  let b = work("B");
+  print!("C");
+  a.await; b.await;
+} // => CAB
+\end{lstlisting}
+    \cprotect\subcaption{Rust function applications are lazy. The function \code{work} does not execute until line eleven. The print order of the program is always ``CAB'' because \code{a}, and \code{b} are not running concurrently.}
+    \label{fig:designdims:eagerness:lazy}
+  \end{minipage}\hfill%
+  \begin{minipage}[t]{0.33\textwidth}
+\begin{lstlisting}[language=Swift]
+func work(msg: String
+) async throws {
+  print(msg)
+  try await Task.sleep(
+    for: .milliseconds(1))
+}
+
+async let a = work(msg: "A")
+async let b = work(msg: "B")
+print("C")
+try await a; try await b
+// => CAB, CBA, BCA, ACB, ...
+\end{lstlisting}
+\cprotect\subcaption{Swift function applications are semi-eager. The right-hand-side of an async let binding is evaluated in a concurrently executing \task, execution of the current thread does not transfer to the body of the applied function. The print order of the program is any permutation of the string ``ABC,'' though typically it will begin with `C.'}
+    % \label{fig:designdims:eagerness:semieager}
+  \end{minipage}\hfill%
+  \begin{minipage}[t]{0.33\textwidth}
+\begin{lstlisting}[language=CSharp]
+async Task work(string msg) {
+  Console.Write(msg);
+  await Task.Delay(1);
+}
+
+async Task Main() {
+  var a = work("A");
+  var b = work("B");
+  Console.Write("C");
+  await a; await b;
+} // => ABC
+\end{lstlisting}
+    \cprotect\subcaption{\CSharp{} function applications are eager. When \code{work} is called the executing thread transfers control to the body of the async function until it is suspended. The print order of this program is always ``ABC''.}
+    % \label{fig:designdims:eagerness:eager}
+  \end{minipage}
+  \caption{Examples of lazy, semi-eager, and eager async function application.}
+  % \label{fig:designdims:eagerness}
+\end{figure}

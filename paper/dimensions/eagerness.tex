@@ -1,79 +1,66 @@
-\subsection{Eagerness}\label{ssec:designdims:eagerness} 
+\subsubsection{\Eagerness}
+\label{ssec:designdims:eagerness}
 
-The Eagerness axis defines the eagerness of an async function application, the possible values are: \textit{eager,} \textit{semi-eager,} and \textit{lazy.}
-
-\begin{figure}[H]
-  \raggedright
-  \begin{minipage}[t]{0.30\textwidth}
-\begin{lstlisting}[language=Rust]
-async fn work(msg: &str) {
-  print!("{msg}");
-  sleep(one_ms).await
-}
-
-#[tokio::main]
-async fn main() {
-  let a = work("A");
-  let b = work("B");
-  print!("C");
-  a.await; b.await;
-} // => CAB
-\end{lstlisting}
-    \cprotect\subcaption{Rust function applications are lazy. The function \code{work} does not execute until line eleven. The print order of the program is always ``CAB'' because \code{a}, and \code{b} are not running concurrently.}
-    \label{fig:designdims:eagerness:lazy}
-  \end{minipage}\hfill%
-  \begin{minipage}[t]{0.33\textwidth}
-\begin{lstlisting}[language=Swift]
-func work(msg: String
-) async throws {
-  print(msg)
-  try await Task.sleep(
-    for: .milliseconds(1))
-}
-
-async let a = work(msg: "A")
-async let b = work(msg: "B")
-print("C")
-try await a; try await b
-// => CAB, CBA, BCA, ACB, ...
-\end{lstlisting}
-\cprotect\subcaption{Swift function applications are semi-eager. The right-hand-side of an async let binding is evaluated in a concurrently executing \task, execution of the current thread does not transfer to the body of the applied function. The print order of the program is any permutation of the string ``ABC,'' though typically it will begin with `C.'}
-    \label{fig:designdims:eagerness:semieager}
-  \end{minipage}\hfill%
-  \begin{minipage}[t]{0.33\textwidth}
-\begin{lstlisting}[language=CSharp]
-async Task work(string msg) {
-  Console.Write(msg);
-  await Task.Delay(1);
-}
-
-async Task Main() {
-  var a = work("A");
-  var b = work("B");
-  Console.Write("C");
-  await a; await b;
-} // => ABC
-\end{lstlisting}
-    \cprotect\subcaption{\CSharp{} function applications are eager. When \code{work} is called the executing thread transfers control to the body of the async function until it is suspended. The print order of this program is always ``ABC''.}
-    \label{fig:designdims:eagerness:eager}
-  \end{minipage}
-  \caption{Examles of lazy, semi-eager, and eager async function application.}
-  \label{fig:designdims:eagerness}
+\begin{figure}[th]
+  \includegraphics[width=\linewidth]{f/eagerness.pdf}
+  \caption{\Eagerness [caption todo]}
+  \label{fig:eagerness}
 \end{figure}
 
-On evaluating an eager async application, the current thread transfers execution to the body of the async function. When a suspension occurs, the application evaluates to a \task value and execution of the calling context proceeds as normal. By contrast, a \textit{semi-}eager application evaluates immediately to a \task value, but control does not transfer to the function body. The \task is scheduled with the executor to run on the next available worker thread. A lazy application evaluates immediately to a \coro object. As you may recall, \coros are not scheduled with the \Executor and perform work only when prompted. \Cref{fig:designdims:eagerness} provides an example of lazy, semi-eager, and eager function application in Rust, Swift, and \CSharp, respectively.
+Consider the program in \Cref{fig:eagerness}, where an async function \verb|work| is called twice, and later awaited. Based on each language's approach to async function calls, three outcomes can occur: \emph{\lazy}, where no work occurs until being awaited, \emph{\eager}, where work occurs immediately in the main thread of execution, and \emph{\seager}, where work is immediately scheduled on other threads, resulting in non-deterministic output. To understand why, we first need to discuss two foundational concepts for straight-line asynchrony: coroutines and tasks.
 
-Rust employes lazy function evaluation~\missingcite, \coro values perform work only when awaited, polled, or spawned. The program in \Cref{fig:designdims:eagerness:lazy} always results in the print order ``CAB'' because the lazy \coro values produced by asynchronous function applications do no work until forced.
+An asynchronous function either implicitly (in the runtime implementation) or explicitly (in a user-visible way) desugars into an object that behaves like a coroutine. Upon entering the function, code runs until reaching an \verb|await| point, when the function may yield to its caller (depending on its \Suspension, \Cref{ssec:designdims:suspension}). Specifically, these objects behave like asymmetric stackless coroutines, to use the taxonomy provided by \citet{moura_revisiting_2009}. General coroutines can yield values on suspension and accept values on resumption. For straight-line asynchrony, a coroutine does not need to yield values on suspension, but needs only to accept values on resumption (or access them at a shared location).
 
-Swift's \textit{async let} construct is semi-eager~\missingcite, as shown in \Cref{fig:designdims:eagerness:semieager}, the right-hand-side of the binding is scheduled to run in a \task concurrently executing with the main program. The order of effects is non-deterministic when the program is run on a multi-core \abbr{cpu}.
+When a coroutine representing an asynchronous computation is constructed via function call, the \Eagerness axis defines what happens next to the coroutine. In languages with first-class coroutines\footnotemark{} such as Python~\missingcite and Rust~\missingcite, we describe their behavior as \emph{\lazy}: the coroutine is returned and no work occurs. In \Cref{fig:eagerness}, this means that \verb|a = work("A")| constructs a coroutine in a starting state, but the coroutine is only executed at \lstinline[language=Pseudo]|await a| on line 4. In lazy languages, to execute an async computation concurrently with its caller, one must use an explicit \lstinline[language=Pseudo]|spawn| operation to convert the coroutine into a \emph{task} (e.g. as used in \Cref{fig:motivating-example}).
+%
+\footnotetext{As of v1.92.0, Rust has first-class \emph{futures} but not first-class coroutines. That is, calling an async function returns a value representing the computation, but that value does not offer a full coroutine interface. By contrast, Python has a stabilized coroutine interface implemented by its async functions. The Rust compiler does internally track async functions as coroutines, but this interface has not been stabilized.}
 
-\CSharp adopts eager function application~\missingcite. In \Cref{fig:designdims:eagerness:eager}, the execution of the main thread will transfer to the body of \code{Work} and continue executing until a suspension point is hit. As a result of the eager evaluation the program always prints ``ABC.''
+A task is a handle on an async computation shared between its creator and an \emph{async runtime}. The async runtime usually consists of a thread pool and some facilities for reacting to \abbr{os}-level events by waking up waiting tasks. In languages without first-class coroutines, async function calls returns tasks directly. However, languages differ with respect to scheduling of these tasks.
 
-The choice of eagnerness is a tradeoff in predictability, maximizing \abbr{cpu} multi-core utilization, and reducing \task allocation.
+For \emph{\eager} languages such as \CSharp\,\missingcite and \Js\,\missingcite, on evaluating an async function application, the current thread transfers execution to the body of the async function. When reaching an await point, the function application evaluates to a \task value, and control returns to the caller. In \Cref{fig:eagerness}, \eager execution causes \verb|work("A")| to behave like a normal function call, resulting in deterministic/single-threaded execution. 
 
-Lazy evaluation has three main benefits. First, lazy evaluation can provide predictable memory allocation. Asynchronous function applications evaluate directly to a \coro value that can be stack allocated. If the \coro needs to run in parallel or be stored on the heap, the developer must explicitly make this operation. Predictable memory allocation is one main motivation for Rust's async/await design~\cite{withoutboats_why_2023}. Second, lazy evaluation provides predictable performance and effect orderings. In lazily-evaluated async/await, developers compose computations using declarative functions and then run the staged computation when its value is awaited. Developers explicitly state when two computations can proceed concurrently and how errors (e.g., raised exceptions) from one affect concurrently running computation --- for example, the \code{join!} vs \code{try_join!} operator in Tokio (Rust). Third, lazily-evaluated languages that \coro values can provide the Executor and Reactor as user-space libraries, instead of shipping them bundled in the language runtime. Communities can then provide their own asynchronous runtime that is tailored towards a specific need when a preexisting runtime is insufficient.
+For \emph{\seager} languages such as Swift, an async function application immediately schedules the task onto a work queue, but allows the calling thread to continue executing past the function call. In \Cref{fig:eagerness}, \seager execution means that \verb|work("A")| will run at some point after being called. The task is only guaranteed to have finished by the end of \lstinline[language=Pseudo]|await a|, leading to nondeterministic/multi-threaded execution.
 
-Semi-eager evaluation maximizes \abbr{cpu} utilization while protecting the calling thread. Protecting the current thread is important for responsiveness in App/UI development, such as in the SwiftUI framework~\missingcite.
+% \emph{\Seager} languages
+
+% \emph{\lazy} languages such as Python and Rust, the coroutine is a first-class value returned to the user, and no work occurs. In \emph{\eager} languages such as \CSharp, 
+
+
+% The \Eagerness axis 
+
+% The \Eagerness axis defines what a language does with coroutine 
+
+% The \lazy approach to \Eagneress
+
+% In languges like Python and Rust implement async functions explicitly as coroutine-like objects. 
+
+
+% \subsection{Eagerness}\label{ssec:designdims:eagerness} 
+
+% The Eagerness axis defines the eagerness of an async function application, the possible values are: \textit{eager,} \textit{semi-eager,} and \textit{lazy.}
+
+
+% On evaluating an eager async application, the current thread transfers execution to the body of the async function. When a suspension occurs, the application evaluates to a \task value and execution of the calling context proceeds as normal. By contrast, a \textit{semi-}eager application evaluates immediately to a \task value, but control does not transfer to the function body. The \task is scheduled with the executor to run on the next available worker thread. A lazy application evaluates immediately to a \coro object. As you may recall, \coros are not scheduled with the \Executor and perform work only when prompted. \Cref{fig:designdims:eagerness} provides an example of lazy, semi-eager, and eager function application in Rust, Swift, and \CSharp, respectively.
+
+% Rust employes lazy function evaluation~\missingcite, \coro values perform work only when awaited, polled, or spawned. The program in \Cref{fig:designdims:eagerness:lazy} always results in the print order ``CAB'' because the lazy \coro values produced by asynchronous function applications do no work until forced.
+
+% Swift's \textit{async let} construct is semi-eager~\missingcite, as shown in \Cref{fig:designdims:eagerness:semieager}, the right-hand-side of the binding is scheduled to run in a \task concurrently executing with the main program. The order of effects is non-deterministic when the program is run on a multi-core \abbr{cpu}.
+
+% \CSharp adopts eager function application~\missingcite. In \Cref{fig:designdims:eagerness:eager}, the execution of the main thread will transfer to the body of \code{Work} and continue executing until a suspension point is hit. As a result of the eager evaluation the program always prints ``ABC.''
+
+\paragraph{Design rationale.} The choice of \eagerness is a tradeoff in predictability, maximizing \abbr{cpu} multi-core utilization, and reducing \task allocation.
+%
+\Lazy asynchrony has two main benefits. First, \lazy asynchrony can provide predictable memory allocation. Asynchronous function applications evaluate directly to a \coro value that can be stack allocated. The developer must opt-in to either boxing or spawning a \coro. Predictable memory allocation is a key motivation for Rust's async/await design~\cite{withoutboats_why_2023}. 
+% Second, lazy evaluation provides predictable effect orderings. In lazily-evaluated async/await, developers compose computations using declarative functions and then run the staged computation when its value is awaited. Developers explicitly state when two computations can proceed concurrently and how errors (e.g., raised exceptions) from one affect concurrently running computation --- for example, the \code{join!} vs \code{try_join!} operator in Tokio (Rust). 
+Second, by separating coroutines from tasks, the language can enable users to provide their own runtime. For example in Rust, this feature is useful so the runtime can be tailored to the needs of individual domains, such as embedded systems running Embassy vs. backend web servers running Tokio/Smol.
+
+% Executor and Reactor as user-space libraries, instead of shipping them bundled in the language runtime. Communities can then provide their own asynchronous runtime that is tailored towards a specific need when a preexisting runtime is insufficient.
+
+The \lazy has a few downsides. By offering an extensible runtime, libraries in the ecosystem have reduced interoperability. Users must deal with the complexity of understanding both coroutines and tasks. Users often find \lazy behavior surprising --- to call a function and have nothing happen runs against a programmer's intuition transferred from synchronous function calls.
+
+[TODO PICK UP FROM HERE]
+
+\Seager evaluation maximizes \abbr{cpu} utilization while protecting the calling thread. Protecting the current thread is important for responsiveness in App/UI development, such as in the SwiftUI framework~\missingcite.
 
 Eager evaluation is beneficial to reduce \task allocation and remove the asynchronous overhead for synchronous-executing functions. Asynchronous functions \textit{may} perform asynchronous operations and it is widely believed that many do not~\cite{msft_how_2023}~\missingcite. % NOTE: so many posts (especially in the C# world) make this claim, I will go back around and add more cites here when I find them again.
 For example, a function that performs network \abbr{io} may buffer data so that subsequent calls execute synchronously; they simply read from the buffer and do not go to the network. Eagerly-evaluating systems can avoid the runtime and memory overhead of asynchronous function calls when the execution completes without suspension --- the overhead of asyncrhony is paid on demand. Further optimizations can be made by using dynamic suspension points, a design choice we will discuss in \Cref{ssec:designdims:suspension}. 

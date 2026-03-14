@@ -1,13 +1,11 @@
 \section{Context}\label{sec:motivation}
 
 Async/await are just keywords --- what is the underlying concept being expressed across these languages? The obvious answer is \emph{asynchronous programming}, or more simply, \emph{asynchrony}.
-Like the words concurrency and parallelism, asynchrony does not have a definitive meaning, but rather its meaning is socially constructed out of the types of programs people want to write. Fifteen years ago, asynchronous programming was ``characterized by many simultaneously pending reactions to internal or external events''\,\cite{spl:fsharp-async}. Today, we might add to that list: running I/O-bound computations in parallel, or having fine-grained control over the execution of computations. The scope of asynchronous programming has expanded.
+Like the words concurrency and parallelism, asynchrony does not have a definitive meaning. Rather, its meaning is socially constructed out of the types of programs people want to write. Fifteen years ago, asynchronous programming was ``characterized by many simultaneously pending reactions to internal or external events''\,\cite{spl:fsharp-async}. Today, we might add to that list: running I/O-bound computations in parallel, or having fine-grained control over the execution of computations. The scope of asynchronous programming has expanded.
 
 Moreover, async/await is only one form of asynchrony. The job of async/await is to avoid the inversion of control associated with callbacks and event loops. The goal, as the \CSharp documentation says, is ``to enable code that reads like a sequence of statements, but executes in a more complicated order''\,\cite{billwagner_asynchronous_2025}. Async/await is about leaning on the language to simplify control-flow patterns, as opposed to implementing asynchrony abstractions entirely in userspace.
 
 We will start by concretizing these points to provide some context on how asynchrony generally, and async/await specifically, fit into the broader picture of language design and implementation.
-
-% Async/await is about expressing \emph{asynchronous programming}, or more simply, \emph{asynchrony}. Asynchrony is related to, but not the same as, concurrency or parallelism. Many prior works have offered their own definition of asynchronous programming. For instance,  say that ``asynchronous programming is  While a reasonable starting point, our goal in this paper is to offer an expanded view on asynchrony that encompasses the full scope of features found in modern languages.
 
 \subsection{Asynchrony vs. Concurrency vs. Parallelism}
 
@@ -17,15 +15,12 @@ We think of asynchrony as a special case of cooperative concurrency. In an async
 
 Concurrency and parallelism have programming paradigms. Paradigms of concurrent computing include shared-memory concurrency (e.g., POSIX C), communicating sequential processes (Open MPI, Go), and actors (Erlang). Paradigms of parallel computing include fork-join parallelism (Cilk, OpenMP), collection parallelism (MapReduce, Spark), and index-space parallelism (OpenGL, CUDA).  Like all paradigms, these labels are useful but leaky, such as how a complex parallel program often involves shared-memory concurrency. Ultimately, a paradigm is about focusing a set of related mechanisms (\verb|spawn|, mutexes) on a set of related problems (sorting a list, running a database).
 
-Asynchrony also has paradigms. Callback asynchrony uses higher-order functions to provide a continuation for the completion of a computation, most notably found in \CSharp{}, \Js, and Swift. Event-loop asynchrony structures a program around a main loop that dispatches reactions to an event stream, most notably found in C++ and Rust. Languages have historically developed async/await to address the ergonomic problems associated with these two asynchrony paradigms. More generally, a key motivation is to provide a surface syntax for concurrent code that looks comparable to non-concurrent (synchronous) code. For example, below are excerpts from async/await proposal documents across a few languages:
+Asynchrony also has paradigms. Callback asynchrony uses higher-order functions to provide a continuation for the completion of a computation, most notably found in \CSharp{}, \Js, and Swift. Event-loop asynchrony structures a program around a main loop that dispatches reactions to an event stream, most notably found in C++ and Rust. Languages have historically developed async/await to address the ergonomic problems associated with these two asynchrony paradigms. More generally, a key motivation is to provide a surface syntax for concurrent code that looks comparable to non-concurrent (synchronous) code. For example, below are excerpts from async/await proposal documents across a few languages (see \Cref{app:design-docs} for additional examples):
 
 \begin{displayquote}%c#
   \textbf{(\CSharp{})} Notice first how similar it is to the synchronous code. \ldots The control flow is completely unaltered, and there are no callbacks in sight. That doesn’t mean that there are no callbacks, but the compiler takes care of creating and signing them up \ldots~\cite{torgersen_asynchronous_nodate}
 \end{displayquote}
 
-% \begin{displayquote}%js
-%   \textbf{(JavaScript)} With async functions, all the remaining boilerplate is removed, leaving only the semantically meaningful code in the program text.~\cite{noauthor_async_nodate-1}
-% \end{displayquote}
 
 \begin{displayquote}%python
   \textbf{(Python)} It is proposed to make coroutines a proper standalone concept in Python, and introduce new supporting syntax. The ultimate goal is to help establish a common, easily approachable, mental model of asynchronous programming in Python and make it as close to synchronous programming as possible.~\cite{selivanov_pep_2015}
@@ -36,6 +31,7 @@ Asynchrony also has paradigms. Callback asynchrony uses higher-order functions t
 \end{displayquote}
 
 \subsection{Straight-line Asynchrony}
+\label{sec:straightline-async}
 
 We therefore define the paradigm encompassing async/await as \emph{straight-line asynchrony}, given its fundamental organizing principle of eliminating complex control flow. An alternative name would be \emph{task asynchrony}, used within the \CSharp community. As we will discuss, tasks are indeed a central concept to async/await, but when looking cross-linguistically, tasks are not the only element of straight-line asynchrony. For instance, languages like Rust provide coroutines so straight-line asynchrony can be achieved without ever creating a task.
 
@@ -160,33 +156,13 @@ func timeout<T: Sendable>(
   \label{fig:timeout-cancel}
 \end{figure}
 
-\Cref{fig:timeout-cancel} shows two implementations of the enhanced \verb|timeout| semantics. The Rust+Tokio function uses an explicit data structure, the \verb|CancellationToken|, threaded throughout the code. This token is a signal for a set of related tasks to end. To enable \verb|timeout| to cancel its child computation, the token is passed to \verb|f|, which should (by convention!) react to the token. To enable a caller to cancel \verb|timeout|, the token's cancellation event is handled in the \verb|select!| expression. This style of explicit cancellation is akin to that found in \Js (via \verb|AbortController| and \verb|AbortSignal|) and \CSharp (via \verb|CancellationToken|). Note that one could alternatively implement the Rust+Tokio code without a cancellation token by calling \verb|handle.abort()|, which terminates the computation at the next await point. This strategy would still invoke Rust's standard \verb|Drop| handlers that precede memory deallocation, but it would not permit for any more customized cleanup code. 
+\Cref{fig:timeout-cancel} shows two implementations of the enhanced \verb|timeout| semantics. (See \Cref{app:timeout-impls} for additional implementations in other languages.) The Rust+Tokio function uses an explicit data structure, the \verb|CancellationToken|, threaded throughout the code. This token is a signal for a set of related tasks to end. To enable \verb|timeout| to cancel its child computation, the token is passed to \verb|f|, which should (by convention!) react to the token. To enable a caller to cancel \verb|timeout|, the token's cancellation event is handled in the \verb|select!| expression. This style of explicit cancellation is akin to that found in \Js (via \verb|AbortController| and \verb|AbortSignal|) and \CSharp (via \verb|CancellationToken|). Note that one could alternatively implement the Rust+Tokio code without a cancellation token by calling \verb|handle.abort()|, which terminates the computation at the next await point. This strategy would still invoke Rust's standard \verb|Drop| handlers that precede memory deallocation, but it would not permit for any more customized cleanup code. 
 
 In Swift, cancellation is more deeply integrated into its asynchrony design. Asynchronous work is encapsulated in a core \verb|Task| data structure, which contains a signal for whether it has been cancelled. Swift propagates the signal between associated tasks --- for example, the \verb|timeout| task awaits on \verb|withThrowingTaskGroup|, causing an association between the tasks. Similarly, the task group is associated with its children. Cancelling \verb|timeout| propagates inwards. By convention, asynchronous computations which observe the cancellation signal (e.g., \verb|Task.sleep|) will throw a \verb|CancellationError|. Hence, cancelling \verb|timeout| causes an exception to be thrown inside both \verb|sleep| and potentially \verb|f|, which propagates outwards outside of \verb|timeout|.
 
 In sum, \Cref{fig:motivating-example} demonstrated how different designs for straight-line asynchrony can take the same simple-looking program and cause different outcomes. This section demonstrated how for more sophisticated asynchronous patterns, the same concept can require substantively different implementations. Together, they motivate the need for a better understanding of the collective design space of straight-line asynchrony.
 
-% Other languages like Swift have 
 
-% Some straight-line async designs have built-in mechanisms for cancellation. The Swift code uses a concept of a \emph{task group} as a related 
-
-
-
-% In the paradigm of straight-line asynchrony, users write code in blocks marked as \verb|async|, often (but not necessarily) functions. Within an async block, the \verb|await| keyword can be used to wait until another asynchronous computation is finished, and extract its return value. Async blocks cannot be as easily invoked from non-async blocks, leading to the ``function coloring'' problem\,\cite{n:function-coloring}.
-
-% An async block evaluates to a structure which eventually returns a value. This structure can generally be decomposed into two components. The first is a \coro, where each await point translates to a yield of control. In languages with exceptions, the \coro usually offers an API surface for catching exceptions leaving the \coro, or for throwing exceptions into the \coro. The second is a \task, which represents a handle on the \coro that provides additional operations such as asking for an asynchronous computation to be cancelled.
-
-
-% Typical controls include spawning a \task into a thread pool, awaiting on the completion of a \task, or cancelling/aborting a \task. \Tasks are cooperative, meaning outside control can only be exerted at designated yield points. \Tasks are create
-
-% \Task asynchrony contrasts with shared-memory concurrency because coordinates between \tasks is generally performed through returning values over an \verb|await|, rather than synchronizing on shared data structures. \Task asynchrony contrasts with CSP/actors by focusing on smaller, more ephemeral units of computation than long-running processes talking over channels. However, one can naturally combine \task asynchrony with mutexes or channels to push the edges of the paradigm.
-
-% We think of asynchronous programming as a concurrency paradigm. Its central mechanism is the \emph{\task}. 
-
-
-% \begin{displayquote}%swift
-%   \textbf{(Swift)} Modern Swift development involves a lot of asynchronous (or ``async'') programming using closures and completion handlers, but these APIs are hard to use. This gets particularly problematic when many asynchronous operations are used, error handling is required, or control flow between asynchronous calls gets complicated. This proposal describes a language extension to make this a lot more natural and less error prone.~\cite{noauthor_swift-evolutionproposals0296-async-awaitmd_nodate}
-% \end{displayquote}
 
 % Our thesis is that this design goal --- that asynchronous programming permits synchronous reasoning --- is at best only partially true for programs using only the most basic asynchronous programming mechanisms. The reason is that async/await designs require many design decisions for which there is no obvious ``right'' answer. Different languages make reasonably different decisions, which means similar-looking programs can have divergent behavior. To make this point concrete, we will provide several illustrative examples of surprising async/await program behavior.
 

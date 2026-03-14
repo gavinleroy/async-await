@@ -1,214 +1,27 @@
-\section{Design dimensions}\label{sec:designdims}
+\section{Design Dimensions}\label{sec:designdims}
 
-Language designers must decide how the async/await syntax will expand into the set of asynchronous building blocks. The expansion is often influenced by patterns in the pre-existing base language as well as performance and memory expectations of the community.
+Any given design for straight-line asynchrony is composed of dozens of individual design decisions that trade-off performance, correctness, usability, extensibility, interoperability, and so on. It would be too ambitious to attempt to capture the entire design space at once. To scope this paper, we decided to focus on design decisions that substantively influence the \emph{functionality} of asynchronous programs. As suggested by \Cref{fig:motivating-example}, we want to explain how similar-looking programs can have divergent behavior in terms of the order or presence of operations.
 
-In this section we provide the async/await design dimensions. The design dimensions map the async/await syntax to the runtime behavior of the desugared program. The design dimensions are: \textit{eagnerness,} \textit{extent,} \textit{reference strength,} \textit{destruction,} \textit{propagation,} \textit{suspension,} and \textit{cancellation.}
+% ergonomics vis a vis type systems
+By contrast, this paper does not attempt to account for design decisions that are principally about \emph{ergonomics}: for example, should \verb|await| be a prefix or postfix operator in the concrete syntax? (We would argue postfix, but we will save that argument for another time.) This paper also does not focus on design decisions that are principally about \emph{performance}: for example, how should an asynchronous runtime efficiently interface with the operating system? However, for straight-line asynchrony, performance and functionality are difficult to disentangle. Several design dimensions we discuss will be \emph{motivated} by performance, but the key criterion for inclusion being their ultimate impact on functionality.
 
-\begin{table}[hbtp]
-  % Outer table: Fixed 18% left column, fluid X right column
-  \begin{tabularx}{\textwidth}{@{} p{0.18\textwidth} X @{}}
-    \toprule
+% Motivated by SO posts, blogs saying "this doesn't do what I want it to do, annoying"
+To perform this design space exploration, we manually analyzed the designs of today's languages containing straight-line asynchrony features. We ultimately focused on the languages enumerated in \Cref{sec:straightline-async} (Javascript, \CSharp, Swift, Python, Rust), but we also examined Kotlin, \Cpp{}20, \FSharp, Haskell, OCaml, Hack, Nim, Dart, and Zig. We examined design documents (e.g., RFCs, published papers), GitHub discussions, and community blogs. In particular, we drew on reports from community members of confusing or surprising behavior in async programs.
+This methodology is not as rigorous or reproducible as e.g. a standardized grounded theory approach to qualitative analysis. We cannot claim the design dimensions articulated are in any sense final, canonical, or exhaustive. We simply hope that the readers of this paper find them insightful, whether for language design or language theory.
 
-    \Eagerness
-    \dimdesc{The eagerness of an asynchronous function application, \Cref{ssec:designdims:eagerness}}
-    &
-      \footnotesize
-      \begin{tricolumn}
-        \textsc{\lazy} & \textsc{\seager} & \textsc{\eager} \\
-        \begin{pros}
-          \item Predictable allocation
-          \item Predictable execution
-          \item User-space implementable runtime
-        \end{pros} &
-        \begin{pros}
-          \item Protect current thread
-          \item Maximize multi-core \abbr{cpu} usage
-        \end{pros} &
-        \begin{pros}
-          \item Reduce \task allocation
-          \item Consistent application semantics
-        \end{pros}  \\
-        \begin{tabular}[t]{@{}lll@{}}
-          Asyncio & Smol & Tokio \\ Trio
-        \end{tabular} &
-        \begin{tabular}[t]{@{}l@{}}
-          Swift
-        \end{tabular} &
-        \begin{tabular}[t]{@{}ll@{}}
-          \CSharp & JavaScript
-        \end{tabular}
-      \end{tricolumn} \\
+We identified eight design dimensions, collected into \Cref{tab:dims-overview}. These dimensions are grouped into three categories, \StartOfLife, \EndOfLife, and \Cancellation, which serve to organize the remainder of this section. For each design dimension, we explain the points along that dimension, and the design justifications offered by different languages for selecting each point.
 
-    \midrule
-    \Extent
-    \dimdesc{The interval of time during which a \task may exist, \Cref{ssec:designdims:extent}}
-    &
-      \footnotesize
-      \begin{bicolumn}
-        \textsc{\dyn} & \textsc{\indef} \\
-        \begin{pros}
-          \item Prevent resource leaks
-          \item Resemble synchronous execution
-        \end{pros}  &
-        \begin{pros}
-          \item Flexible
-          \item Intuitive to developers (akin to GC)
-        \end{pros}  \\
-        \begin{tabular}[t]{@{}ll@{}}
-          Swift & Trio
-        \end{tabular} &
-        \begin{tabular}[t]{@{}llll@{}}
-          JavaScript & \CSharp & Tokio & Smol
-        \end{tabular}
-      \end{bicolumn} \\
+\subsection{\StartOfLife}
 
-    \midrule
-    \References
-    \dimdesc{The strength of \task references held by the runtime system, \Cref{ssec:designdims:references}}
-    &
-      \footnotesize
-      \begin{bicolumn}
-        \textsc{\strong} & \textsc{\weak} \\
-        \begin{pros}
-          \item Deterministic destruction
-          \item Run \tasks to completion
-        \end{pros} &
-        \begin{pros}
-          \item Prevent resource leaks
-        \end{pros}  \\
-        \begin{tabular}[t]{@{}lll@{}}
-          JavaScript & \CSharp & Tokio
-        \end{tabular} &
-        \begin{tabular}[t]{@{}ll@{}}
-          Asyncio & Smol
-        \end{tabular}
-      \end{bicolumn} \\
+An asynchronous computation is generally defined through a function explicitly marked as asynchronous, such as the \lstinline[language=Pseudo]|async fn write_to_log| in \Cref{fig:motivating-example-process}. To begin invoking an asynchronous function in any language, one must simply call the function, as in \verb|write_to_log()|. Immediately, the semantics diverge along the first axis: \Eagerness.
 
-    \midrule
-    \Destruction
-    \dimdesc{The action that occurs on \task destruction, \Cref{ssec:designdims:destruction}}
-    &
-      \footnotesize
-      \begin{tricolumn}
-        \textsc{\awaited} & \textsc{\cancelled} & \textsc{\terminated} \\
-        \begin{pros}
-          \item Data integrity
-          \item Usable by systems with no built-in cancellation
-        \end{pros}  &
-        \begin{pros}
-          \item Data integrity
-        \end{pros}  &
-        \begin{pros}
-          \item Responsiveness
-        \end{pros}  \\
-        \begin{tabular}[t]{@{}ll@{}}
-          JavaScript & Tokio
-        \end{tabular} &
-        \begin{tabular}[t]{@{}lll@{}}
-          Swift & Tokio & Smol \\ Asyncio
-        \end{tabular} &
-        \begin{tabular}[t]{@{}l@{}}
-          \CSharp
-        \end{tabular}
-      \end{tricolumn} \\
-
-    \midrule
-    \Propagation
-    \dimdesc{The behavior of exceptions for unawaited \tasks, \Cref{ssec:designdims:propagation}}
-    &
-      \footnotesize
-      \begin{bicolumn}
-        \textsc{\destruction} & \textsc{\never} \\
-        \begin{pros}
-          \item Data integrity
-          \item Usable by systems with no built-in cancellation
-        \end{pros}  &
-        \begin{pros}
-          \item Responsiveness
-        \end{pros}  \\
-        \begin{tabular}[t]{@{}lll@{}}
-          JavaScript & Asyncio & Trio
-        \end{tabular} &
-        \begin{tabular}[t]{@{}ll@{}}
-          \CSharp & Swift
-        \end{tabular}
-      \end{bicolumn} \\
-
-    \midrule
-    \Suspension
-    \dimdesc{The relation between await keywords and suspension points, \Cref{ssec:designdims:suspension}}
-    &
-      \footnotesize
-      \begin{bicolumn}
-        \textsc{\static} & \textsc{\dynamic} \\
-        \begin{pros}
-          \item Reduce starvation
-        \end{pros}  &
-        \begin{pros}
-          \item Reduce overhead
-        \end{pros}  \\
-        \begin{tabular}[t]{@{}l@{}}
-          JavaScript
-        \end{tabular} &
-        \begin{tabular}[t]{@{}llllll@{}}
-          \CSharp & Swift & Asyncio & Trio & Tokio & Smol
-        \end{tabular}
-      \end{bicolumn} \\
-
-    \midrule
-    \Cancellation
-    \dimdesc{\textup{Cooperation:} the ability for cancellation reaction} 
-    \dimdesc{\textup{Direction:} the propagation direction through the dependency graph}
-    &
-      \footnotesize
-      \begin{tabular}[t]{@{} p{\linewidth} @{}}
-        \begin{bicolumn}
-          \textsc{\noncoop} & \textsc{\coop} \\
-          \begin{pros}
-            \item \Task termination
-          \end{pros}  &
-          \begin{pros}
-            \item Data/Invariant protection
-            \item Execution integrity
-          \end{pros}  \\
-          \begin{tabular}[t]{@{}l@{}}
-            Rust
-          \end{tabular} &
-          \begin{tabular}[t]{@{}ll@{}}
-            Swift & Python
-          \end{tabular}
-        \end{bicolumn} \\
-
-        \midrule
-        \begin{tricolumn}
-          \textsc{\tdown} & \textsc{\bup} & \textsc{\simultaneous} \\
-          \begin{pros}
-            \item Dependencies react first
-          \end{pros}  &
-          \begin{pros}
-            \item Dependents react first
-          \end{pros}  &
-          \begin{pros}
-            \item Cancel awareness
-          \end{pros}  \\
-          \begin{tabular}[t]{@{}l@{}}
-            Rust 
-          \end{tabular} &
-          \begin{tabular}[t]{@{}l@{}}
-            Python 
-          \end{tabular} &
-          \begin{tabular}[t]{@{}l@{}}
-            Swift
-          \end{tabular}
-        \end{tricolumn}
-      \end{tabular} \\
-    \bottomrule
-  \end{tabularx} % End of the single, safe outer tabularx
-  \caption{Overview of the design dimensions, the points along each axis, and the benefit each point provides.}
-  \label{fig:dims:overview}
-\end{table}
+\input{./f/dims-overview.tex}
 
 \input{./dimensions/eagerness.tex}
+
+\input{./dimensions/suspend.tex}
+
+\subsection{\EndOfLife}
 
 \input{./dimensions/extent.tex}
 
@@ -217,8 +30,6 @@ In this section we provide the async/await design dimensions. The design dimensi
 \input{./dimensions/destruct.tex}
 
 \input{./dimensions/propagate.tex}
-
-\input{./dimensions/suspend.tex}
 
 \input{./dimensions/cancel.tex}
 
