@@ -23,6 +23,8 @@ An asynchronous computation is generally defined through a function explicitly m
 
 \subsection{\EndOfLife}
 
+Much of the divergence between designs for straight-line asynchrony is about when and how tasks end. Recent designs often introduce some kind of ``structured'' asynchrony to ensure that tasks are accounted for at all times, and do not end up dangling or erroring unbeknownst the rest of the program.
+
 \input{./dimensions/extent.tex}
 
 \input{./dimensions/references.tex}

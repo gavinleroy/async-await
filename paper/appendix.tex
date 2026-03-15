@@ -131,3 +131,130 @@ async Task Main() {
   \caption{Examples of lazy, semi-eager, and eager async function application.}
   % \label{fig:designdims:eagerness}
 \end{figure}
+
+
+\subsection{\Suspension Programs}
+
+
+\begin{figure}[H]
+  \begin{minipage}[t]{0.49\textwidth}
+\begin{lstlisting}[language=JavaScript]
+async function print(msg) {
+  console.log(msg);
+}
+
+async function work(name) {
+  await print(name);
+  await print(name);
+  await print(name);
+}
+
+async function main() {
+  let a = work("A");
+  let b = work("B");
+  await print("C")
+  await a; await b
+}
+
+await main()
+// => ABCABAB
+\end{lstlisting}
+    \cprotect\subcaption{}
+    % \label{fig:designdims:suspend:static}
+  \end{minipage}\hfill%
+  \begin{minipage}[t]{0.49\textwidth}
+\begin{lstlisting}[language=Rust]
+async fn print(msg: &str) {
+  print!("{msg}");
+}
+
+async fn work(name: &str) {
+  print(name).await;
+  print(name).await;
+  print(name).await;
+}
+
+fn main() {
+  smol::block_on(async {
+    let a = smol::spawn(work("A"));
+    let b = smol::spawn(work("B"));
+    print("C").await;
+    a.await; b.await;
+    drop(signal);
+  });
+} // => CAAABBB
+\end{lstlisting}
+    \cprotect\subcaption{}
+    % \label{fig:designdims:suspend:dynamic}
+  \end{minipage}
+  \caption{Examples of static and dynamic suspension.}
+  % \label{fig:designdims:suspend}
+\end{figure}
+
+\subsection{\Extent Programs}
+
+
+\begin{lrbox}{\aastateA}
+\begin{lstlisting}[language=Swift,numbers=none]
+func innerWork() async {
+    try? await Task.sleep(
+      for: .milliseconds(100))
+    print("done")
+}
+
+func work() async throws {
+\end{lstlisting}
+\end{lrbox}
+
+\begin{lrbox}{\aastateB}
+\begin{lstlisting}[language=Swift,numbers=none,escapechar=|]
+    async let a /* |$T_1$| */ = innerWork()
+    try await Task.sleep(
+      for: .milliseconds(1))
+    print("exiting")
+\end{lstlisting}
+\end{lrbox}
+
+
+\begin{lrbox}{\aastateC}
+\begin{lstlisting}[language=Swift,numbers=none]
+}
+
+try await work()
+\end{lstlisting}
+\end{lrbox}
+
+\begin{figure}[H]
+  \begin{subfigure}[t]{0.49\textwidth}
+\begin{tikzpicture}[baseline=(current bounding box.north)]
+    \node[codeblock] (state0) {\usebox{\aastateA}};
+    \node[codeblock] (stateA) at ([yshift=-2pt]state0.south west) {\usebox{\aastateB}};
+    \node[codeblock] (stateB) at ([yshift=-1pt]stateA.south west) {\usebox{\aastateC}};
+    \node[dashedbox, fit=(stateA)] {};
+\end{tikzpicture}
+      \cprotect\caption{\Tasks have dynamic extent in Swift. References to the \task $T_1$ cannot be made after its calling construct, the \code{work} function outlined in \dashed{gray,} terminates --- including references made by the runtime system. The program prints ``exiting'' and then ``done.''}
+    % \label{fig:designdims:scope:region}
+    \end{subfigure}\hfill%
+    \begin{subfigure}[t]{0.49\textwidth}
+\begin{lstlisting}[language=CSharp,numbers=none,escapechar=|]
+public static async Task InnerWork() {
+  await Task.Delay(100);
+  Console.Write("done");
+}
+
+async Task Work() {
+  var a  /* |$T_1$| */ = InnerWork();
+  await Task.Delay(1);
+  Console.Write("exiting");
+}
+
+async Task Main() {
+  await Work();
+}
+\end{lstlisting}
+\cprotect\caption{\Tasks have indefinite extent in in \CSharp. \Task $T_1$ may continue to be referenced after the \code{Work} function has terminated. References made by the runtime are strong references. This program prints ``exiting,'' and the print in \code{InnerWork} is never executed.}
+    % \label{fig:designdims:scope:program}
+  \end{subfigure}
+  \caption{Examples of dynamic and indefinite extent.}
+  % \label{fig:designdims:scope}
+\end{figure}

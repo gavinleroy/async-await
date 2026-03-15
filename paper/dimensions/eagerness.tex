@@ -3,7 +3,7 @@
 
 \begin{figure}[th]
   \includegraphics[width=\linewidth]{f/eagerness.pdf}
-  \caption{\Eagerness [caption todo]}
+  \cprotect\caption{An example program demonstrating the \Eagerness dimension, executed with Rust (\lazy), \CSharp (\eager), and Swift (\seager). Each table shows the execution of the program across the numbered lines for each design point. Each table shows the line of execution, the text printed to stdout, and changes to the values of the variables \verb|a| and \verb|b|. Coroutines are represented as a state machine, with the active state colored in green. Tasks are represented as a boxed state machine }
   \label{fig:eagerness}
 \end{figure}
 
@@ -56,13 +56,13 @@ Second, by separating coroutines from tasks, the language can enable users to pr
 
 % Executor and Reactor as user-space libraries, instead of shipping them bundled in the language runtime. Communities can then provide their own asynchronous runtime that is tailored towards a specific need when a preexisting runtime is insufficient.
 
-The \lazy has a few downsides. By offering an extensible runtime, libraries in the ecosystem have reduced interoperability. Users must deal with the complexity of understanding both coroutines and tasks. Users often find \lazy behavior surprising --- to call a function and have nothing happen runs against a programmer's intuition transferred from synchronous function calls.
+The downsides of the \lazy approach include: by offering an extensible runtime, async-related libraries in the ecosystem tend to have reduced interoperability. For example, in Rust, \lstinline[language=Pseudo]|spawn| is a runtime-specific primitive, so libraries using it must be coupled to a choice of runtime such as Tokio or \smol. Users must also deal with the complexity of understanding both coroutines and tasks. Users often find \lazy behavior surprising --- to call a function and have nothing happen runs against a programmer's intuition transferred from synchronous function calls.
 
-[TODO PICK UP FROM HERE]
+Non-\lazy approaches avoid these downsides by starting asynchronous work as soon as a function is called, either on the current thread (\eager) or any thread (\seager). The \eager approach reduces the overhead of control flow and context switches within the asynchrony runtime. The \seager approach leans more on the runtime, but in exchange provides a higher degree concurrency by dispatching work to other threads. The increased concurrency can be particularly valuable for programs that want to avoid blocking a main thread, such as in UI applications~\missingcite.
 
-\Seager evaluation maximizes \abbr{cpu} utilization while protecting the calling thread. Protecting the current thread is important for responsiveness in App/UI development, such as in the SwiftUI framework~\missingcite.
+% \Seager evaluation maximizes \abbr{cpu} utilization while protecting the calling thread. Protecting the current thread is important for responsiveness in App/UI development, such as in the SwiftUI framework~\missingcite.
 
-Eager evaluation is beneficial to reduce \task allocation and remove the asynchronous overhead for synchronous-executing functions. Asynchronous functions \textit{may} perform asynchronous operations and it is widely believed that many do not~\cite{msft_how_2023}~\missingcite. % NOTE: so many posts (especially in the C# world) make this claim, I will go back around and add more cites here when I find them again.
-For example, a function that performs network \abbr{io} may buffer data so that subsequent calls execute synchronously; they simply read from the buffer and do not go to the network. Eagerly-evaluating systems can avoid the runtime and memory overhead of asynchronous function calls when the execution completes without suspension --- the overhead of asyncrhony is paid on demand. Further optimizations can be made by using dynamic suspension points, a design choice we will discuss in \Cref{ssec:designdims:suspension}. 
+% Eager evaluation is beneficial to reduce \task allocation and remove the asynchronous overhead for synchronous-executing functions. Asynchronous functions \textit{may} perform asynchronous operations and it is widely believed that many do not~\cite{msft_how_2023}~\missingcite. % NOTE: so many posts (especially in the C# world) make this claim, I will go back around and add more cites here when I find them again.
+% For example, a function that performs network \abbr{io} may buffer data so that subsequent calls execute synchronously; they simply read from the buffer and do not go to the network. Eagerly-evaluating systems can avoid the runtime and memory overhead of asynchronous function calls when the execution completes without suspension --- the overhead of asyncrhony is paid on demand. Further optimizations can be made by using dynamic suspension points, a design choice we will discuss in \Cref{ssec:designdims:suspension}. 
 
-An additional benefit of eager evaluation is that it's consistent with synchronous function application semantics. It can be counterintuitive for developers of languages that use lazy async application, but have an otherwise eager semantics~\missingcite.
+% An additional benefit of eager evaluation is that it's consistent with synchronous function application semantics. It can be counterintuitive for developers of languages that use lazy async application, but have an otherwise eager semantics~\missingcite.
