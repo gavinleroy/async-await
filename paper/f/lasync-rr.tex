@@ -1,0 +1,13 @@
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+  $\langle t_0, \sigma_0, Q, T, P \uplus \{ \langle \ell, E[\text{os\_io}(t_{\mathit{delay}}, v)] \rangle \circ FS \} \rangle$ & [OS-IO] \\
+  $\longrightarrow \langle \text{step}(t_0), \sigma_2, Q, T, P \uplus \{ F_{\mathit{new}} \circ \langle \ell, E[x_{\mathit{io}}] \rangle \circ FS \} \rangle$ & \\
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \textbf{where } (\sigma_1, x_{io}, v_{task}) = \text{task\_alloc}(\sigma_0) \\
+  \qquad \sigma_2 = \sigma_1[x_{io} \mapsto v_{task}] \\
+  \qquad e_{try} = \text{try } none \mathbin{;} \text{task\_set\_done}(x_{io}, v) \text{ catch } e_{err} \to \text{task\_set\_failed}(x_{io}, e_{err}) \\
+  \qquad e_{done} = e_{\mathit{try}} \mathbin{;} \text{os\_start\_soon}(\text{task\_get\_waiters}(x_{io})) \\
+  \qquad F_{new} = \langle x_{\mathit{io}}, \text{os\_start\_later}(\text{os\_time}() + t_{\mathit{delay}}, x_{\mathit{io}}, \text{fun } () \to e_{done}) \rangle
+  \end{array}$
+}
+\end{tabular*}

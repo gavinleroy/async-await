@@ -3,7 +3,7 @@ $$
 c      & ::=  & \text{true} \mid \text{false} \mid \text{number} \mid \text{string}
 \\
 e      & ::=  & x \mid v \mid \text{fun } \many{x} \to e \mid e\ \many{e} \\
-       & \mid & \text{let } \many{x} = \many{e} \text{ in } e \\
+       & \mid & \text{let } x = e \text{ in } e \\
        & \mid & \text{if } e \text{ then } e \text{ else } e \\
        & \mid & \text{fix } e \mid e \mathbin{;} \dots \mathbin{;} e \\
        & \mid & \text{reset } e \mid \text{shift } x \to e \\
@@ -13,7 +13,8 @@ v      & ::=  & c \mid () \mid \text{ptr}(\ell) \\
        & \mid & \text{fun } \many{x} \to e \mid \text{fix } v \\
 \\
 E      & ::=  & [\cdot] \mid \many{v}\ E\ \many{e} \mid \text{fix } E \\
-       & \mid & \text{let } \many{x}_0 = \many{v}, x = E, \many{x}_1 = \many{e} \text{ in } e \\
+       & \mid & \text{let } x = E \text{ in } e \\
+       & \mid & \text{let } x = v \text{ in } E \\
        & \mid & \text{if } E \text{ then } e \text{ else } e \\
        & \mid & \many{v} \mathbin{;} E \mathbin{;} \many{e} \mid \text{reset } E \\
        & \mid & \text{ref } E \mid !E \mid E := e \mid v := E \\

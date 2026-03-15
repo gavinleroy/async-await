@@ -1,0 +1,13 @@
+$$
+\begin{array}{l}
+\begin{array}{rcl @{\hspace{2em}} rcl @{\hspace{2em}} rcl}
+t & \in & \mathbb{N} & F & ::= & \langle \ell, e \rangle & Q & ::= & \epsilon \mid (\ell, \kappa) \circ Q \\
+\kappa & ::= & \text{fun }() \to e & FS & ::= & \epsilon \mid F \circ FS & T & ::= & \epsilon \mid (t, \ell, \kappa) \circ T \\
+& & & P & ::= & \{ FS_1, \dots, FS_n \} & & &
+\end{array} \\
+\\
+\begin{array}{rcl}
+e & ::= & \dots \mid \text{os\_block } e \mid \text{os\_time}() \mid \text{os\_io}(e, e) \mid \text{os\_start\_soon}(\many{\ell,e}) \mid \text{os\_start\_later}(e, \ell, e)
+\end{array}
+\end{array}
+$$

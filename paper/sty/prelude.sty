@@ -31,6 +31,7 @@
 \usepackage{booktabs}
 \usepackage{enumitem}
 \usepackage{array}
+\usepackage{etoolbox}
 
 
 %%%%
@@ -182,7 +183,7 @@
 
 
 \newcommand{\Eagerness}{Eagerness\xspace}
-\newcommand{\eagerness}{Eagerness\xspace}
+\newcommand{\eagerness}{eagerness\xspace}
 \newcommand{\Eager}{Eager\xspace}
 \newcommand{\eager}{eager\xspace}
 \newcommand{\seager}{semi-eager\xspace}
@@ -340,7 +341,73 @@
 }
 
 %%%%
-%% Typesetting OP sematnics
+%% Typesetting OP semantics
+
+\newcommand*\lc{$\lambda_v$\xspace}
+\newcommand*\exn{$\lambda_{\mathit{exn}}$\xspace}
+\newcommand*\lasync{$\lambda_{\mathit{async}}$\xspace}
+\newcommand*\qpush{\lhd}
+
+\newcommand{\highlightbox}[3]{%
+  \mathchoice%
+    {\colorbox{#1}{\(\displaystyle\color{#2}#3\)}}%
+    {\colorbox{#1}{\(\textstyle\color{#2}#3\)}}%
+    {\colorbox{#1}{\(\scriptstyle\color{#2}#3\)}}%
+    {\colorbox{#1}{\(\scriptscriptstyle\color{#2}#3\)}}%
+}
+
+% Palette 1 — Muted categorical colors (lightened fills, darkened text)
+\definecolor{P1C1}{HTML}{C8DCF0} % Steel blue (lighter)
+\definecolor{P1C2}{HTML}{C8E6C6} % Sage green (lighter)
+\definecolor{P1C3}{HTML}{FDEAA8} % Warm amber (lighter)
+\definecolor{P1C4}{HTML}{F8CEDB} % Dusty rose (lighter)
+\definecolor{P1C5}{HTML}{DDD5F5} % Lavender (lighter)
+\definecolor{P1C6}{HTML}{FADEC0} % Peach (lighter)
+\definecolor{P1C7}{HTML}{BCE8E4} % Pale teal (lighter)
+
+% Text colors (darkened for maximum legibility)
+\definecolor{P1C1t}{HTML}{0D2D45} % Steel blue text
+\definecolor{P1C2t}{HTML}{0C2B1A} % Sage green text
+\definecolor{P1C3t}{HTML}{3D2400} % Warm amber text
+\definecolor{P1C4t}{HTML}{3D0A18} % Dusty rose text
+\definecolor{P1C5t}{HTML}{1A0A3D} % Lavender text
+\definecolor{P1C6t}{HTML}{3D1800} % Peach text
+\definecolor{P1C7t}{HTML}{062422} % Pale teal text
+
+\newcommand{\ceag}[1]{\ifmmode\highlightbox{P1C1}{P1C1t}{#1}\else\colorbox{P1C1}{\color{P1C1t}#1}\fi}
+\newcommand{\cext}[1]{\ifmmode\highlightbox{P1C2}{P1C2t}{#1}\else\colorbox{P1C2}{\color{P1C2t}#1}\fi}
+\newcommand{\crfe}[1]{\ifmmode\highlightbox{P1C3}{P1C3t}{#1}\else\colorbox{P1C3}{\color{P1C3t}#1}\fi}
+\newcommand{\cdes}[1]{\ifmmode\highlightbox{P1C4}{P1C4t}{#1}\else\colorbox{P1C4}{\color{P1C4t}#1}\fi}
+\newcommand{\cpro}[1]{\ifmmode\highlightbox{P1C5}{P1C5t}{#1}\else\colorbox{P1C5}{\color{P1C5t}#1}\fi}
+\newcommand{\csus}[1]{\ifmmode\highlightbox{P1C6}{P1C6t}{#1}\else\colorbox{P1C6}{\color{P1C6t}#1}\fi}
+\newcommand{\ccan}[1]{\ifmmode\highlightbox{P1C7}{P1C7t}{#1}\else\colorbox{P1C7}{\color{P1C7t}#1}\fi}
+
+% 1. Helper macro for drawing the colored circles
+\newcommand{\legendmark}[1]{\tikz[baseline=-0.5ex]\draw[#1,fill=#1] (0,0) circle (0.6ex);\,}
+
+% 2. Define your "dictionary" of fixed properties
+\csdef{legenditem@eag}{\legendmark{P1C1}\small\Eagerness}
+\csdef{legenditem@ext}{\legendmark{P1C2}\small\Extent}
+\csdef{legenditem@ref}{\legendmark{P1C3}\small\References}
+\csdef{legenditem@des}{\legendmark{P1C4}\small\Destruction}
+\csdef{legenditem@pro}{\legendmark{P1C5}\small\Propagation}
+\csdef{legenditem@sus}{\legendmark{P1C6}\small\Suspension}
+\csdef{legenditem@can}{\legendmark{P1C7}\small\Cancellation}
+
+% 3. The newly centered macro
+\newcommand{\makelegend}[1]{%
+  \begin{center} % <--- Centers the legend and enforces a line break after
+    \def\legendsep{}% 
+    \renewcommand*{\do}[1]{%
+      \legendsep 
+      \csuse{legenditem@##1}% 
+      \def\legendsep{\hspace{1.5em}}% 
+    }%
+    \docsvlist{#1}% 
+  \end{center}
+}
+
+%%%%
 
 \makeatletter
 \newsavebox\myboxA
