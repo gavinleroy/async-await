@@ -1,1 +1,8 @@
 build
+*.log
+*.out
+*.cpt
+*.aux
+*.bbl
+*.blg
+*synctex*
