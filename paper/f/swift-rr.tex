@@ -50,13 +50,13 @@ $\longrightarrow \langle t_0, \sigma, Q, T, P \uplus \{ \langle \ell, E[\ccan{\m
 
 \noindent
 \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
-$\mathrm{task\_cancelled}(\sigma, x) = \mathit{self\_cancelled} \lor \mathit{dependent\_cancelled} & \\
+$\mathrm{task\_cancelled}(\sigma, x) = \mathit{self\_cancelled} \lor \mathit{dependent\_cancelled}$ & \\
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
   \textbf{where}\\ 
   \qquad \mathit{self\_cancelled} = !\sigma(x).\mathrm{cancelled} \\
   \qquad \many{x}_{\mathit{parents}} = \sigma(v_{\mathit{task}}.\mathrm{parents}) \\
-  \qquad \mathit{dependent\_cancelled} = \bigvee_{x_p \in \many{x}_{\mathit{parents}}} \mathrm{task\_cancelled}(\sigma, x_p)$
+  \qquad \mathit{dependent\_cancelled} = \bigvee_{x_p \in \many{x}_{\mathit{parents}}} \mathrm{task\_cancelled}(\sigma, x_p)
   \end{array}$
 }
 \end{tabular*}
