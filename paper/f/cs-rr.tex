@@ -1,6 +1,6 @@
 \noindent
 \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
-$\langle t_0, \sigma_0, Q, T, P \uplus \{ \langle \ell, E[(\mathrm{async\ fun}\ \many{x} \to e_{\mathit{body}})\ \many{v}] \rangle \circ FS \} \rangle$ & [Async-App] \\
+$\langle t_0, \sigma_0, Q, T, P \uplus \{ \langle \ell, E[(\mathbf{async\ fn}\ \many{x} \to e_{\mathit{body}})\ \many{v}] \rangle \circ FS \} \rangle$ & [Async-App] \\
 $\longrightarrow \langle \mathrm{step}(t_0), \sigma_2, Q, T, P \uplus \{ \ceag{F_{\mathit{new}}} \circ \langle \ell, E[x_{\mathit{task}}] \rangle \circ FS \} \rangle$ & \\
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
@@ -18,7 +18,7 @@ $\longrightarrow \langle \mathrm{step}(t_0), \sigma_2, Q, T, P \uplus \{ \ceag{F
 
 \noindent
 \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
-$\langle t_0, \sigma, Q, T, P \uplus \{ \langle \ell, E[\mathrm{await}\ v_{\mathit{aw}}] \rangle \circ FS \} \rangle$ & [Await] \\
+$\langle t_0, \sigma, Q, T, P \uplus \{ \langle \ell, E[\mathbf{await}\ v_{\mathit{aw}}] \rangle \circ FS \} \rangle$ & [Await] \\
 $\longrightarrow \langle \mathrm{step}(t_0), \sigma, Q, T, P \uplus \{ \langle \ell, E[e_{\mathit{check}}] \rangle \circ FS \} \rangle$ & \\
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}

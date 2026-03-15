@@ -3,10 +3,9 @@
 A key contribution of this paper is a precise and neutral description of the operational behavior of several contemporary async systems. To reduce the cosmetic noise we provide the operational semantics as extensions to a base $\lambda$-calculus variant, henceforth refered to as \lc. By providing the semantics in layers we highlight the control features necessary for a given language's implementation and can more easily compare the operational behavior between two languages that have seemingly incomparable semantics. We additionally provide all the semantics in this section as a runnable Redex model, available in the supplementary materials.~\missingcite
 
 \begin{figure}[H]
-\centering
   \begin{subfigure}[t]{0.39\textwidth}
     {\input{./f/lc-gr.tex}
-     \cprotect\caption{The grammar for the base $\lambda$-calculus. Our base is a totally standard version of $\lambda$ extended with Danvy and Filinski's \code{shift} and \code{reset} operators~\cite{danvy_functional_nodate}.}
+     \cprotect\caption{The grammar for \lc, a call-by-value variant of the $\lambda$-calculus with mutable references and delimited continuations.}
      \label{fig:lang:lc}}
   \end{subfigure}\hfill%
   \begin{subfigure}[t]{0.59\textwidth}
@@ -48,7 +47,7 @@ A \textit{frame}, $F$, is written $\langle \ell,\,e\rangle$ and consists of an e
 
 The async platform provides a few additional expressions that we will describe here. The $\text{os\_block}\,e$ expression provides the barrier between synchronous code and asynchronous code. Languages may use a block expression to block a synchronous frame until the asynchronous expression has completed running. The block expression marks the runtime entry, and when it returns, the runtime exit.
 
-The expression \verb|os_io|$(e,e)$ is the \textsc{OmniScient io} operation provided by the runtime system. It models real-world \abbr{io} operations that would take some non-deterministic amount of time to resolve, like receiving packets from the network or querying a database. The form is omniscient because the resulting expression is provided upfront, e.g., \verb|os_io|$(5, \text{``hello''})$ creates a \task that will resolve to the value ``hello'' after at least five time steps. Thus the form is deterministic in its evaluation \textit{value}, but not in its evaluation \textit{time.}
+The expression \verb|os_io|$(e_t,e)$ is the \textsc{OmniScient io} operation provided by the runtime system. It models real-world \abbr{io} operations that would take some non-deterministic amount of time to resolve, like receiving packets from the network or querying a database. The form is omniscient because the resulting expression is provided upfront, e.g., \verb|os_io|$(5, \text{``hello''})$ creates a \task that will resolve to the value ``hello'' after at least five time steps. Thus the form is deterministic in its evaluation \textit{value}, but not in its evaluation \textit{time.}
 
 The expression \verb|os_start_soon|$(\ell,\kappa)$ appends the continuation $\kappa$ to $Q$, set to run in a frame with the specified label $\ell$. The expression \verb|os_start_later|$(t,\ell,\kappa)$ appends the continuation to the signal queue, $T$, which will be scheduled after timestep $t$. The expression \verb|os_time|$()$ simply evaluates to the current timestep. 
 

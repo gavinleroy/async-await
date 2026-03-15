@@ -1,26 +1,26 @@
 $$
 \begin{array}{r@{\ }c@{\ }l}
-c      & ::=  & \text{true} \mid \text{false} \mid \text{number} \mid \text{string}
+\mathsf{Const}\ c      & ::=  & \text{true} \mid \text{false} \mid \text{number} \mid \text{string} \\
+\mathsf{Expr}\ e       & ::=  & x \mid v \mid \mathbf{fn}\ \many{x} \to e \mid e\ \many{e} \\
+                       & \mid & \text{let } x = e \text{ in } e \\
+                       & \mid & \text{if } e \text{ then } e \text{ else } e \\
+                       & \mid & \text{fix } e \mid e \mathbin{;} \dots \mathbin{;} e \\
+                       & \mid & \text{reset } e \mid \text{shift } x \to e \\
+                       & \mid & \text{ref } e \mid !e \mid e := e \\
 \\
-e      & ::=  & x \mid v \mid \text{fun } \many{x} \to e \mid e\ \many{e} \\
-       & \mid & \text{let } x = e \text{ in } e \\
-       & \mid & \text{if } e \text{ then } e \text{ else } e \\
-       & \mid & \text{fix } e \mid e \mathbin{;} \dots \mathbin{;} e \\
-       & \mid & \text{reset } e \mid \text{shift } x \to e \\
-       & \mid & \text{ref } e \mid !e \mid e := e \\
+\mathsf{Value}\ v      & ::=  & c \mid () \mid \text{ptr}(\ell) \\
+       & \mid & \mathbf{fn}\ \many{x} \to e \mid \text{fix } v \\
+% \\
+% \mathsf{Ctx}\ E      & ::=  & [\cdot] \mid \many{v}\ E\ \many{e} \mid \text{fix } E \\
+%        & \mid & \text{let } x = E \text{ in } e \\
+%        & \mid & \text{let } x = v \text{ in } E \\
+%        & \mid & \text{if } E \text{ then } e \text{ else } e \\
+%        & \mid & \many{v} \mathbin{;} E \mathbin{;} \many{e} \mid \text{reset } E \\
+%        & \mid & \text{ref } E \mid !E \mid E := e \\
+%        & \mid & v := E
+% \\
+% \mathsf{Meta Ctx}\ M      & ::=  & \dots \text{ (} E \text{ without } \text{reset } M \text{)}
 \\
-v      & ::=  & c \mid () \mid \text{ptr}(\ell) \\
-       & \mid & \text{fun } \many{x} \to e \mid \text{fix } v \\
-\\
-E      & ::=  & [\cdot] \mid \many{v}\ E\ \many{e} \mid \text{fix } E \\
-       & \mid & \text{let } x = E \text{ in } e \\
-       & \mid & \text{let } x = v \text{ in } E \\
-       & \mid & \text{if } E \text{ then } e \text{ else } e \\
-       & \mid & \many{v} \mathbin{;} E \mathbin{;} \many{e} \mid \text{reset } E \\
-       & \mid & \text{ref } E \mid !E \mid E := e \mid v := E \\
-\\
-M      & ::=  & \dots \text{ (} E \text{ without } \text{reset } M \text{)}
-\\
-\Sigma & ::=  & \cdot \mid \Sigma, \ell \mapsto v
+\mathsf{Heap}\ \sigma & ::=  & \cdot \mid \sigma, \ell \mapsto v
 \end{array}
 $$
