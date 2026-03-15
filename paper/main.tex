@@ -40,7 +40,31 @@
 \setlength{\enumerateparindent}{\parindent}
 
 \begin{abstract}
-The design space for the async/await abstraction of cooperative concurrency is large. Many languages have adopted this abstraction and lie at different points in the design space. We provide dimensions for async/await design and provide the operational behavior of several moden programming languages with async/await. We show how the resulting languages can guarantee, or preclude, certain program properties based on the design dimensions of the async/await system.
+  Numerous modern programming languages include some form of
+  asynchronous programming. In particular, a growing number now have
+  what we call straight-line asychrony: attempts to provide
+  asychronous functions that look similar to traditional functions,
+  thereby enabling asychrony without introducing complex control.
+
+  These languages often share construct names (like ``async'' and
+  ``await''), which suggests that they have deep semantic
+  similarities. Yet a close examination reveals that these languages
+  are actually significantly different along numerous dimensions,
+  often subtly; and that these differences have real semantic
+  consequences. These kinds of differences tend to create confusion
+  for developers moving between languages. They also make the space
+  difficult to navigate for language designers who are either creating
+  new languages or trying to add these features to existing ones.
+
+  This paper therefore presents a \emph{design space exploration} of
+  straight-line asychrony. We dissect existing languages, and show how
+  no two of them agree as a whole semantically. We create a taxonomy
+  to explain their differences. We explore this space through concrete
+  examples, prose discussion, and formal semantics. We also show how,
+  as a consequence, languages can provide or preclude reasoning about
+  certain program properties. Our ultimate goal is to help both
+  programmers and language designers to deeply understand this
+  important, rich, and subtle space.
 \end{abstract}
 
 %%%%
