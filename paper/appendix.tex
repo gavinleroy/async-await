@@ -258,3 +258,73 @@ async Task Main() {
   \caption{Examples of dynamic and indefinite extent.}
   % \label{fig:designdims:scope}
 \end{figure}
+
+\subsection{\Destruction Programs}
+
+\begin{figure}[H]
+  \begin{subfigure}[t]{0.30\textwidth}
+\begin{lstlisting}[language=JavaScript,escapechar=|]
+async function inner() {
+  await new Promise(r =>
+    setTimeout(r, 10_000))
+  console.log("done")
+}
+
+async function work() {
+  let a = inner()
+  await new Promise(r =>
+    setTimeout(r, 0))
+  console.log("exiting")
+}
+
+await work() // ~10s
+\end{lstlisting}
+    \cprotect\caption{JavaScript awaits all running tasks at the end of their scope (program scope). The execution of the above program takes about 10 seconds and prints ``exiting,'' and ``done,'' because the leaked \task is fully awaited.}
+    % \label{fig:designdims:destruction:await}
+  \end{subfigure}\hfill%
+  \begin{subfigure}[t]{0.32\textwidth}
+    \begin{lstlisting}[language=Swift,escapechar=|]
+func inner() async {
+  try? await Task.sleep(
+      for: .seconds(10))
+  if Task.isCancelled {
+    print("cancelled")
+  }
+  print("done")
+}
+
+func work() async throws {
+  async let _ = inner()
+  try await Task.sleep(
+      for: .seconds(0))
+  print("exiting")
+}
+
+try await work() // ~0.5s
+\end{lstlisting}
+    \cprotect\caption{Swift cancels all running tasks on destruction. The execution of the above program takes about 0.5 seconds and prints ``exiting,'' ``cancelled,'' and ``done.''}
+  % \label{fig:designdims:destruction:cancel}
+\end{subfigure}\hfill%
+\begin{subfigure}[t]{0.33\textwidth}
+\begin{lstlisting}[language=CSharp,escapechar=|]
+async Task InnerWork() {
+  await Task.Delay(10_000);
+  Console.Write("done");
+}
+
+async Task Work() {
+  var _ = InnerWork();
+  await Task.Delay(0);
+  Console.Write("exiting");
+}
+
+async Task Main() {
+  await Work();
+} // ~0.5s
+\end{lstlisting}
+    \cprotect\caption{\CSharp{} terminates all running tasks at the end of their scope (program scope). The execution of the above program takes about 0.6 seconds. The \code{inner} \Task{} is terminated and the sleep terminates early with no warning.}
+    % \label{fig:designdims:destruction:term}
+  \end{subfigure}
+  \caption{Examples of await, cancel, and termination destruction semantics.}
+  % \label{fig:designdims:destruction}
+\end{figure}
