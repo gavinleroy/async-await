@@ -3,7 +3,7 @@
 Async/await are just keywords --- what is the underlying concept being expressed across these languages? The obvious answer is \emph{asynchronous programming} or, more simply, \emph{asynchrony}.
 Like the words concurrency and parallelism, asynchrony does not have a definitive meaning. Rather, its meaning is socially constructed out of the types of programs people want to write. Fifteen years ago, asynchronous programming was ``characterized by many simultaneously pending reactions to internal or external events''~\cite{spl:fsharp-async}. Today, we might add to that list: running I/O-bound computations in parallel, or having fine-grained control over the execution of computations. The scope of asynchronous programming has expanded.
 
-Moreover, async/await is only one form of asynchrony. The job of async/await is to avoid the inversion of control associated with callbacks and event loops. The goal, as the \CSharp documentation says, is ``to enable code that reads like a sequence of statements, but executes in a more complicated order''~\cite{billwagner_asynchronous_2025}. Async/await is about leaning on the language to simplify control-flow patterns, as opposed to implementing asynchrony abstractions entirely in userspace.
+Moreover, async/await is only one form of asynchrony. The job of async/await is to avoid the inversion of control associated with callbacks and event loops. The goal, as the \CSharp documentation says, is ``to enable code that reads like a sequence of statements, but executes in a more complicated order''~\cite{wagner_asynchronous_2025}. Async/await is about leaning on the language to simplify control-flow patterns, as opposed to implementing asynchrony abstractions entirely in userspace.
 
 We concretize these points to provide some context on how asynchrony generally, and async/await specifically, fit into the broader picture of language design and implementation.
 
@@ -11,7 +11,7 @@ We concretize these points to provide some context on how asynchrony generally, 
 
 We will define concurrency as a logical property of a computation, whereby two subcomputations can execute interleaved: one computation begins before another ends. Parallelism is a physical property of a computation, whereby two subcomputations can execute simultaneously: both compuations overlap at the same point in time. Parallelism implies concurrency but not vice versa. For instance, an embedded operating system running on a single core is concurrent but not parallel.
 
-We think of asynchrony as a special case of cooperative concurrency. In an asynchronous program, two subcomputations execute interleaved because they are written to yield control to one another. Asynchrony contrasts with competitive concurrency, where interleaving occurs through external imposition by e.g. context switches. Competitive concurrency usually arises at an architectural level below the language, such as operating system threads.
+We think of asynchrony as a special case of cooperative concurrency. In an asynchronous program, two subcomputations execute interleaved because they are written to yield control to one another. Asynchrony contrasts with competitive concurrency, where interleaving occurs through external imposition, e.g., by context switches. Competitive concurrency usually arises at an architectural level below the language, such as operating system threads.
 
 Concurrency and parallelism have programming paradigms. Paradigms of concurrent computing include shared-memory concurrency (e.g., POSIX C), communicating sequential processes (Open MPI, Go), and actors (Erlang). Paradigms of parallel computing include fork-join parallelism (Cilk, OpenMP), collection parallelism (MapReduce, Spark), and index-space parallelism (OpenGL, CUDA).  Like all paradigms, these labels are useful but leaky, such as how a complex parallel program often involves shared-memory concurrency. Ultimately, a paradigm is about focusing a set of related mechanisms (\code|spawn|, mutexes) on a set of related problems (sorting a list, running a database).
 
@@ -35,7 +35,7 @@ Asynchrony also has paradigms. Callback asynchrony uses higher-order functions t
 
 We therefore define the paradigm embodied by async/await as \emph{straight-line asynchrony}, given its fundamental organizing principle of eliminating complex control flow. An alternative name would be \emph{task asynchrony}, used within the \CSharp community. As we will discuss, tasks are indeed a central concept to async/await, but when looking cross-linguistically, tasks are not the only element of straight-line asynchrony. For instance, languages like Rust provide coroutines so straight-line asynchrony can be achieved without ever creating a task. Some designs like Python+Trio do not expose any concept of a task to the user.
 
-The goal of this paper is to explore the design space of straight-line asynchrony. We primarily focus on programming languages that (a) have a relatively settled design for straight-line asynchrony, and (b) are in relatively widespread use. That includes languages with a singular form of asynchrony: \Js (specifically ECMAScript XX, with Typescript types for clarity), \CSharp (vXX), and Swift (vXX). It also includes languages with a modular form of asynchrony: Python (v3.14, using Asyncio vXX and Trio vXX) and Rust (v1.92.0, with Tokio vXX and \smol vXX). We discuss how our findings relate to other languages in \Cref{sec:discussion}.
+The goal of this paper is to explore the design space of straight-line asynchrony. We primarily focus on programming languages that (a) have a relatively settled design for straight-line asynchrony, and (b) are in relatively widespread use. That includes languages with a singular form of asynchrony: \Js (specifically ECMAScript 2025, with Typescript types for clarity), \CSharp (v14) on .NET 10, and Swift (v6.2). It also includes languages with a modular form of asynchrony: Python (v3.14, using Asyncio and Trio v0.33) and Rust (v1.92.0, with Tokio v1.50.0 and \smol v2.0.2). We discuss how our findings relate to other languages in \Cref{sec:discussion}.
 
 We describe our findings informally in \Cref{sec:designdims} and formally in \Cref{sec:semantics}. We do not expect our readers to be familiar with the concrete syntax of all relevant languages, so we articulate the design dimensions at a high level, and present code examples primarily using the same pseudocode style in \Cref{fig:motivating-example}. However, it is useful to first get a sense for both the gestalt and the variety of syntaxes, mechanisms, and semantics in straight-line asynchrony. We therefore conclude this section by implementing an async utility in multiple languages.
 
@@ -47,7 +47,7 @@ function timeout<T>(
   f: () => Promise<T>
 ): Promise<T | null> {
   return Promise.race([
-    f(), sleep(duration), 
+    f(), sleep(duration),
   ]);
 }
 \end{lstlisting}
@@ -68,7 +68,7 @@ async def timeout(
 \end{lstlisting}
   \cprotect\caption{Python+Trio.}
 \end{subfigure}
-  \hfill  
+  \hfill%
   \begin{subfigure}{0.38\linewidth}
   \begin{lstlisting}[language=Rust]
 async fn timeout<T, Fut>(
