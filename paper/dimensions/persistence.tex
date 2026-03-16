@@ -1,3 +1,28 @@
-\subsubsection{Persistence}
+\subsubsection{\Persistence}
+\label{ssec:designdims:persistence}
 
-[todo: cancellation persistence]
+One final element of cancellation is its \Persistence: when a task is cancelled, is it always cancelled, or just cancelled at the point of cancellation? Using the parlance of embedded computing, the Trio maintainer calls these approaches are ``level-triggered'' and ``edge-triggered'', respectively\,\missingcite. We will describe them as \emph{\instantaneous} cancellation and \emph{\persistent} cancellation.
+
+Rust and Python+Asyncio use \instantaneous cancellation. In Rust's case, because cancellation is \noncoop, cancellation is unrecoverable. For Asyncio, cancellation is recoverable, so if an async computation ignores a cancellation request, then it can  continue spawning and awaiting tasks unimpeded.
+
+Swift and Python+Trio use \persistent cancellation. Swift and Trio both implement a cancellation flag shared amongst a task graph, and that flag is permanently active once set. Swift's flag is part of its public API, while Trio's flag is an implementation detail. Consequently, if an async computation ignores its cancellation, then subsequent awaits may again raise a cancellation execption. For Swift, this could be any async function (due to its simultaneous cancellation), and for Trio this could be any Trio primitive (due to its bottom-up cancellation).
+
+\paragraph{Design rationale.}
+
+For \noncoop cancellation, \persistence is a moot point, so the main question is which design best fits \coop cancellation. This perhaps comes down to a philosophy on why tasks would choose to ignore their cancellation, and what risks are incurred as a result.
+
+\begin{wrapfigure}{r}{0.5\linewidth}
+  \begin{lstlisting}[language=Python]
+with trio.move_on_after(TIMEOUT):
+  conn = make_connection()
+  try:
+    await conn.send_hello_msg()
+  finally:
+    await conn.send_goodbye_msg()
+\end{lstlisting}
+\end{wrapfigure}
+
+Todo: explain the Trio example.
+
+% For example, one argument is that the main reason to defer cancellation is \emph{only} to enable cleanup code, e.g. to restore broken invariants as in 
+
