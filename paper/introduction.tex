@@ -1,6 +1,6 @@
 \section{Introduction}
 
-Software developers have long struggled to write concurrent and parallel programs that are both correct and efficient. Programming languages have responded to this challenge by gradually lifting elements of concurrency from user-space to the level of language design. Approaches vary greatly, but the core idea shared between most modern languages is \emph{async/await}: marking blocks of code as \verb|async|, and using an \verb|await| keyword to wait for an async block to finish executing. The async/await keywords can be found in recent versions of Python, JavaScript, Swift, Rust, \CSharp{}, and more.
+Software developers have long struggled to write concurrent and parallel programs that are both correct and efficient. Programming languages have responded to this challenge by gradually lifting elements of concurrency from user-space to the level of language design. Approaches vary greatly, but the core idea shared between most modern languages is \emph{async/await}: marking blocks of code as \code|async|, and using an \code|await| keyword to wait for an async block to finish executing. The async/await keywords can be found in recent versions of Python, JavaScript, Swift, Rust, \CSharp, and more.
 
 Our original motivation for studying async/await was to help developers translate their understanding of the concept from one language to another, e.g., from JavaScript to Python. In theory, both languages contain the same core concept with small differences in the details. We should be able to explain async/await just as one might explain lexically-scoped variables, if-statements, or other standardized language features~\cite{lu_identifying_2024}. In reality, the surface similarities between async/await designs can mask deep semantic divergences. For instance: what's the difference between a coroutine, a future, a promise, and a task? What happens when you cancel a task? When are tasks required to exit, if ever? How do errors propagate across a task boundary, if it all? These questions are further complicated by languages with customizable async/await runtimes (e.g., Rust and Python), which give different answers based on the choice of runtime.
 
@@ -41,7 +41,7 @@ async fn ex3():
   await sleep(1)
   task.cancel()
 \end{lstlisting}
-  \cprotect\caption{Three examples of invocations of the processing functions. The latter two use \verb|cancel| to try and prevent the task from completing.}
+  \cprotect\caption{Three examples of invocations of the processing functions. The latter two use \code|cancel| to try and prevent the task from completing.}
   \label{fig:motivating-example-invoke}
   \end{subfigure}
   \hfill
@@ -49,7 +49,7 @@ async fn ex3():
     \vspace{0pt} 
     \begin{tabular}{lcccc}
     \toprule
-                 & \verb|ex1| & \verb|ex2|          & \verb|ex3| \\
+                 & \code|ex1| & \code|ex2|          & \code|ex3| \\
     \midrule
     Rust \\
     ~~ Tokio     & AB         & AB                  & AB \\

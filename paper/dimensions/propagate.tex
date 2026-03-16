@@ -18,7 +18,7 @@ async def main():
 \end{lstlisting}
 \end{wrapfigure}
 
-Python+Trio is the only system which offers a different semantics, in part because tasks cannot be awaited, so the library must offer another mechanism for observing asynchronous exceptions. In the example on the right (shown in Python, not pseudocode), the code will print ``A'' but not ``B'' because the nursery will re-raise the exception originating in the \verb|fail| function. We describe this as a \emph{\destruction} approach to \propagation. A similar program in any other system will print ``A'' then ``B'', possibly with a stack trace printed inbetween.
+Python+Trio is the only system which offers a different semantics, in part because tasks cannot be awaited, so the library must offer another mechanism for observing asynchronous exceptions. In the example on the right (shown in Python, not pseudocode), the code will print ``A'' but not ``B'' because the nursery will re-raise the exception originating in the \code|fail| function. We describe this as a \emph{\destruction} approach to \propagation. A similar program in any other system will print ``A'' then ``B'', possibly with a stack trace printed inbetween.
 
 \paragraph{Design rationale.} [what to write here?]
 
