@@ -80,7 +80,7 @@ Rust lacks a garbage collector, so weak reference strength does not translate li
 
 % Weak runtime references are used by Smol (Rust) to prevent dangling \tasks from consuming resources without the devlopers knowledge. A \task is automatically cancelled and deallocated when no further references to it exist; a deterministic effect thanks to Rusts ownership type system. This behavior parallels the behavior of memory allocation in Rust. 
 
-Asyncio also holds weak references to \tasks. Unlike Smol's intentional design, Asyncio's weak reference approach is presently marked as a bug on the CPython repository. Interestingly, it is not currently known why Asyncio holds weak references. According to Guido van Rossum, speaking on the relevant Github issue thread\,\cite{hartl_asyncio_2022}:
+Asyncio also holds weak references to \tasks. Unlike Smol's intentional design, Asyncio's weak reference approach is presently marked as a bug on the CPython repository. Interestingly, it is not currently known why Asyncio holds weak references. According to Guido van Rossum, speaking on the relevant Github issue thread~\cite{hartl_asyncio_2022}:
 
 % Maintainers are hesitant to change the reference strength semantics without understanding why they were designed with weak references to begin with. A core Python maintainer commented on the issue with the following:
 
