@@ -8,7 +8,7 @@ $$
                        & \mid & \text{reset } e \mid \text{shift } x \to e \\
                        & \mid & \text{ref } e \mid !e \mid e := e \\
 \\
-\mathsf{Value}\ v      & ::=  & c \mid () \mid \text{ptr}(\ell) \\
+\mathsf{Value}\ v      & ::=  & c \mid () \mid \text{ptr}(x) \\
        & \mid & \mathbf{fn}\ \many{x} \to e \mid \text{fix } v \\
 % \\
 % \mathsf{Ctx}\ E      & ::=  & [\cdot] \mid \many{v}\ E\ \many{e} \mid \text{fix } E \\
@@ -21,6 +21,6 @@ $$
 % \\
 % \mathsf{Meta Ctx}\ M      & ::=  & \dots \text{ (} E \text{ without } \text{reset } M \text{)}
 \\
-\mathsf{Heap}\ \sigma & ::=  & \cdot \mid \sigma, \ell \mapsto v
+\mathsf{Heap}\ \sigma & ::=  & \cdot \mid \sigma, x \mapsto v
 \end{array}
 $$

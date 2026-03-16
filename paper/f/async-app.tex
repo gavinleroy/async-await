@@ -1,6 +1,6 @@
 \noindent
 \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
-$\langle t_0, \sigma_0, Q, T, P \uplus \{ \langle \ell, E[(\mathbf{async\ fn}\ \many{x} \to e_{\mathit{body}})\ \many{v}] \rangle \circ FS \} \rangle$ & [\CSharp-Async-App] \\
+$\langle t_0, \sigma_0, Q, T, P \uplus \{ \langle \ell, E[(\mathbf{async\ fn}\ \many{x} \to e_{\mathit{body}})\ \many{v}] \rangle \circ FS \} \rangle$ & [\CSharp/\Js-Async-App] \\
 $\longrightarrow \langle \mathrm{step}(t_0), \sigma_2, Q, T, P \uplus \{ \ceag{F_{\mathit{new}}} \circ \langle \ell, E[x_{\mathit{task}}] \rangle \circ FS \} \rangle$ & \\
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
@@ -41,7 +41,7 @@ $\longrightarrow \langle \mathrm{step}(t_0), \sigma_2, Q_1, T, P \uplus \{ \lang
 \vspace{1em}
 \noindent
 \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
-$\langle \sigma_0, E[(\mathbf{async\ fn}\ \many{x} \to e_{\mathit{body}})\ \many{v}] \rangle \longrightarrow \langle \sigma_1, E[\ceag{\mathrm{reset}\ (\mathrm{shift}\ k \to k \mathbin{;} e_{\mathit{subst}})}] \rangle$ & [Python-Async-App] \\
+$\langle \sigma_0, E[(\mathbf{async\ fn}\ \many{x} \to e_{\mathit{body}})\ \many{v}] \rangle \longrightarrow \langle \sigma_1, E[\ceag{\mathrm{reset}\ (\mathrm{shift}\ k \to k \mathbin{;} e_{\mathit{subst}})}] \rangle$ & [Rust/Python-Async-App] \\
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
   \textbf{where}\\ 
