@@ -1,11 +1,11 @@
 \section{Core Concepts in Asynchrony}\label{sec:motivation}
 
-Async/await are just keywords --- what is the underlying concept being expressed across these languages? The obvious answer is \emph{asynchronous programming}, or more simply, \emph{asynchrony}.
+Async/await are just keywords --- what is the underlying concept being expressed across these languages? The obvious answer is \emph{asynchronous programming} or, more simply, \emph{asynchrony}.
 Like the words concurrency and parallelism, asynchrony does not have a definitive meaning. Rather, its meaning is socially constructed out of the types of programs people want to write. Fifteen years ago, asynchronous programming was ``characterized by many simultaneously pending reactions to internal or external events''\,\cite{spl:fsharp-async}. Today, we might add to that list: running I/O-bound computations in parallel, or having fine-grained control over the execution of computations. The scope of asynchronous programming has expanded.
 
 Moreover, async/await is only one form of asynchrony. The job of async/await is to avoid the inversion of control associated with callbacks and event loops. The goal, as the \CSharp documentation says, is ``to enable code that reads like a sequence of statements, but executes in a more complicated order''\,\cite{billwagner_asynchronous_2025}. Async/await is about leaning on the language to simplify control-flow patterns, as opposed to implementing asynchrony abstractions entirely in userspace.
 
-We will start by concretizing these points to provide some context on how asynchrony generally, and async/await specifically, fit into the broader picture of language design and implementation.
+We concretize these points to provide some context on how asynchrony generally, and async/await specifically, fit into the broader picture of language design and implementation.
 
 \subsection{Asynchrony vs.\ Concurrency vs.\ Parallelism}
 
@@ -33,7 +33,7 @@ Asynchrony also has paradigms. Callback asynchrony uses higher-order functions t
 \subsection{Straight-line Asynchrony}
 \label{sec:straightline-async}
 
-We therefore define the paradigm encompassing async/await as \emph{straight-line asynchrony}, given its fundamental organizing principle of eliminating complex control flow. An alternative name would be \emph{task asynchrony}, used within the \CSharp community. As we will discuss, tasks are indeed a central concept to async/await, but when looking cross-linguistically, tasks are not the only element of straight-line asynchrony. For instance, languages like Rust provide coroutines so straight-line asynchrony can be achieved without ever creating a task.
+We therefore define the paradigm embodied by async/await as \emph{straight-line asynchrony}, given its fundamental organizing principle of eliminating complex control flow. An alternative name would be \emph{task asynchrony}, used within the \CSharp community. As we will discuss, tasks are indeed a central concept to async/await, but when looking cross-linguistically, tasks are not the only element of straight-line asynchrony. For instance, languages like Rust provide coroutines so straight-line asynchrony can be achieved without ever creating a task.
 
 The goal of this paper is to explore the design space of straight-line asynchrony. We primarily focus on programming languages that (a) have a relatively settled design for straight-line asynchrony, and (b) are in relatively widespread use. That includes languages with a singular form of asynchrony: \Js (specifically ECMAScript XX, with Typescript types for clarity), \CSharp (vXX), and Swift (vXX). It also includes languages with a modular form of asynchrony: Python (v3.14, using Asyncio vXX and Trio vXX) and Rust (v1.92.0, with Tokio vXX and \smol vXX). We discuss how our findings relate to other languages in \Cref{sec:discussion}.
 
