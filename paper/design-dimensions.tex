@@ -23,7 +23,7 @@ An asynchronous computation is generally defined through a function explicitly m
 
 \subsection{\EndOfLife}
 
-Much of the divergence between designs for straight-line asynchrony is about when and how tasks end. Recent designs often introduce some kind of ``structured'' asynchrony to ensure that tasks are accounted for at all times, and do not end up dangling or erroring unbeknownst the rest of the program.
+Much of the divergence between designs for straight-line asynchrony is about when and how tasks end. Recent designs often introduce some kind of ``structured'' asynchrony to ensure that tasks are accounted for at all times, and do not end up dangling or erroring unbeknownst the rest of the program. This subsection covers the design dimensions of \Extent (how long a task lives, \Cref{ssec:designdims:extent}), Reference Strength (the type of reference to tasks held by the runtime, \Cref{ssec:designdims:references}), \Destruction (what happens to destructed tasks, \Cref{ssec:designdims:destruction}), and \Propagation (what happens to unawaited exceptions, \Cref{ssec:designdims:propagation}).
 
 \input{./dimensions/extent.tex}
 
@@ -33,40 +33,52 @@ Much of the divergence between designs for straight-line asynchrony is about whe
 
 \input{./dimensions/propagate.tex}
 
-\input{./dimensions/cancel.tex}
+\subsection{Cancellation}\label{ssec:designdims:cancellation}
 
-\subsection{Summary of Language Semantics}
+As demonstrated by the case study on \verb|timeout| (\Cref{sec:timeout}), cancellation is both a key component and a complicating factor in straight-line asynchrony. A naive cancellation approach would abruptly kill a running task, but no language adopts this approach due to the risks. What if the task were killed while holding a mutex, or writing to a file, or otherwise in a critical region with respect to a system's invariants?
 
-\begin{table}
-  \begin{tabular}{lllllll}
-    \toprule
-    System           & \Eagerness   & \Extent       & \References   & \Destruction  & \Propagation  & \Suspension  \\
-    \midrule
-    \CSharp          & \eager       & \indef        & \strong       & \terminated   & \never        & \dynamic     \\
-    JavaScript       & \eager       & \indef        & \strong       & \awaited      & \destruct     & \static      \\
-    Swift            & \seager      & \dyn          & -             & \cancelled    & \never        & \dynamic     \\
-    \midrule
-    Tokio (Rust)     & \lazy        & \indef        & \strong       & \cancelled    & -             & \dynamic     \\
-    Smol (Rust)      & \lazy        & \indef        & \weak         & \cancelled    & -             & \dynamic     \\
-    \midrule
-    Asyncio (Python) & \lazy        & \indef        & \weak         & \cancelled    & \destruct     & \dynamic     \\
-    Trio (Python)    & \lazy        & \dyn          & -             & \awaited      & \destruct     & \dynamic     \\
-    \bottomrule
-  \end{tabular}
-  \caption{Overview of semantic decisions make by language/system designers.}
-  \label{tab:semantics-overview}
-\end{table}
+A straightforward approach to cancellation in user-space is to use a \emph{cancellation token}, as demonstrated in \Cref{fig:timeout-tokio}. The developer is responsible for threading the token through all the relevant async code, and they are also responsible for reacting to the token in any async code which should be cancellable. Cancellation token \abbr{api}s can be found in \Js, \CSharp, and Rust. However, the amount of developer effort required for this approach is prohibitive. Modern takes on straight-line asynchrony have therefore sought to develop alternative cancellation approaches to lower the developer burden.
 
-\begin{table}
-  \begin{tabular}{lll}
-    \toprule
-    Language         & Cooperation      & Direction    \\
-    \midrule
-    Rust             & non-cooperative  & top-down     \\
-    Swift            & cooperative      & simultaneous \\
-    Python           & cooperative      & bottom-up    \\
-    \bottomrule
-  \end{tabular}
-  \caption{Overview of cancellation decisions make by language/system designers}
-  \label{tab:cancellation-overview}
-\end{table}
+This subsection describes the two principal design dimensions of non-token-based, or \emph{integrated}, cancellation approaches, \Cooperation (whether a task can react to cancellation, \Cref{ssec:designdims:cooperation}) and \Direction (how cancellation propagates through related tasks, \Cref{ssec:designdims:direction}). This subsection focuses on languages with integrated cancellation designs, namely Rust, Swift, and Python.
+
+\input{./dimensions/cooperation.tex}
+
+\input{./dimensions/direction.tex}
+
+\input{./dimensions/persistence.tex}
+
+% \subsection{Summary of Language Semantics}
+
+% \begin{table}
+%   \begin{tabular}{lllllll}
+%     \toprule
+%     System           & \Eagerness   & \Extent       & \References   & \Destruction  & \Propagation  & \Suspension  \\
+%     \midrule
+%     \CSharp          & \eager       & \indef        & \strong       & \terminated   & \never        & \dynamic     \\
+%     JavaScript       & \eager       & \indef        & \strong       & \awaited      & \destruct     & \static      \\
+%     Swift            & \seager      & \dyn          & -             & \cancelled    & \never        & \dynamic     \\
+%     \midrule
+%     Tokio (Rust)     & \lazy        & \indef        & \strong       & \cancelled    & -             & \dynamic     \\
+%     Smol (Rust)      & \lazy        & \indef        & \weak         & \cancelled    & -             & \dynamic     \\
+%     \midrule
+%     Asyncio (Python) & \lazy        & \indef        & \weak         & \cancelled    & \destruct     & \dynamic     \\
+%     Trio (Python)    & \lazy        & \dyn          & -             & \awaited      & \destruct     & \dynamic     \\
+%     \bottomrule
+%   \end{tabular}
+%   \caption{Overview of semantic decisions make by language/system designers.}
+%   \label{tab:semantics-overview}
+% \end{table}
+
+% \begin{table}
+%   \begin{tabular}{lll}
+%     \toprule
+%     Language         & Cooperation      & Direction    \\
+%     \midrule
+%     Rust             & non-cooperative  & top-down     \\
+%     Swift            & cooperative      & simultaneous \\
+%     Python           & cooperative      & bottom-up    \\
+%     \bottomrule
+%   \end{tabular}
+%   \caption{Overview of cancellation decisions make by language/system designers}
+%   \label{tab:cancellation-overview}
+% \end{table}

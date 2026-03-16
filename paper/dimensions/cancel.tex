@@ -1,10 +1,12 @@
-\subsection{Cancellation}\label{ssec:designdims:cancellation}
 
-The Cancellation axis defines how a running task is cancelled, including how cancellation is signaled, if at all, and how a cancellation signal propagates through \task dependencies. A clear cancellation mechanism is an important feauture of the asynchronous programming paradigm. Cancellation is a sufficiently complex mechanism that it itself contains two design dimensions: \textit{cooperation,} and \textit{direction.}
+% The Cancellation axis defines how a running task is cancelled, including how cancellation is signaled, if at all, and how a cancellation signal propagates through \task dependencies. A clear cancellation mechanism is an important feauture of the asynchronous programming paradigm. Cancellation is a sufficiently complex mechanism that it itself contains two design dimensions: \textit{cooperation,} and \textit{direction.}
 
-When a cancelled \coro or \task depends on another (\coro or \task) all dependencies are also cancelled. In this paper, we define a dependency to exist between computations $A$ and $B$ \textit{iff} (1) $A$ executed the expression \code{await B}, or (2) the system enforces dynamic extent (see \Cref{ssec:designdims:extent}) and $A$ executed \code{spawn B}.
+% When a cancelled \coro or \task depends on another (\coro or \task) all dependencies are also cancelled. In this paper, we define a dependency to exist between computations $A$ and $B$ \textit{iff} (1) $A$ executed the expression \code{await B}, or (2) the system enforces dynamic extent (see \Cref{ssec:designdims:extent}) and $A$ executed \code{spawn B}.
 
-\subsubsection{Cooperation} The Cancellation Cooperation axis defines if a \coro receives a cancellation signal (awareness) and if it can react to that signal. We define cancellation as a property of a \coro because the \coro is the reification of the program code. Therefore, cooperative cancellation allows the developer to write code in an asynchronous function that reacts to a cancellation signal.
+\subsubsection{\Cooperation}
+\label{ssec:designdims:cooperation}
+
+The Cancellation Cooperation axis defines if a \coro receives a cancellation signal (awareness) and if it can react to that signal. We define cancellation as a property of a \coro because the \coro is the reification of the program code. Therefore, cooperative cancellation allows the developer to write code in an asynchronous function that reacts to a cancellation signal.
 
 
 \begin{lrbox}{\aastateA}
@@ -333,7 +335,10 @@ This cancellation policy provided by Python implies that a \coro becomes aware o
 
 Given the ability to perform cleanup, it may seem like an obvious win to choose a cooperative cancellation mechanism. However, there are benefits and drawbacks to both styles. We showed previously that non-cooperative cancellation can lead to broken program invariants because a \coro value cannot clean up used resources or restore broken invariants. Nevertheless, non-cooperative cancellation guarantees that a cancelled \coro performs no further asynchronous work, and therefore, terminates.\footnote{Assuming that destructing the \coro value terminates. Destruction cannot perform asynchronous work.}
 
-\subsubsection{Propagation direction} The Propagation Direction axis defines how a cancellation signal propagates through the graph of dependent \tasks. The possible values are \textit{top-down,} \textit{bottom-up,} and \textit{simultaneous.} For languages with cooperative cancellation, if the propagation direction is not simultaneous then it is possible to supress cancellation for dependents or dependees, depending on the chosen direction.
+\subsubsection{Propagation direction}
+\label{ssec:designdims:direction}
+
+The Propagation Direction axis defines how a cancellation signal propagates through the graph of dependent \tasks. The possible values are \textit{top-down,} \textit{bottom-up,} and \textit{simultaneous.} For languages with cooperative cancellation, if the propagation direction is not simultaneous then it is possible to supress cancellation for dependents or dependees, depending on the chosen direction.
 
 Rust employs top-down cancellation propagation. Consider again the Tokio (Rust) code in \Cref{fig:cooperation:rust}. When the \coro value --- in the unexecuted state \circled{C} --- is deallocated, the standard destructor procedure is run. Destructors run recursively, that is, they run top-down in the dependency graph. Rust developers cannot customize the destructor behavior for compiler-generated \coros, however, the logic bug highlighted in \Cref{fig:cooperation:rust:swimlane} could be avoided by creating a custom struct that mimicks the \coro interface.
 

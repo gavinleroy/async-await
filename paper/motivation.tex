@@ -89,6 +89,7 @@ where Fut: Future<Output = T> {
 \end{figure}
 
 \subsection{A Case Study on Timing Out}
+\label{sec:timeout}
 
 Consider implementing a \verb|timeout| function, which takes as input an asynchronous function and a duration. The minimal semantics is that \verb|timeout| returns either the result of the asynchronous work, or if the work takes longer than the duration, an indication of timing out. The \verb|timeout| function is a paradigmatic example of asynchronous programming, as its implementation is often non-trivial when only using primitives from other concurrency or parallelism paradigms.
 
@@ -126,6 +127,7 @@ where
 }
 \end{lstlisting}
 \caption{Rust+Tokio.}
+\label{fig:timeout-tokio}
 \end{subfigure}%
 \hfill
 \begin{subfigure}{0.46\linewidth}

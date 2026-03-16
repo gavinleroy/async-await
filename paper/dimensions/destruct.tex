@@ -1,8 +1,8 @@
-\subsubsection{\Destruction}\label{ssec:designdims:destruction} 
+\subsubsection{\Destruction}\label{ssec:designdims:destruction}
 
 \begin{figure}[t]
   \includegraphics[width=\linewidth]{f/destruction.pdf}
-  \caption{\Destruction [CAPTION TODO]}
+  \caption{An example program demonstrating the \Destruction dimension. Each task diagram shows the sequence of execution of instructions, branching at the point of divergence between each \Destruction approach. Administrative instructions which are executed but don't appear in the source code are displayed in square brackets. }
   \label{fig:destruction}
 \end{figure}
 
@@ -11,8 +11,15 @@ Once a language has decided that it is time to destruct a task, we encounter yet
 
 The \destruction dimension is orthogonal to \extent. \Js is a language with \indef \extent and awaiting destruction --- \Cref{fig:extent} previously showed an example relying on this pair of design decisions. Python+Trio is a language/system with \dyn \extent and awaiting destruction, as tasks are tied to a ``nursery,'' and the nursery waits until all its child tasks are completed before exiting. The awaiting column in \Cref{fig:destruction} demonstrates Trio semantics, where the program would print ``ABC'' by waiting for the \lstinline[language=Pseudo]|work()| task to before exiting \lstinline[language=Pseudo]|main()|.
 
-Most other designs opt to cancel tasks at the end of extent, such as Swift, Rust+Tokio, Rust+Smol, and Python+Asyncio. [TODO: ARE SMOL AND SWIFT ACTUALLY COMPARABLE?]
+Most other designs opt to cancel and then await\footnotemark{} tasks at the end of extent, such as Swift, Rust+Tokio, Rust+Smol, and Python+Asyncio. \Cref{fig:destruction} running under Swift would output nothing because \verb|work()| is cancelled before it can reach a print statement. By contrast, \CSharp will \emph{terminate} tasks at the end of their \indef \extent, meaning the runtime simply exits while the destructed tasks are running. In \Cref{fig:destruction}, under \CSharp, the program would print ``A'' because the tasks continues until it is terminated after 15 seconds.
 
+% . By contrast, Smol would output ``AB'' because it would cancel \verb|work()|, finish \verb|main()|, wait 5 seconds, then exit before the \verb|sleepSync(10)| can complete.
+
+\cprotect\footnotetext{The one exception here is Smol, which does not await cancelled tasks under its \dyn \extent by default. The reason is that Smol implements task destruction using Rust's \verb|Drop| trait, which only permits synchronous code, so Rust async implementations cannot await the completion of a task on drop. Smol offers an async \verb|Task::cancel| method which implements the cancel+await semantics, but this method is not called automatically. Tokio, by contrast, does implement cancel+await because it uses \indef \extent, and it is easier to have a runtime await outstanding tasks at the end of the main function. Libraries like Trio can implement await-on-destruction using Python's \verb|async with| construct for scoped async entry/exit methods.}
+
+\paragraph{Design rationale.} For languages with \dyn \extent, the standard approach is to use cancelled destruction. The idea is that responsible async code should await on a task in the same scope in which it was spawned. If a task is still executing after its parent scope exits, then this it is probably unintented to let that task continue, and it could create surprising behavior to wait until that task is completed. However, this approach makes less sense in Trio, whose nurseries do not expose any concept of a task handle, so it is not trivial to directly await the result of a spawned task.
+
+For languages with \indef \extent, any approach can make sense depending on the needs of the application, and it is straightforward to configure a single global runtime to adopt the desired behavior. For example, Tokio can be configured to terminate rather than await.
 
 % The \Task Destruction axis defines what happens to a task when the \task object is destroyed by the system. The possible values are: \textit{awaited,} \textit{cancelled,} or \textit{terminated.}
 
