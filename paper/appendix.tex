@@ -328,3 +328,48 @@ async Task Main() {
   \caption{Examples of await, cancel, and termination destruction semantics.}
   % \label{fig:designdims:destruction}
 \end{figure}
+
+\subsection{Semantics}\label{app:semantics}
+
+\subsection{Zig async/await}\label{appx:zig}
+
+\begin{figure}[H]
+\begin{lstlisting}[language=Zig]
+const std = @import("std");
+const Io = std.Io;
+const Allocator = std.mem.Allocator;
+const assert = std.debug.assert;
+
+fn producer(
+    io: Io,
+    queue: *Io.Queue([]const u8),
+    flavor_text: []const u8,
+) !void {
+    try queue.putOne(io, flavor_text);
+}
+
+fn consumer(
+    io: Io,
+    queue: *Io.Queue([]const u8),
+) ![]const u8 {
+    return queue.getOne(io);
+}
+
+fn run_client_server(io: Io) !void {
+    var queue: Io.Queue([]const u8) = .init(&.{});
+
+    var producer_task = try io.concurrent(producer, .{
+        io, &queue, "hello",
+    });
+    defer producer_task.cancel(io) catch {};
+
+    var consumer_task = try io.concurrent(consumer, .{ io, &queue });
+    defer _ = consumer_task.cancel(io) catch {};
+
+    const result = try consumer_task.await(io);
+    std.debug.print("msg received {s}\n", .{result});
+}
+\end{lstlisting}
+  \cprotect\caption{An example of Zig's unstabalized async/await features. Zig code is now parameterized over an implementation of the \code{Io} interface. Clients can instantiate the interface with a threaded, asynchronous, concurrent, or synchronous implementation.}
+  \label{fig:zig}
+\end{figure}

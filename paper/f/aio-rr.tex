@@ -1,0 +1,86 @@
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+$\langle t_0, \sigma_0, Q_0, T, P \uplus \{ \langle \ell, E[\mathrm{spawn}\ v_{\mathit{coro}}] \rangle \circ FS \} \rangle$ & [Spawn] \\
+$\longrightarrow \langle \mathrm{step}(t_0), \sigma_2, Q_1, T, P \uplus \{ \langle \ell, E[x_{\mathit{task}}] \rangle \circ FS \} \rangle$ & \\
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \textbf{where}\ (\sigma_1, x_{\mathit{task}}, v_{\mathit{task}}) = \mathrm{task\_alloc}(\sigma_0) \\
+  \qquad \sigma_2 = \sigma_1[x_{\mathit{task}} \mapsto v_{\mathit{task}}] \\
+  \qquad \kappa = \mathbf{fn}\ x_{\mathit{unit}} \to x_{\mathit{unit}} \mathbin{;} \mathrm{reset}\ ( \\
+  \qquad \qquad \mathrm{try}\ \mathrm{task\_set\_done}(x_{\mathit{task}}, \mathbf{await}\ v_{\mathit{coro}})\ \mathrm{catch}\ v_{\mathit{err}} \to \mathrm{task\_set\_failed}(x_{\mathit{task}}, v_{\mathit{err}}) \mathbin{;} \\
+  \qquad \qquad \cext{\mathrm{os\_start\_soon}(\mathrm{task\_get\_dependents}(x_{\mathit{task}}))} \\
+  \qquad ) \\
+  \qquad Q_1 = Q_0 \qpush (x_{\mathit{task}}, \kappa)
+  \end{array}$
+}
+\end{tabular*}
+
+% \vspace{1.5em}
+% \noindent
+% \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+% $\langle t_0, \sigma, Q, T, P \uplus \{ \langle \ell, E[\mathbf{await}\ v_{\mathit{aw}}] \rangle \circ FS \} \rangle$ & [Await-Task] \\
+% $\longrightarrow \langle \mathrm{step}(t_0), \sigma, Q, T, P \uplus \{ \langle \ell, E[e_{\mathit{check}}] \rangle \circ FS \} \rangle$ & \\
+% \multicolumn{2}{@{}l@{}}{
+%   $\begin{array}{l}
+%   \textbf{where}\ \mathrm{task\_is\_task}(v_{\mathit{aw}}) \\
+%   \qquad e_k = \mathrm{shift}\ k \to \mathrm{task\_add\_self\_as\_dependent}(v_{\mathit{aw}}, \ell, \mathrm{task\_continue\_with}(v_{\mathit{aw}}, k)) \\
+%   \qquad e_{\mathit{check}} = \csus{\mathrm{if}\ \mathrm{task\_is\_completed}(v_{\mathit{aw}})\ \mathrm{then}\ \mathrm{task\_get\_result}(v_{\mathit{aw}})\ \mathrm{else}\ e_k}
+%   % \mathrm{task\_set\_awaited}(v_{\mathit{aw}}) \mathbin{;} \\
+%   \end{array}$
+% }
+% \end{tabular*}
+
+\vspace{1.5em}
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+$\langle t_0, \sigma, (\ell_{\mathit{waiting}}, \kappa) \circ Q_1, T, P \uplus \{ \epsilon \} \rangle$ & [Schedule] \\
+$\longrightarrow \langle \mathrm{step}(t_0), \sigma, Q_1, T, P \uplus \{ \langle \ell_{\mathit{waiting}}, \kappa\ () \rangle \circ \epsilon \} \rangle$ & \\
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \textbf{where}\ \neg \mathrm{task\_cancelled}(\sigma, \ell_{\mathit{waiting}})
+  \end{array}$
+}
+\end{tabular*}
+
+\vspace{1.5em}
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+$\langle t_0, \sigma, (\ell_{\mathit{waiting}}, \kappa) \circ Q_1, T, P \uplus \{ \epsilon \} \rangle$ & [Schedule-Cancelled] \\
+$\longrightarrow \langle \mathrm{step}(t_0), \sigma, Q_1, T, P \uplus \{ \langle \ell_{\mathit{waiting}}, \ccan{\mathrm{throw\_in}(\kappa, \text{``cancelled''})} \rangle \circ \epsilon \} \rangle$ & \\
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \textbf{where}\ \mathrm{task\_cancelled}(\sigma, \ell_{\mathit{waiting}})
+  \end{array}$
+}
+\end{tabular*}
+
+\vspace{1.5em}
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+$\langle t_0, \sigma \uplus \{ x \mapsto v \}, Q_{\mathit{before}} \circ (x, \kappa) \circ Q_{\mathit{after}}, T, P \rangle$ & [Sys-GC] \\
+$\longrightarrow \langle \mathrm{step}(t_0), \sigma, Q_{\mathit{before}} \circ Q_{\mathit{after}}, T, P \rangle$ & \\
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \textbf{where}\ x \notin \crfe{\mathit{fv}(\sigma, T, P)}
+  \end{array}$
+}
+\end{tabular*}
+
+% \vspace{1.5em}
+% \noindent
+% \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+% $\langle t_0, \sigma, Q, T, P \uplus \{ \langle \ell, E[\mathrm{cancel}\ v_{\mathit{task}}] \rangle \circ FS \} \rangle$ & [Cancel] \\
+% $\longrightarrow \langle t_0, \sigma, Q, T, P \uplus \{ \langle \ell, E[\mathrm{task\_set\_cancelled}(v_{\mathit{task}})] \rangle \circ FS \} \rangle$ & 
+% \end{tabular*}
+
+% \vspace{1.5em}
+% \noindent
+% \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+% $\langle t_0, \sigma, Q, T, P \uplus \{ \langle \mathrm{root}, E[\mathrm{os\_block}\ v_{\mathit{coro}}] \rangle \circ FS \} \rangle$ & [OS-Block-Coro] \\
+% $\longrightarrow \langle \mathrm{step}(t_0), \sigma, Q, T, P \uplus \{ \langle \mathrm{root}, E[\mathrm{os\_block}\ (\mathrm{spawn}\ v_{\mathit{coro}})] \rangle \circ FS \} \rangle$ & \\
+% \multicolumn{2}{@{}l@{}}{
+%   $\begin{array}{l}
+%   \textbf{where}\ v_{\mathit{coro}} = \mathrm{fun}\ x \to e
+%   \end{array}$
+% }
+% \end{tabular*}

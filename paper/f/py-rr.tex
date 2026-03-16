@@ -1,0 +1,18 @@
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+$\langle \sigma_0, E[(\mathbf{async\ fn}\ \many{x} \to e_{\mathit{body}})\ \many{v}] \rangle \longrightarrow \langle \sigma_1, E[\ceag{\mathrm{reset}\ (\mathrm{shift}\ k \to k \mathbin{;} e_{\mathit{subst}})}] \rangle$ & [Async-App] \\
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \textbf{where}\\ 
+  \qquad \many{x}_{\mathit{fresh}} = \many{\mathrm{gensym}()}\ \mathrm{and}\ \sigma_1 = \sigma_0[\many{x}_{\mathit{fresh}} \mapsto \many{v}] \\
+  \qquad e_{\mathit{subst}} = e_{\mathit{body}}[\many{x}_{\mathit{fresh}}/\many{x}]
+  \end{array}$
+}
+\end{tabular*}
+
+\vspace{1.5em}
+
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+$\langle \sigma, E[\mathbf{await}\ (\mathrm{fun}\ x \to \mathrm{reset}\ (x \mathbin{;} e))] \rangle \longrightarrow \langle \sigma, E[e] \rangle$ & [Await-Coroutine]
+\end{tabular*}

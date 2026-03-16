@@ -4,17 +4,17 @@ $\langle t_0, \sigma_0, Q_0, T, P \uplus \{ \langle \ell, E[(\mathbf{async\ fn}\
 $\longrightarrow \langle \mathrm{step}(t_0), \sigma_2, Q_1, T, P \uplus \{ \langle \ell, E[x_{\mathit{task}}] \rangle \circ FS \} \rangle$ & \\
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
-  \textbf{where}\ (\sigma_1, x_{\mathit{task}}, v_{\mathit{task}}) = \cext{\mathrm{task\_alloc\_dependent}(\sigma_0,\ell)}\ \mathrm{and}\ \many{x}_{\mathit{fresh}} = \many{\mathrm{gensym}()} \\
+  \textbf{where}\ (\sigma_1, x_{\mathit{task}}, v_{\mathit{task}}) = \cext{\mathrm{task\_alloc\_dependency}(\sigma_0,\ell)}\ \mathrm{and}\ \many{x}_{\mathit{fresh}} = \many{\mathrm{gensym}()} \\
   \qquad \sigma_2 = \sigma_1[x_{\mathit{task}} \mapsto v_{\mathit{task}}, \many{x}_{\mathit{fresh}} \mapsto \many{v}] \\
   \qquad e_{\mathit{subst}} = e_{\mathit{body}}[\many{x}_{\mathit{fresh}}/\many{x}] \\
-  \qquad Q_1 = \ceag{Q_0 \qpush (x_{\mathit{task}}, \kappa)} \\
-  \qquad \kappa = \mathbf{fn}\ \mathit{ignore} \to \mathit{ignore}\mathbin{;}\ \mathrm{reset}\ ( \\
+  \qquad \kappa = \mathbf{fn}\ x_\mathit{unit} \to x_\mathit{unit}\mathbin{;}\ \mathrm{reset}\ ( \\
   % \qquad \qquad \mathrm{task\_add\_parent}(x_{\mathit{task}}, \ell) \mathbin{;} \\
   \qquad \qquad \mathrm{try}\ \mathrm{task\_set\_done}(x_{\mathit{task}}, e_{\mathit{subst}})\ \mathrm{catch}\ v_{\mathit{err}} \to \mathrm{task\_set\_failed}(x_{\mathit{task}}, v_{\mathit{err}}) \mathbin{;} \\
-  \qquad \qquad \cdes{\mathrm{task\_cancel\_children}(x_{\mathit{task}}) \mathbin{;}} \\
-  \qquad \qquad \cext{\mathrm{task\_wait\_on\_children}(x_{\mathit{task}}) \mathbin{;}}\,\cpro{\vphantom{()}}\, \\
-  \qquad \qquad \mathrm{os\_start\_soon}(\mathrm{task\_get\_waiters}(x_{\mathit{task}})) \\
-  \qquad )
+  \qquad \qquad \cdes{\mathrm{task\_cancel\_dependencies}(x_{\mathit{task}}) \mathbin{;}} \\
+  \qquad \qquad \cpro{\mathrm{task\_wait\_on\_dependencies}}\cext{(x_{\mathit{task}}) \mathbin{;}}\\
+  \qquad \qquad \mathrm{os\_start\_soon}(\mathrm{task\_get\_dependents}(x_{\mathit{task}})) \\
+  \qquad ) \\
+  \qquad Q_1 = \ceag{Q_0 \qpush (x_{\mathit{task}}, \kappa)}
   \end{array}$
 }
 \end{tabular*}
@@ -58,8 +58,8 @@ $\longrightarrow \langle t_0, \sigma, Q, T, P \uplus \{ \langle \ell, E[\ccan{\m
 $\mathrm{task\_cancelled}(\sigma, x) = \mathit{self\_cancelled} \lor \mathit{dependent\_cancelled}$ & \\
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
-  \textbf{where}\\ 
-  \qquad \mathit{self\_cancelled} = !\sigma(x).\mathrm{cancelled} \\
+  \textbf{where}\\
+  \qquad \mathit{self\_cancelled} =\; !\sigma(x).\mathrm{cancelled} \\
   \qquad \many{x}_{\mathit{parents}} = \sigma(v_{\mathit{task}}.\mathrm{parents}) \\
   \qquad \mathit{dependent\_cancelled} = \bigvee_{x_p \in \many{x}_{\mathit{parents}}} \mathrm{task\_cancelled}(\sigma, x_p)
   \end{array}$

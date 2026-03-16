@@ -1,0 +1,52 @@
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+$\langle t_0, \sigma_0, Q, T, P \uplus \{ \langle \ell, E[(\mathbf{async\ fn}\ \many{x} \to e_{\mathit{body}})\ \many{v}] \rangle \circ FS \} \rangle$ & [\CSharp-Async-App] \\
+$\longrightarrow \langle \mathrm{step}(t_0), \sigma_2, Q, T, P \uplus \{ \ceag{F_{\mathit{new}}} \circ \langle \ell, E[x_{\mathit{task}}] \rangle \circ FS \} \rangle$ & \\
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \textbf{where}\\
+  \qquad (\sigma_1, v_{\mathit{task}}) = \mathrm{task\_alloc}(\sigma_0)\ \mathrm{and}\ x_{\mathit{task}} = \mathrm{gensym}()\ \mathrm{and}\ \many{x}_{\mathit{fresh}} = \many{\mathrm{gensym}()} \\
+  \qquad \sigma_2 = \sigma_1[x_{\mathit{task}} \mapsto v_{\mathit{task}}, \many{x}_{\mathit{fresh}} \mapsto \many{v}] \\
+  \qquad e_{\mathit{subst}} = e_{\mathit{body}}[\many{x}_{\mathit{fresh}}/\many{x}] \\
+  \qquad e_{\mathit{try}} = \mathrm{try}\ \mathrm{task\_set\_done}(x_{\mathit{task}}, e_{\mathit{subst}})\ \mathrm{catch}\ v_{\mathit{err}} \to \mathrm{task\_set\_failed}(x_{\mathit{task}}, v_{\mathit{err}}) \\
+  \qquad F_{\mathit{new}} = \langle x_{\mathit{task}}, \mathrm{reset}\ (e_{\mathit{try}} \mathbin{;} 
+  \cdes{\vphantom{o}}\,\cext{\vphantom{o}}\,\cpro{\vphantom{o}}\, 
+  \mathrm{os\_start\_soon}(\mathrm{task\_get\_dependents}(x_{\mathit{task}}))) \rangle
+  \end{array}$
+}
+\end{tabular*}
+
+\vspace{1em}
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+$\langle t_0, \sigma_0, Q_0, T, P \uplus \{ \langle \ell, E[(\mathbf{async\ fn}\ \many{x} \to e_{\mathit{body}})\ \many{v}] \rangle \circ FS \} \rangle$ & [Swift-Async-App] \\
+$\longrightarrow \langle \mathrm{step}(t_0), \sigma_2, Q_1, T, P \uplus \{ \langle \ell, E[x_{\mathit{task}}] \rangle \circ FS \} \rangle$ & \\
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \textbf{where}\ (\sigma_1, x_{\mathit{task}}, v_{\mathit{task}}) = \cext{\mathrm{task\_alloc\_dependency}(\sigma_0,\ell)}\ \mathrm{and}\ \many{x}_{\mathit{fresh}} = \many{\mathrm{gensym}()} \\
+  \qquad \sigma_2 = \sigma_1[x_{\mathit{task}} \mapsto v_{\mathit{task}}, \many{x}_{\mathit{fresh}} \mapsto \many{v}] \\
+  \qquad e_{\mathit{subst}} = e_{\mathit{body}}[\many{x}_{\mathit{fresh}}/\many{x}] \\
+  \qquad \kappa = \mathbf{fn}\ x_\mathit{unit} \to x_\mathit{unit}\mathbin{;}\ \mathrm{reset}\ ( \\
+  % \qquad \qquad \mathrm{task\_add\_parent}(x_{\mathit{task}}, \ell) \mathbin{;} \\
+  \qquad \qquad \mathrm{try}\ \mathrm{task\_set\_done}(x_{\mathit{task}}, e_{\mathit{subst}})\ \mathrm{catch}\ v_{\mathit{err}} \to \mathrm{task\_set\_failed}(x_{\mathit{task}}, v_{\mathit{err}}) \mathbin{;} \\
+  \qquad \qquad \cdes{\mathrm{task\_cancel\_dependencies}(x_{\mathit{task}}) \mathbin{;}} \\
+  \qquad \qquad \cext{\mathrm{task\_wait\_on\_dependencies}(x_{\mathit{task}}) \mathbin{;}}\,\cpro{\vphantom{dp}}\\
+  \qquad \qquad \mathrm{os\_start\_soon}(\mathrm{task\_get\_dependents}(x_{\mathit{task}})) \\
+  \qquad ) \\
+  \qquad Q_1 = \ceag{Q_0 \qpush (x_{\mathit{task}}, \kappa)}
+  \end{array}$
+}
+\end{tabular*}
+
+\vspace{1em}
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+$\langle \sigma_0, E[(\mathbf{async\ fn}\ \many{x} \to e_{\mathit{body}})\ \many{v}] \rangle \longrightarrow \langle \sigma_1, E[\ceag{\mathrm{reset}\ (\mathrm{shift}\ k \to k \mathbin{;} e_{\mathit{subst}})}] \rangle$ & [Python-Async-App] \\
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \textbf{where}\\ 
+  \qquad \many{x}_{\mathit{fresh}} = \many{\mathrm{gensym}()}\ \mathrm{and}\ \sigma_1 = \sigma_0[\many{x}_{\mathit{fresh}} \mapsto \many{v}] \\
+  \qquad e_{\mathit{subst}} = e_{\mathit{body}}[\many{x}_{\mathit{fresh}}/\many{x}]
+  \end{array}$
+}
+\end{tabular*}

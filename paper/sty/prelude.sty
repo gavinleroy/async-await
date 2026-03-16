@@ -10,6 +10,7 @@
     ./sty/listings-swift,
     ./sty/listings-kotlin,
     ./sty/listings-csharp,
+    ./sty/listings-zig,
 }
 \usepackage[listings,skins]{tcolorbox}
 \usepackage{cprotect}
@@ -113,69 +114,24 @@
 \lstset{style=grayish}
 
 \lstdefinelanguage{Pseudo}{
-  morekeywords={async, fn, await, spawn},
+  morekeywords={async, fn, await, spawn, return},
   sensitive=true,
   morecomment=[l]{//},
   morestring=[b]",
   morestring=[b]',
 }
 
-\definecolor{codeborder}{RGB}{240, 240, 240}
-
-
-\NewTotalTCBox{\code}{ s v }
-{verbatim,colback=white,colframe=codeborder,boxsep=0mm,left=2pt,right=2pt,top=1pt,bottom=1pt}
-{\lstinline^#2^}
-
-\NewTotalTCBox{\rs}{ s v }
-{verbatim,colback=white,colframe=codeborder,boxsep=0mm,left=2pt,right=2pt,top=1pt,bottom=1pt}
-{\lstinline^#2^}
-
-
-\NewTotalTCBox{\rss}{ s v }
-{verbatim,colback=white,colframe=codeborder,boxsep=0mm,left=2pt,right=2pt,top=1pt,bottom=1pt}
-{\lstinline[basicstyle=\ttfamily\scriptsize]^#2^}
-
-\newtcblisting{filelisting}[1]{%
-    enhanced,
-    listing only,
-    title={\texttt{#1}},
-    attach boxed title to top right,
-    listing options={style=grayish}
-}
-
-
-\newcommand{\sectionbox}[1] {
-\begin{tcolorbox}[
-  colback=purple!100,% background
-  colframe=purple,% frame colour
-  coltext=white, % text color
-  width=\linewidth,%
-  % height=0.7cm, 
-  % halign=center,
-  % valign=center,
-  % fontupper=\large\bfseries,
-  arc=0mm, auto outer arc,
-  ]{#1}
-\end{tcolorbox}
-}%
-
+\newcommand{\code}{\lstinline[language=Pseudo]}
 \newcommand{\citeurlwith}[2]{(\href{#1}{#2})}
 \newcommand{\citegithub}[1]{\citeurlwith{#1}{\StrBehind{#1}{github.com/}}}
 
-%%%%
-%% For highlighting code within an lstlisting
-\definecolor{AttentionColor}{RGB}{211, 211, 211}
-\newcommand{\lineEq}[1]{%
-  \ifnum\value{lstnumber} = #1\color{White!50!AttentionColor}\fi}
-
 \newcommand{\abbr}[1]{\textsc{#1}}
-
 \newcommand{\ctrlop}[1]{\texttt{#1}}
 \newcommand{\semrule}[1]{\textsf{[#1]}}
 
 %%%%
 %% Components
+
 \newcommand{\Executor}{Executor\xspace}
 \newcommand{\executor}{executor\xspace}
 \newcommand{\Reactor}{Reactor\xspace}
@@ -382,26 +338,26 @@
 \newcommand{\ceag}[1]{\ifmmode\highlightbox{P1C1}{P1C1t}{#1}\else\colorbox{P1C1}{\color{P1C1t}#1}\fi}
 \newcommand{\cext}[1]{\ifmmode\highlightbox{P1C2}{P1C2t}{#1}\else\colorbox{P1C2}{\color{P1C2t}#1}\fi}
 \newcommand{\crfe}[1]{\ifmmode\highlightbox{P1C3}{P1C3t}{#1}\else\colorbox{P1C3}{\color{P1C3t}#1}\fi}
-\newcommand{\cdes}[1]{\ifmmode\highlightbox{P1C4}{P1C4t}{#1}\else\colorbox{P1C4}{\color{P1C4t}#1}\fi}
+\newcommand{\cdes}[1]{\ifmmode\highlightbox{P1C6}{P1C6t}{#1}\else\colorbox{P1C6}{\color{P1C6t}#1}\fi}
 \newcommand{\cpro}[1]{\ifmmode\highlightbox{P1C5}{P1C5t}{#1}\else\colorbox{P1C5}{\color{P1C5t}#1}\fi}
-\newcommand{\csus}[1]{\ifmmode\highlightbox{P1C6}{P1C6t}{#1}\else\colorbox{P1C6}{\color{P1C6t}#1}\fi}
-\newcommand{\ccan}[1]{\ifmmode\highlightbox{P1C7}{P1C7t}{#1}\else\colorbox{P1C7}{\color{P1C7t}#1}\fi}
+\newcommand{\csus}[1]{\ifmmode\highlightbox{P1C7}{P1C7t}{#1}\else\colorbox{P1C7}{\color{P1C7t}#1}\fi}
+\newcommand{\ccan}[1]{\ifmmode\highlightbox{P1C4}{P1C4t}{#1}\else\colorbox{P1C4}{\color{P1C4t}#1}\fi}
 
-% 1. Helper macro for drawing the colored circles
+%%%%
+%% Macro for making the color legend on the bottom of the semantics
+
 \newcommand{\legendmark}[1]{\tikz[baseline=-0.5ex]\draw[#1,fill=#1] (0,0) circle (0.6ex);\,}
 
-% 2. Define your "dictionary" of fixed properties
 \csdef{legenditem@eag}{\legendmark{P1C1}\small\Eagerness}
 \csdef{legenditem@ext}{\legendmark{P1C2}\small\Extent}
 \csdef{legenditem@ref}{\legendmark{P1C3}\small\References}
-\csdef{legenditem@des}{\legendmark{P1C4}\small\Destruction}
+\csdef{legenditem@des}{\legendmark{P1C6}\small\Destruction}
 \csdef{legenditem@pro}{\legendmark{P1C5}\small\Propagation}
-\csdef{legenditem@sus}{\legendmark{P1C6}\small\Suspension}
-\csdef{legenditem@can}{\legendmark{P1C7}\small\Cancellation}
+\csdef{legenditem@sus}{\legendmark{P1C7}\small\Suspension}
+\csdef{legenditem@can}{\legendmark{P1C4}\small\Cancellation}
 
-% 3. The newly centered macro
 \newcommand{\makelegend}[1]{%
-  \begin{center} % <--- Centers the legend and enforces a line break after
+  \begin{center} 
     \def\legendsep{}% 
     \renewcommand*{\do}[1]{%
       \legendsep 
@@ -437,9 +393,11 @@
 
 %%%%
 %% Languages with special typesetting
-\newcommand{\CSharp}{\textsc{C\#}\xspace}
-\newcommand{\FSharp}{\textsc{F\#}\xspace}
-\newcommand{\Cpp}{\textsc{C++}\xspace}
+\newcommand{\CSharp}{C\nolinebreak\hspace{-.05em}\raisebox{.2ex}{\scriptsize\bf \#}}
+\newcommand{\FSharp}{F\nolinebreak\hspace{-.05em}\raisebox{.2ex}{\scriptsize\bf \#}}
+\newcommand{\Cpp}{C\nolinebreak\hspace{-.05em}\raisebox{.4ex}{\tiny\bf +}\nolinebreak\hspace{-.10em}\raisebox{.4ex}{\tiny\bf +}}
+
+
 \newcommand{\Js}{Javascript\xspace}
 
 \newcommand{\smol}{smol\xspace}
