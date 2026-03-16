@@ -1,28 +1,32 @@
 \subsubsection{\Persistence}
 \label{ssec:designdims:persistence}
 
-One final element of cancellation is its \Persistence: when a task is cancelled, is it always cancelled, or just cancelled at the point of cancellation? Using the parlance of embedded computing, the Trio maintainer calls these approaches ``level-triggered'' and ``edge-triggered'', respectively\,\missingcite. We will describe them as \emph{\instantaneous} cancellation and \emph{\persistent} cancellation.\sknote{I really don't understand the Persistence section (3.3.3) at all. It very telegraphically says what the options are (in a way I don't think a lay reader will understand). Then it says "the Trio dude calls them X and Y" (in a way that I can't quite map to the prose that went before). Then it says "We're going to call it A and B" (also in a way I can't map). I can't even tell whether all three descriptions are following a parallel structure (is the first thing the same and the second thing the same).}
+One final element of cancellation is its \Persistence: when a task is cancelled, does the cancellation request persist (e.g., subsequent async work is also marked as cancelled), or is cancellation requested once? We will describe these options as \emph{\persistent} cancellation and \emph{\instantaneous} cancellation. The \persistence dimension is important for cancel \aware languages, because on cancellation a \task may perform additional async work.
 
-Rust and Python+Asyncio use \instantaneous cancellation. In Rust's case, because cancellation is \noncoop, cancellation is unrecoverable. For Asyncio, cancellation is recoverable, so if an async computation ignores a cancellation request, then it can  continue spawning and awaiting tasks unimpeded.
+Swift and Python+Trio use \persistent cancellation. Swift and Trio both implement a cancellation flag shared amongst a task graph, and that flag is permanently active once set. Swift's flag is part of its public \abbr{api}, while Trio's flag is an implementation detail. Consequently, if an async computation ignores its cancellation, then subsequent awaits may again raise a cancellation exception; for both Swift and Trio any subsequent await point may result in a cancellation exception.
 
-Swift and Python+Trio use \persistent cancellation. Swift and Trio both implement a cancellation flag shared amongst a task graph, and that flag is permanently active once set. Swift's flag is part of its public API, while Trio's flag is an implementation detail. Consequently, if an async computation ignores its cancellation, then subsequent awaits may again raise a cancellation execption. For Swift, this could be any async function (due to its simultaneous cancellation), and for Trio this could be any Trio primitive (due to its bottom-up cancellation).
+Rust and Python+Asyncio use \instantaneous cancellation. In Rust's case, because cancellation is \noncoop, cancellation is unrecoverable. For Asyncio, cancellation is recoverable, so if an async computation ignores a cancellation request, then it can continue spawning and awaiting tasks unimpeded. Importantly, \tasks spawned after the initial cancellation request would be unaware of the previous cancellation attempt.
 
-\paragraph{Design rationale.}
+\paragraph{Design rationale.} For \noncoop cancellation, \persistence is a moot point, so the main question is which design best fits \coop cancellation. This perhaps comes down to a philosophy on why tasks would choose to ignore their cancellation, and what risks are incurred as a result.
 
-For \noncoop cancellation, \persistence is a moot point, so the main question is which design best fits \coop cancellation. This perhaps comes down to a philosophy on why tasks would choose to ignore their cancellation, and what risks are incurred as a result.
-
-\begin{wrapfigure}{r}{0.5\linewidth}
-  \begin{lstlisting}[language=Python]
+\begin{wrapfigure}{r}{0.4\linewidth}
+  \begin{lstlisting}[language=Python,numbers=none]
 with trio.move_on_after(TIMEOUT):
   conn = make_connection()
   try:
     await conn.send_hello_msg()
   finally:
-    await conn.send_goodbye_msg()
+    with trio.move_on_after(
+      CLEANUP_TIMEOUT, shield=True
+    ):
+      await conn.send_goodbye_msg()
 \end{lstlisting}
+  \cprotect\caption{An example of shielding async resource cleanup from \persistent cancellation.}
+  \label{fig:persistence:shield}
 \end{wrapfigure}
 
-Todo: explain the Trio example.
+The main argument for \instantaneous cancellation is for \tasks to perform async resource cleanup. For example, closing a \abbr{tls} socket often requires sending a \code|close_notify| alert to the peer so that they can be cryptographically assured that you intended to close the socket.\footnotemark{} If a cancellation request persists to spawned dependencies, then the library's provided socket \code|.send()| method may always result in a reraised cancelled exception, with no bytes sent. \Transient cancellation has a greater risk for cancellation signals to go unnoticed. If one \task suppresses a cancellation signal, then all others in the graph may never become aware of the attempt.%
+\footnotetext{\citeurlwith{https://docs.openssl.org/3.0/man3/SSL_shutdown/}{docs.openssl.org}}
 
-% For example, one argument is that the main reason to defer cancellation is \emph{only} to enable cleanup code, e.g. to restore broken invariants as in 
+Runtimes with \persistent cancellation typically come with a cancellation shielding operator to allow for async cleanup. The example in \Cref{fig:persistence:shield} demonstrates how a socket might perform async resource cleanup without being immediately recancelled.
 
