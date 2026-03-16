@@ -1,8 +1,8 @@
 \subsubsection{\Propagation}\label{ssec:designdims:propagation}
 
-One final point of divergence at a task's end of life is related to exceptions. In all surveyed languages with exceptions (e.g., Python, Swift, \Js, \CSharp), awaiting on an async function that has thrown an exception will re-raise the exception at the await point. However, what happens to an exception raised in a task that is never awaited? We describe this question as about the \Propagation dimension.
+Another point of divergence is the handling of exceptions at a task's end of life. In all surveyed languages with exceptions (Python, Swift, \Js, \CSharp), awaiting on an async function that has thrown an exception will re-raise the exception at the await point. However, what happens to an exception raised in a task that is never awaited? 
 
-Most languages do \emph{\never}, apart from perhaps printing to the console. Python+Asyncio and \Js will print a stack trace for an uncaught asynchronous exception, and Node.js specifically will exit with a non-zero error code, but this latter behavior is not part of the ECMAScript specification so we still categorize it as a \never approach to \propagation.
+We call this the \Propagation dimension. Most languages do \emph{\never}, apart from perhaps printing to the console. Python+Asyncio and \Js will print a stack trace for an uncaught asynchronous exception, and Node.js specifically will exit with a non-zero error code, but this latter behavior is not part of the ECMAScript specification so we still categorize it as a \never approach to \propagation.
 
 
 \begin{wrapfigure}{r}{0.5\linewidth}
@@ -18,7 +18,7 @@ async def main():
 \end{lstlisting}
 \end{wrapfigure}
 
-Python+Trio is the only system which offers a different semantics, in part because tasks cannot be awaited, so the library must offer another mechanism for observing asynchronous exceptions. In the example on the right (shown in Python, not pseudocode), the code will print ``A'' but not ``B'' because the nursery will re-raise the exception originating in the \code|fail| function. We describe this as a \emph{\destruction} approach to \propagation. A similar program in any other system will print ``A'' then ``B'', possibly with a stack trace printed inbetween.
+Python+Trio is the only system which offers a different semantics, in part because tasks cannot be awaited, so the library must offer another mechanism for observing asynchronous exceptions. In the example on the right (shown in Python, not pseudocode), the code will print ``A'' but not ``B'' because the nursery will re-raise the exception originating in the \code|fail| function. We describe this as a \emph{\destruction} approach to \propagation. A similar program in any other system will print ``A'' then ``B'', possibly with a stack trace printed in-between.
 
 \paragraph{Design rationale.} [what to write here?]
 
