@@ -71,7 +71,7 @@
           \end{pros}  &
           \begin{pros}
             \item Flexible
-            \item \todo{TODO I'm not sure}
+            \item Explicit awaits only
           \end{pros}  \\
           \begin{tabular}[t]{@{}ll@{}}
             Swift & Trio
@@ -146,6 +146,7 @@
     \Cancellation
     \dimdesc{\textup{Cooperation:} the ability for cancellation reaction}
     \dimdesc{\textup{Direction:} the propagation direction through the dependency graph}
+    \dimdesc{\textup{Persistence:} the persistence of cancellation status}
     &
       \footnotesize
       \begin{tabular}[t]{@{} p{\linewidth} @{}}
@@ -188,6 +189,23 @@
             Swift
           \end{tabular}
         \end{tricolumn}
+
+        \midrule
+        \begin{bicolumn}
+          \textsc{\transient} & \textsc{\persistent} \\
+          \begin{pros}
+            \item Execution integrity
+          \end{pros} &
+          \begin{pros}
+            \item \task termination
+          \end{pros}  \\
+          \begin{tabular}[t]{@{}l@{}}
+            Asyncio
+          \end{tabular} &
+          \begin{tabular}[t]{@{}llll@{}}
+            Swift & Trio & Tokio & Smol
+          \end{tabular}
+        \end{bicolumn} \\
       \end{tabular} \\
     \bottomrule
   \end{tabularx} % End of the single, safe outer tabularx

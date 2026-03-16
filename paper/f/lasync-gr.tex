@@ -1,10 +1,10 @@
 $$
 \begin{array}{l}
 \begin{array}{rcl @{\hspace{3em}} rcl}
-  \mathsf{Time}\ t & \in & \mathbb{N} & \mathsf{Frame}\ F & ::= & \langle \ell, e \rangle \\
-  \mathsf{Continuation}\ \kappa & ::= & \mathbf{fn}\ x_{\mathit{unit}} \to e & \mathsf{Frame\ Stack}\ FS & ::= & \epsilon \mid F \circ FS \\
-\mathsf{Task\ Queue}\ Q & ::= & \epsilon \mid (\ell, \kappa) \circ Q & \mathsf{Process}\ P & ::= & \{ FS_1, \dots, FS_n \} \\
-\mathsf{Signal\ Queue}\ T & ::= & \epsilon \mid (t, \ell, \kappa) \circ T & & &
+  \mathsf{Time}\ t              & \in & \{0, 1, 2, \ldots, \infty \}                              & \mathsf{Frame}\ F         & ::= & \langle \ell, e \rangle \\
+\mathsf{Label}\ \ell          & ::= & x \mid \mathit{sync}                    & \mathsf{Frame\ Stack}\ FS & ::= & \epsilon \mid F \circ FS \\
+\mathsf{Continuation}\ \kappa & ::= & \mathbf{fn}\ x_{\mathit{unit}} \to e    & \mathsf{Process}\ P       & ::= & \{ FS_1, \dots, FS_n \} \\
+\mathsf{Signal\ Queue}\ T     & ::= & \epsilon \mid (t, \ell, \kappa) \circ T & \mathsf{Task\ Queue}\ Q   & ::= & \epsilon \mid (\ell, \kappa) \circ Q &
 \end{array} \\
 \\
 \begin{array}{rcl}

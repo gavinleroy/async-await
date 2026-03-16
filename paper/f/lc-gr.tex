@@ -10,14 +10,14 @@ $$
 \\
 \mathsf{Value}\ v      & ::=  & c \mid () \mid \text{ptr}(x) \\
        & \mid & \mathbf{fn}\ \many{x} \to e \mid \text{fix } v \\
-% \\
-% \mathsf{Ctx}\ E      & ::=  & [\cdot] \mid \many{v}\ E\ \many{e} \mid \text{fix } E \\
-%        & \mid & \text{let } x = E \text{ in } e \\
-%        & \mid & \text{let } x = v \text{ in } E \\
-%        & \mid & \text{if } E \text{ then } e \text{ else } e \\
-%        & \mid & \many{v} \mathbin{;} E \mathbin{;} \many{e} \mid \text{reset } E \\
-%        & \mid & \text{ref } E \mid !E \mid E := e \\
-%        & \mid & v := E
+\\
+\mathsf{Eval\ Ctx}\ E      & ::=  & [\cdot] \mid \many{v}\ E\ \many{e} \mid \text{fix } E \\
+       & \mid & \text{let } x = E \text{ in } e \\
+       & \mid & \text{let } x = v \text{ in } E \\
+       & \mid & \text{if } E \text{ then } e \text{ else } e \\
+       & \mid & \many{v} \mathbin{;} E \mathbin{;} \many{e} \mid \text{reset } E \\
+       & \mid & \text{ref } E \mid !E \mid E := e \\
+       & \mid & v := E
 % \\
 % \mathsf{Meta Ctx}\ M      & ::=  & \dots \text{ (} E \text{ without } \text{reset } M \text{)}
 \\
