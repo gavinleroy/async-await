@@ -1,7 +1,7 @@
 \subsubsection{\Persistence}
 \label{ssec:designdims:persistence}
 
-One final element of cancellation is its \Persistence: when a task is cancelled, is it always cancelled, or just cancelled at the point of cancellation? Using the parlance of embedded computing, the Trio maintainer calls these approaches are ``level-triggered'' and ``edge-triggered'', respectively\,\missingcite. We will describe them as \emph{\instantaneous} cancellation and \emph{\persistent} cancellation.
+One final element of cancellation is its \Persistence: when a task is cancelled, is it always cancelled, or just cancelled at the point of cancellation? Using the parlance of embedded computing, the Trio maintainer calls these approaches ``level-triggered'' and ``edge-triggered'', respectively\,\missingcite. We will describe them as \emph{\instantaneous} cancellation and \emph{\persistent} cancellation.\sknote{I really don't understand the Persistence section (3.3.3) at all. It very telegraphically says what the options are (in a way I don't think a lay reader will understand). Then it says "the Trio dude calls them X and Y" (in a way that I can't quite map to the prose that went before). Then it says "We're going to call it A and B" (also in a way I can't map). I can't even tell whether all three descriptions are following a parallel structure (is the first thing the same and the second thing the same).}
 
 Rust and Python+Asyncio use \instantaneous cancellation. In Rust's case, because cancellation is \noncoop, cancellation is unrecoverable. For Asyncio, cancellation is recoverable, so if an async computation ignores a cancellation request, then it can  continue spawning and awaiting tasks unimpeded.
 
