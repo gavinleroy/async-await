@@ -22,7 +22,7 @@ Python+Trio is the only system which offers a different semantics, in part becau
 
 \paragraph{Design rationale.} The upside to the \destruction approach is that an application is less likely to ignore problematic exceptions. With the \never approach, if a developer does not carefully monitor their logs, a task can fail and cause confusing bugs where expected operations never occur. 
 
-The downside is that the \destruction approach may run counter to a either developer's intuitions or their desired software architecture. Concurrency APIs often seek to encapsulate errors at thread or task boundaries, so errors in one thread cannot crash the whole system. For example, in a backend web server with many concurrent connections, it is likely undesirable that one exceptional connection should crash the entire server. Either way, it seems sensible that that a straight-line asynchrony API should offer \emph{some} way of accessing information about unawaited exceptions, rather than only printing to stderr.
+The downside is that the \destruction approach may run counter to either a developer's intuitions or their desired software architecture. Concurrency APIs often seek to encapsulate errors at thread or task boundaries, so errors in one thread cannot crash the whole system. For example, in a backend web server with many concurrent connections, it is likely undesirable that one exceptional connection should crash the entire server. Either way, it seems sensible that that a straight-line asynchrony API should offer \emph{some} way of accessing information about unawaited exceptions, rather than only printing to stderr.
 
 % \begin{figure}[H]
 %   \begin{minipage}[t]{0.49\textwidth}
