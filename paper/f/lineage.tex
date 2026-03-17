@@ -1,0 +1,29 @@
+\begin{forest}
+  for tree={
+    edge={->, >={Stealth[length=2mm]}, thick, draw},
+    l sep=0.3cm,
+    s sep=0.2cm,
+    font=\small,
+  }
+  [\lc
+    [\exn, name=EXN
+      [Python, name=Py
+        [\leasync, name=EAsync_Py
+          [Ayncio]
+          [Trio]
+        ]
+      ]
+      [\leasync, name=EAsync
+        [Swift]
+        [\CSharp]
+        [\Js]
+      ]
+    ]
+    [Rust, name=Rust, l-=1cm
+      [\lasync, name=Async
+        [Smol]
+        [Tokio]
+      ]
+    ]
+  ]
+\end{forest}
