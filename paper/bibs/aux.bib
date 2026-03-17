@@ -75,3 +75,40 @@ location = {Paris, France},
 series = {ICFP '99}
 }
 
+@article{oxcaml:memory,
+author = {Lorenzen, Anton and White, Leo and Dolan, Stephen and Eisenberg, Richard A. and Lindley, Sam},
+title = {Oxidizing OCaml with Modal Memory Management},
+year = {2024},
+issue_date = {August 2024},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+volume = {8},
+number = {ICFP},
+url = {https://doi.org/10.1145/3674642},
+doi = {10.1145/3674642},
+abstract = {Programmers can often improve the performance of their programs by reducing heap allocations: either by allocating on the stack or reusing existing memory in-place. However, without safety guarantees, these optimizations can easily lead to use-after-free errors and even type unsoundness. In this paper, we present a design based on modes which allows programmers to safely reduce allocations by using stack allocation and in-place updates of immutable structures. We focus on three mode axes: affinity, uniqueness and locality. Modes are fully backwards compatible with existing OCaml code and can be completely inferred. Our work makes manual memory management in OCaml safe and convenient and charts a path towards bringing the benefits of Rust to OCaml.},
+journal = {Proc. ACM Program. Lang.},
+month = aug,
+articleno = {253},
+numpages = {30},
+keywords = {Theory of computation → Modal and temporal logics, Linear logic, Software and its engineering → Garbage collection, Modal Types, Type Qualifiers, Stack Allocation, Uniqueness Types}
+}
+
+@article{oxcaml:drf,
+author = {Georges, A\"{\i}na Linn and Peters, Benjamin and Elbeheiry, Laila and White, Leo and Dolan, Stephen and Eisenberg, Richard A. and Casinghino, Chris and Pottier, Fran\c{c}ois and Dreyer, Derek},
+title = {Data Race Freedom \`{a} la Mode},
+year = {2025},
+issue_date = {January 2025},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+volume = {9},
+number = {POPL},
+url = {https://doi.org/10.1145/3704859},
+doi = {10.1145/3704859},
+abstract = {We present DRFCaml, an extension of OCaml’s type system that guarantees data race freedom for multithreaded OCaml programs while retaining backward compatibility with existing sequential OCaml code. We build on recent work of Lorenzen et al., who extend OCaml with modes that keep track of locality, uniqueness, and affinity. We introduce two new mode axes, contention and portability, which record whether data has been shared or can be shared between multiple threads. Although this basic type-and-mode system has limited expressive power by itself, it does let us express APIs for capsules, regions of memory whose access is controlled by a unique ghost key, and reader-writer locks, which allow a thread to safely acquire partial or full ownership of a key. We show that this allows complex data structures (which may involve aliasing and mutable state) to be safely shared between threads. We formalize the complete system and establish its soundness by building a semantic model of it in the Iris program logic on top of the Rocq proof assistant.},
+journal = {Proc. ACM Program. Lang.},
+month = jan,
+articleno = {23},
+numpages = {31},
+keywords = {Concurrency, data races, type systems, OCaml, separation logic, Iris, Rocq}
+}

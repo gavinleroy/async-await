@@ -1,33 +1,16 @@
 \section{Discussion}\label{sec:discussion}
 
-The book is not closed on the design of straight-line asynchrony. Communities are actively working on the usability and the safety of asynchronous systems. For usability many are concerned about the function coloring problem first introduced by \citet{nystrom_what_2015}, and others are designing increasingly sophisticated type systems to statically check the safety of asynchronous program.
+The book is not closed on the design of straight-line asynchrony. Communities are actively exploring extensions to the core async/await semantics presented in this work.
 
-\paragraph{Function coloring} A common complaint raised online about async/await is its virality in the codebase; once one async function is called, seemingly the entire codebase must use async/await syntax. Async/await is infectious because of the function coloring problem: An async function may be called only from another async function. Libraries are published as either sync or async and clients who use async libraries must write async applications.
+A natural next step is to make asynchrony safe via types. Languages such as Swift, Rust, and OxCaml~\cite{oxcaml:memory,oxcaml:drf} add increasingly sophisticated typing features to statically check the safety of asynchronous (and parallel) programs, while maintaining a high degree of flexibility.
 
-Asynchrony is infectious for good reason. An async function does not execute the same way a synchronous one does, the asynchrony inverts the flow of control. Although the async/await syntactic abstraction reinverts the written code, the execution is fundamentally inverted. Despite the mismatch in execution semantics between sync and async code, several communities are trying to solve, or mitigate, the function coloring problem. Here we will highlight one particularly interesting attempt by the Zig community and show that it merely \emph{shifts} the coloring elsewhere.
+\citet{elizarov_kotlin_2021} use the \emph{suspend} keyword in Kotlin to define async functions, however, in lieu of an explicit await keyword, implicit suspension points are added where necessary. They argue that this approach avoids forgotten awaits, and further improves the look and feel of calling a suspending function as it looks identical to calling a non-suspending [synchronous] function.
 
-\begin{wrapfigure}{r}{0.4\textwidth}
-\begin{lstlisting}[language=Pseudo,numbers=none]
-fn producer(io, q):
-  q.put(io, "hello")
+The Zig programming language is in the process of stabilizing their ``colorblind'' async/await. The core idea is to parameterize all code over an \abbr{i/o} implementation, libraries can write code to take advantage of asynchrony when available, and library clients can pass any \abbr{i/o} implementation they have available, including a synchronous variant. Although the authors find this approach clever, the coloring of functions shifts from a syntactic one to a semantic one: libraries written explicitly for asynchrony can deadlock or panic at runtime if asynchrony is unavailable.
 
-fn consumer(io, q):
-  return q.get(io)
+\Cpp20 provides a flexible implementation of coroutines that does not ascribe a semantics to their async/await~\cite{isoiec_jtc1_sc22_wg21_technical_2017,baker_coroutine_2017,baker_c_2017,baker_c_2018,baker_c_2020,baker_c_2022,baker_c_2017-1}. We cannot attribute \Cpp to any particular design point in the taxonomy provided in \Cref{tab:dims-overview} because each axis is configurable. Although elegant and neutral, the choice of full programmability makes each library an async \abbr{dsl}; knowledge transfer between projects within the same language becomes exceedingly difficult.
 
-fn run(io):
-  q = io.UnbufferedQueue()
-  a = io.concurrent(producer(io, q))
-  b = io.concurrent(consumer(io, q))
-  print(await b)
-\end{lstlisting}
-  \label{fig:zig}
-\end{wrapfigure}
 
-Zig is a new general-purpose programming language designed for maintaining robust, optimal, and reusable software. We do not include the semantics of Zig async/await in the main text because the implementation is still unfinished, with the current design expected to land in late 2026. One key feature of Zig is that there are no hidden allocations and the language does not provide a default allocator. Programs that allocate memory are parametric over an allocator, which means that clients of libraries can dictate how allocations occur.
-
-To introduce asynchronous execution the Zig developers created an \code{Io} interface that will additionally need to parameterize functions that wish to perform \abbr{io}. Library clients can then pass a synchronous, green-threaded, or coroutine-based\footnote{The design of Zig's stackless coroutines is still being designed and will not stabalize with the other implementations.} implementation of the \abbr{io} interface to libraries depending on their needs. Library code must still be written in an asynchronous style if developers wish to take advantage of asynchrony.
-
-We argue that Zig functions remain colored, however, they are colored in \emph{semantics} and correct usage is not checked by the compiler. \Cref{fig:zig} provides a pseudocode representation of a Zig function written to take advantage of concurrency.\footnote{The full Zig code is available in \Cref{appx:zig}.} As written, the code is only valid with a threaded \abbr{io} implementation --- more than one thread must be available --- or the stackless-coroutine implementation that will not be available for some time.
 
 \paragraph{Where do we go from here?}
 
