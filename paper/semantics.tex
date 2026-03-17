@@ -1,5 +1,31 @@
 \section{Semantics}\label{sec:semantics}
 
+\begin{figure}[t]
+  \begin{subfigure}[t]{0.35\textwidth}
+    \vspace{0cm}
+    \input{./f/lc-gr.tex}
+    \cprotect\caption{The grammar for \lc.
+    \label{fig:lang:lc}}
+  \end{subfigure}\hfill%
+  \begin{minipage}[t]{0.62\textwidth}
+    \vspace{10pt}
+    \begin{subfigure}{0.62\textwidth}
+      \vspace{0cm}
+      \input{./f/exn-gr.tex}
+      \cprotect\subcaption{The grammar for \exn, which extends \lc with \code|try|/\code|catch|, and \code|throw| forms.}
+      \label{fig:lang:exn}
+    \end{subfigure}
+    \begin{subfigure}{0.62\textwidth}
+      \vspace{1em}
+      \input{./f/exn-rr.tex}
+      \cprotect\subcaption{The operational semantics for the \exn.}
+      \label{fig:lang:exn:red}
+    \end{subfigure}
+  \end{minipage}
+  \caption{The grammar and reduction rules for the core calculi \lc and \exn.}
+  \label{fig:lang:exts}
+\end{figure}
+
 The preceding section provides a detailed but informal characterization of our view of the straight-line asynchrony design space. Now, we will put it on a formal footing.
 
 We present the design dimensions as variants on a formal operational semantics for a core asynchronous language. We start with a small \lc language that captures the computational core of Python, Rust, etc., while eliminating many language-specific details. For example, we unify the languages' implementation of asynchrony using delimited continuations rather than faithfully modeling each implementation using state machines and other such mechanisms. Atop this, we layer semantic rules that capture the essence of the design dimensions in \cref{sec:designdims}.
@@ -9,32 +35,11 @@ Perhaps unsurprisingly, the full semantics is too large to include in its entire
 
 % By providing the semantics in layers we highlight the control features necessary for a given language's implementation and can more easily compare the operational behavior between two languages that have seemingly incomparable semantics. We additionally provide all the semantics in this section as a runnable Redex model, available in the supplementary materials.~\missingcite
 
-\begin{figure}
-  \begin{subfigure}[c]{0.35\textwidth}
-    {\input{./f/lc-gr.tex}
-     \cprotect\caption{The grammar for \lc, a call-by-value variant of the $\lambda$-calculus with mutable references and delimited continuations.}
-     \label{fig:lang:lc}}
-  \end{subfigure}\hfill%
-  \begin{subfigure}[c]{0.62\textwidth}
-    {\input{./f/exn-gr.tex}
-     \cprotect\subcaption{The grammar for \exn, which extends \lc with \code|try|/\code|catch|, and \code|throw| forms.}
-    \label{fig:lang:exn}}
-    \vspace{1em}
-    {\input{./f/exn-rr.tex}
-     \cprotect\subcaption{The operational semantics for the \exn.}
-     \label{fig:lang:exn:red}}
-  \end{subfigure}
-  \caption{The grammar and reduction rules for the core calculi \lc and \exn.}
-  \label{fig:lang}
-\end{figure}
-
 \Cref{fig:lang:lc,fig:lang:exn} provide the grammar and semantics of the core calculi that comprise our base for the async extensions. The core language \lc contains mutable references and delimited continuations via the \code|shift| and \code|reset| operators described by \citet{danvy_functional_nodate}. The grammar for \lc is provided in \Cref{fig:lang:lc}. The reduction rule is defined over a mutable heap $\sigma$ and an expression $e$, $\langle\sigma\,e\rangle$. For space reasons, the standard reduction rules and full grammar for \lc are available in \Cref{appendix}.
 
 For languages with exceptional control flow, we extend \lc with a \code|try|/\code|catch| and \code|throw| form --- we will refer to this language as \exn. The grammar and reduction rules for \exn are provided in \Cref{fig:lang:exn}. The \exn grammar provides the evaluation context $G$, which is the exception context delimited by a \code|try| form and discarded by the \code|throw| operator. We also provide a \code|throw_in| expression that raises an exception within a suspended computation; modeled after Python's \code{.throw()} coroutine method, which resumes a suspended computation with an exception instead of a value.
 
-We now describe the configuration of the shared async grammar, which can extent any base language. \Cref{fig:lasync:grammar} defines the shared grammar constructs that encode the async runtime building blocks discussed in \Cref{sec:designdims}. We will refer to this shared grammar extension as the async platform, \lasync.
-
-\begin{figure}
+\begin{figure}[t]
   \begin{subfigure}[t]{\textwidth}
     \input{./f/lasync-gr.tex}
     \cprotect\caption{The full grammar for \lasync.}
@@ -61,6 +66,7 @@ We now describe the configuration of the shared async grammar, which can extent 
   \label{fig:platform}
 \end{figure}
 
+We now describe the configuration of the shared async grammar, which can extent any base language. \Cref{fig:lasync:grammar} defines the shared grammar constructs that encode the async runtime building blocks discussed in \Cref{sec:designdims}. We will refer to this shared grammar extension as the async platform, \lasync.
 
 A \textit{frame}, $F$, is written $\langle \ell,\,e\rangle$ and consists of an expression $e$, along with a frame label, $\ell$. A \textit{frame label}, $\ell$, is either the name of the \task this frame corresponds to, or \textit{sync} to denote a synchronous frame. A \textit{frame stack}, $FS$, is a list of frames --- essentially a thread. An empty frame stack is written $\epsilon$, and we write $F \circ FS$ to denote a frame stack whose head is $F$ and tail is $FS$. A \textit{process}, $P$, is a collection of frame stacks. We will use the syntax $P \uplus FS$ to select one frame stack in $P$ to run. A \textit{task queue}, $Q$, stores the async work waiting to be run; $Q$ comprises tuples that have a label and a continuation, $(\ell,\kappa)$. A \textit{signals queue}, $T$, stores async work that is waiting on \abbr{io} operations, the work will be rescheduled in the future at timestampt $t$, at the earliest. $T$ comprises tuples that have a time, a label, and a continuation, $(t,\ell,\kappa)$. We will use the same stack notation for $Q$ and $T$ as we do for $FS$. We will additonally write $Q \qpush (\ell,\,\kappa)$ to append to the end of the queue, and $Q_0 \seqconcat Q_1$ to concatenate two sequences (applicable to both $Q$ and $T$).
 
@@ -76,11 +82,18 @@ The goal of the operational semantics is to highlight the differences between la
 
 \subsection{Start/End of Life}
 
-\begin{figure}
-  \input{./f/async-app.tex}
-  \makelegend{eag,ext,des,pro}
-  \cprotect\caption{A comparison of the rule \semrule{Async-App} across languages.}
-  \label{fig:sem:app}
+\begin{figure}[t]
+    \input{./f/async-app.tex}
+    \makelegend{eag,ext,des,pro}
+    \cprotect\caption{A comparison of the rules \semrule{Async-App} across languages.}
+    \label{fig:sem:app}
+\end{figure}
+
+\begin{figure}[b]
+    \input{./f/spawn.tex}
+    \makelegend{eag,ext,des,pro}
+    \cprotect\caption{A comparison of \semrule{Spawn} across Rust/Python runtimes. The \code{try/catch} is colored gray because it is present in the Ayncio semantics but not for Tokio/Smol; the rules are otherwise equivalent.}
+    \label{fig:sem:spawn}
 \end{figure}
 
 The rule \semrule{Async-App} defines how a \coro/\task is constructed and, for non-lazy languages, what a \task does at the end of its computation. We will use the definitions in \Cref{fig:sem:app} to highlight the semantics for the start and end of a computation's life.
@@ -89,11 +102,11 @@ The rule \semrule{Async-App} defines how a \coro/\task is constructed and, for n
 
 \semrule{Async-App} for the (semi-)eager languages also defines the end of life for a \task. When \CSharp/\Js allocate a \task, it is independent of the current context, meaning that the new \task is not a dependency of the executing \task (labelled $\ell$). When the computation finishes, the \task's dependents (those that have awaited it) are immediately scheduled to run. There is an absence of \destruction and \propagation logic for dependencies, which defines the \dyn \extent of \tasks for \CSharp and \Js. Swift, on the other hand, allocates the new \task as a \emph{dependency} of the executing \task $\ell$. After the computation finishes, dependencies are cancelled and waited on. Here we distinguish \emph{waiting on} from \emph{awaiting}; the latter implies that exceptions are propagated, which Swift does not do.
 
-\begin{figure}
-  \input{./f/spawn.tex}
-  \makelegend{ext,des,pro}
-  \cprotect\caption{A comparison of \semrule{Spawn} across Rust/Python runtimes. The \code{try/catch} is colored gray because it is present in the Ayncio semantics but not for Tokio/Smol; the rules are otherwise equivalent.}
-  \label{fig:sem:spawn}
+\begin{figure}[b]
+  \input{./f/await.tex}
+  \makelegend{sus}
+  \cprotect\caption{A comparison of \semrule{Await} semantics that define \dynamic and \static \suspension. \Dynamic suspending languages only suspend when the awaited value isn't immediately ready.}
+  \label{fig:sem:await}
 \end{figure}
 
 The rule \semrule{Spawn} is provided by the runtimes of \lazy languages to elevate a \coro to a \task registered in the runtime. \semrule{Spawn} defines the semantics for the \task start and end of life that are absent from the \lazy definition of \semrule{Async-App}.
@@ -101,13 +114,6 @@ The rule \semrule{Spawn} is provided by the runtimes of \lazy languages to eleva
 \semrule{Spawn} is defined separately for languages with \indef and \dyn extent. The definition used by Asyncio/Tokio/Smol allows for \indef extent and otherwise follows the semantics discussed previously for \CSharp's \semrule{Async-App} rule.
 
 Trio enforces \dyn extent and the rule follows closely that discussed previously for Swift. However, at the end of execution the \task does not cancel its dependencies, but it does \emph{await} them; awaiting dependencies includes propagating an exception.
-
-\begin{figure}
-  \input{./f/await.tex}
-  \makelegend{sus}
-  \cprotect\caption{A comparison of \semrule{Await} semantics that define \dynamic and \static \suspension. \Dynamic suspending languages only suspend when the awaited value isn't immediately ready.}
-  \label{fig:sem:await}
-\end{figure}
 
 \Cref{fig:sem:await} provides the definitions for the rule \semrule{Await}. \Js, the only language sampled with \static \suspension semantics, always captures the current delimited continuation and adds itself as a dependent on the awaited value. Languages with \dyn \suspension first check if the awaited value is ready, if it is, no suspension occurs. If a value is not ready, the continuation is captured and registered as a dependent of the pending computation.
 
