@@ -9,7 +9,7 @@ $\longrightarrow \langle \mathsf{step}(t_0), \sigma_2, Q_0 \qpush (x_{\mathit{ta
   \qquad \kappa = \mathbfsf{fn}\ x_{\mathit{unit}} \to x_{\mathit{unit}} \mathbin{;} \mathsf{reset}\ ( \\
   \qquad \qquad \difff{\mathsf{try}}\ \mathsf{task\_set\_done}(x_{\mathit{task}}, \mathbfsf{await}\ v_{\mathit{coro}})\ \difff{\mathsf{catch}\ v_{\mathit{err}} \to \mathsf{task\_set\_failed}(x_{\mathit{task}}, v_{\mathit{err}})} \mathbin{;} \\
   \qquad \cdes{\vphantom{o}}\,\cext{\vphantom{o}}\,\cpro{\vphantom{o}}\,
-  \mathsf{os\_start\_soon}(\mathsf{task\_get\_dependents}(x_{\mathit{task}})))
+  \mathsf{sys\_start\_soon}(\mathsf{task\_get\_dependents}(x_{\mathit{task}})))
   \end{array}$
 }
 \end{tabular*}
@@ -26,7 +26,7 @@ $\longrightarrow \langle \mathsf{step}(t_0), \sigma_2, Q_0 \qpush (x_{\mathit{ta
   \qquad \kappa = \mathbfsf{fn}\ x_{\mathit{unit}} \to x_{\mathit{unit}} \mathbin{;} \mathsf{reset}\ ( \\
   \qquad \qquad \mathsf{try}\ \mathsf{task\_set\_done}(x_{\mathit{task}}, \mathsf{await}\ v_{\mathit{coro}})\ \mathsf{catch}\ v_{\mathit{err}} \to \mathsf{task\_set\_failed}(x_{\mathit{task}}, v_{\mathit{err}}) \mathbin{;} \\
   \qquad \quad \cdes{\vphantom{dp}}\, \cpro{\mathsf{task\_await\_dependencies}}\cext{(x_{\mathit{task}})} \\
-  \qquad \qquad \mathsf{os\_start\_soon}(\mathsf{task\_get\_dependents}(x_{\mathit{task}})))
+  \qquad \qquad \mathsf{sys\_start\_soon}(\mathsf{task\_get\_dependents}(x_{\mathit{task}})))
   \end{array}$
 }
 \end{tabular*}

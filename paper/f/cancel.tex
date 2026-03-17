@@ -67,7 +67,7 @@ $\longrightarrow \langle \mathsf{step}(t_0), \cper{\sigma,}\, Q_1, T, P \uplus \
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
   \where\ \mathsf{task\_cancelled}(\sigma, \ell_{\mathit{waiting}}) \\
-  \qquad e_{\mathit{fail}} = \cawa{\mathsf{task\_set\_failed}(\ell_{\mathit{waiting}}, ()) \mathbin{;} \mathsf{os\_start\_soon}(\mathsf{task\_get\_waiters}(x_{\mathit{task}}))}
+  \qquad e_{\mathit{fail}} = \cawa{\mathsf{task\_set\_failed}(\ell_{\mathit{waiting}}, ()) \mathbin{;} \mathsf{sys\_start\_soon}(\mathsf{task\_get\_waiters}(x_{\mathit{task}}))}
   \end{array}$
 }
 \end{tabular*}

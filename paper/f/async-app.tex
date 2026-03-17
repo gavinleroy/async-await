@@ -10,7 +10,7 @@ $\longrightarrow \langle \mathsf{step}(t_0), \sigma_2, Q, T, P \uplus \{ \ceag{\
   \qquad e_{\mathit{task}} = \mathsf{reset}\ ( \\
   \qquad \qquad \mathsf{try}\ \mathsf{task\_set\_done}(x_{\mathit{task}}, e_{\mathit{subst}})\ \mathsf{catch}\ v_{\mathit{err}} \to \mathsf{task\_set\_failed}(x_{\mathit{task}}, v_{\mathit{err}}) \\
   \quad\;\; \cdes{\vphantom{o}}\,\cext{\vphantom{o}}\,\cpro{\vphantom{o}}\, 
-  \mathsf{os\_start\_soon}(\mathsf{task\_get\_dependents}(x_{\mathit{task}})))
+  \mathsf{sys\_start\_soon}(\mathsf{task\_get\_dependents}(x_{\mathit{task}})))
   \end{array}$
 }
 \end{tabular*}
@@ -30,7 +30,7 @@ $\longrightarrow \langle \mathsf{step}(t_0), \sigma_2, \ceag{Q_0 \qpush (x_{\mat
   \qquad \qquad \mathsf{try}\ \mathsf{task\_set\_done}(x_{\mathit{task}}, e_{\mathit{subst}})\ \mathsf{catch}\ v_{\mathit{err}} \to \mathsf{task\_set\_failed}(x_{\mathit{task}}, v_{\mathit{err}}) \mathbin{;} \\
   \qquad \qquad \cdes{\mathsf{task\_cancel\_dependencies}(x_{\mathit{task}}) \mathbin{;}} \\
   \qquad \qquad \cext{\mathsf{task\_wait\_on\_dependencies}(x_{\mathit{task}}) \mathbin{;}}\,\cpro{\vphantom{dp}}\\
-  \qquad \qquad \mathsf{os\_start\_soon}(\mathsf{task\_get\_dependents}(x_{\mathit{task}})))
+  \qquad \qquad \mathsf{sys\_start\_soon}(\mathsf{task\_get\_dependents}(x_{\mathit{task}})))
   \end{array}$
 }
 \end{tabular*}
