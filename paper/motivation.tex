@@ -8,6 +8,7 @@ Moreover, async/await is only one form of asynchrony. The job of async/await is 
 We concretize these points to provide some context on how asynchrony generally, and async/await specifically, fit into the broader picture of language design and implementation.
 
 \subsection{Asynchrony vs.\ Concurrency vs.\ Parallelism}
+\label{s:sync-quotes-from-langs}
 
 We will define concurrency as a logical property of a computation, whereby two subcomputations can execute interleaved: one computation begins before another ends. Parallelism is a physical property of a computation, whereby two subcomputations can execute simultaneously: both compuations overlap at the same point in time. Parallelism implies concurrency but not vice versa. For instance, an embedded operating system running on a single core is concurrent but not parallel.
 
