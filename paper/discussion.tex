@@ -6,11 +6,9 @@ A natural next step is to make asynchrony safe via types. Languages such as Swif
 
 \citet{elizarov_kotlin_2021} use the \emph{suspend} keyword in Kotlin to define async functions, however, in lieu of an explicit await keyword, implicit suspension points are added where necessary. They argue that this approach avoids forgotten awaits, and further improves the look and feel of calling a suspending function as it looks identical to calling a non-suspending [synchronous] function.
 
-The Zig programming language is in the process of stabilizing their ``colorblind'' async/await. The core idea is to parameterize all code over an \abbr{i/o} implementation, libraries can write code to take advantage of asynchrony when available, and library clients can pass any \abbr{i/o} implementation they have available, including a synchronous variant. Although the authors find this approach clever, the coloring of functions shifts from a syntactic one to a semantic one: libraries written explicitly for asynchrony can deadlock or panic at runtime if asynchrony is unavailable.
+The Zig programming language is in the process of stabilizing their ``colorblind'' async/await~\cite{kelley_zigs_2025,cro_what_2020}. The core idea is to parameterize all code over an \abbr{i/o} implementation, libraries can write code to take advantage of asynchrony when available, and library clients can pass any \abbr{i/o} implementation they have available, including a synchronous variant. Although the authors find this approach clever, the coloring of functions shifts from a syntactic one to a semantic one: libraries written explicitly for asynchrony can deadlock or panic at runtime if asynchrony is unavailable.
 
 \Cpp20 provides a flexible implementation of coroutines that does not ascribe a semantics to their async/await~\cite{isoiec_jtc1_sc22_wg21_technical_2017,baker_coroutine_2017,baker_c_2017,baker_c_2018,baker_c_2020,baker_c_2022,baker_c_2017-1}. We cannot attribute \Cpp to any particular design point in the taxonomy provided in \Cref{tab:dims-overview} because each axis is configurable. Although elegant and neutral, the choice of full programmability makes each library an async \abbr{dsl}; knowledge transfer between projects within the same language becomes exceedingly difficult.
-
-
 
 \paragraph{Where do we go from here?}
 
