@@ -65,11 +65,11 @@ async fn ex3():
     \caption{A table of outcomes when running the programs translated from the pseudocode into different languages. $\varepsilon$ indicates no output. `-' indicates that a language does not provide a built-in \code{.cancel()} method.}
     \label{fig:motivating-example-outcomes}
   \end{subfigure}
-  \caption{An example of an asynchronous programming pattern that exhibits different behavior under five modern async/await languages and runtimes.}
+  \caption{An example of an asynchronous programming pattern that exhibits different behavior under seven modern async/await languages and runtimes.}
   \label{fig:motivating-example}
 \end{figure}
 
-As a concrete example, consider the pseudocode in \Cref{fig:motivating-example}, showing two ways to run a background task that writes information to a log.  Languages differ with respect to what happens with tasks at the end of their spawning scope. Languages also differ in terms of when and how running tasks are stopped in the event of cancellation. As shown in \Cref{fig:motivating-example-outcomes}, when comparing five modern approaches to async/await, none of them exhibit the same behavior on three simple calling contexts.
+As a concrete example, consider the pseudocode in \Cref{fig:motivating-example}, showing two ways to run a background task that writes information to a log.  Languages differ with respect to what happens with tasks at the end of their spawning scope. Languages also differ in terms of when and how running tasks are stopped in the event of cancellation. As shown in \Cref{fig:motivating-example-outcomes}, when comparing seven modern approaches to async/await, none of them exhibit the same behavior on three simple calling contexts.
 
 Observing this conceptual chaos, we set out to perform a \emph{design space exploration} of async/await in modern languages. The contribution of this paper is the results of that exploration, articulated in three parts:
 \begin{enumerate}
