@@ -10,7 +10,7 @@ Rust and Python+Asyncio use \instantaneous cancellation. In Rust's case, because
 \paragraph{Design rationale.} For \noncoop cancellation, \persistence is a moot point, so the main question is which design best fits \coop cancellation. This perhaps comes down to a philosophy on why tasks would choose to ignore their cancellation, and what risks are incurred as a result.
 
 \begin{wrapfigure}{r}{0.4\linewidth}
-  \begin{lstlisting}[language=Python,numbers=none]
+  \begin{lstlisting}[language=Python]
 with trio.move_on_after(TIMEOUT):
   conn = make_connection()
   try:
@@ -28,5 +28,5 @@ with trio.move_on_after(TIMEOUT):
 The main argument for \instantaneous cancellation is for \tasks to perform async resource cleanup. For example, closing a \abbr{tls} socket often requires sending a \code|close_notify| alert to the peer so that they can be cryptographically assured that you intended to close the socket.\footnotemark{} If a cancellation request persists to spawned dependencies, then the library's provided socket \code|.send()| method may always result in a reraised cancelled exception, with no bytes sent. \Transient cancellation has a greater risk for cancellation signals to go unnoticed. If one \task suppresses a cancellation signal, then all others in the graph may never become aware of the attempt.%
 \footnotetext{\citeurlwith{https://docs.openssl.org/3.0/man3/SSL_shutdown/}{docs.openssl.org}}
 
-Runtimes with \persistent cancellation typically come with a cancellation shielding operator to allow for async cleanup. The example in \Cref{fig:persistence:shield} demonstrates how a socket might perform async resource cleanup without being immediately recancelled.
+Runtimes with \persistent cancellation typically come with a cancellation shielding operator to allow for async cleanup. The example in \Cref{fig:persistence:shield} (shown in Python, not pseudocode), the developer uses a shielded timeout to send a closing message on the socket without being immediately recancelled. This example strikes a balance between resource managemenet and exiting promptly (via the timeout).
 

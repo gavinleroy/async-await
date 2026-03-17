@@ -29,8 +29,8 @@ To introduce asynchronous execution the Zig developers created an \code{Io} inte
 
 We argue that Zig functions remain colored, however, they are colored in \emph{semantics} and correct usage is not checked by the compiler. \Cref{fig:zig} provides a pseudocode representation of a Zig function written to take advantage of concurrency.\footnote{The full Zig code is available in \Cref{appx:zig}.} As written, the code is only valid with a threaded \abbr{io} implementation --- more than one thread must be available --- or the stackless-coroutine implementation that will not be available for some time.
 
-\paragraph{Safe asynchrony} How are people using type systems for safety? E.g., Rust, Swift, OxCaml
+\paragraph{Where do we go from here?} We started exploring the design space of straight-line concurrency with the goal of helping developers transition from one langauge's async to another. The claims that straight-line asynchrony is more approachable, or that it makes writing asynchronous code as easy as synchronous code, are patently false. There is no shortage of surprising and confusing behavior in the world of asynchronous programming~\missingcite.
 
-\paragraph{Where do we go from here?}
+The divergence in semantics between async implementations --- hidden behind \emph{shared} async/await keywords --- leaves us to believe that our taxonomy can help language designers situate themselves better in the design space. Although we believe that the presented taxonomy can improve the precision of documentation and aid in creating educational material, it can guide designers towards an implementation that satisfies the needs of developers and not only the the needs of the implementation.
 
-[FILL]
+We believe that designers can reason about their desired semantics using our provided taxonomy; that new language proposals can situate themselves within the burgeoning landscape of asynchrony, and precisely claim when their semantics diverge from other languages and why that divergence is the best choice for their users.
