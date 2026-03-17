@@ -31,7 +31,7 @@
    #:domain (σ e)
 
    [--> (σ_0 (in-hole E ((async/lambda (x ..._1) e_body) v ..._1)))
-        (σ_1 (in-hole E (reset (begin (shift x_k x_k) e_subst))))
+        (σ_1 (in-hole E (reset (begin (shift k k) e_subst))))
 
         (where/error (x_fresh ...) (gensyms (σ e_body) (x ...)))
         (where/error σ_1 (ext σ_0 (x_fresh v) ...))
@@ -79,6 +79,14 @@
             [c (work "A")])
        (resume! c (void))))
    "A")
+
+  (py-->>=
+   (let* ([work (async/lambda () (throw 0))]
+          [main (async/lambda ()
+                  (await (work)))])
+     (catch (lambda (e) "cancelled")
+            (resume! (main) (void))))
+   "cancelled")
 
   (py-->>=
    (trace-stdout (print)

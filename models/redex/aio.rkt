@@ -1,6 +1,7 @@
 #lang racket/base
 
 (require redex
+         (only-in racket/list flatten)
          "core.rkt"
          "py.rkt"
          "platform.rkt")
@@ -26,21 +27,23 @@
    AsyncIO
    #:domain (t σ Q T P)
 
+   ;; EAGERNESS: lazy, a coroutine comes from the Py model when an async/lambda is applied
    [--> (t_0 σ_0 Q_0 T (FS_0 ... (thread (label (in-hole E (spawn v_coro))) F ...) FS_1 ...))
         (t_1 σ_2 Q_1 T (FS_0 ... (thread (label (in-hole E x_task)) F ...) FS_1 ...))
 
-        (where/error (σ_1 v_task) (task:allocate σ_0))
-        (where/error (x_task) (gensyms σ_1 (task)))
+        (where/error (σ_1 x_task v_task) (task:allocate σ_0))
         (where/error σ_2 (ext1 σ_1 (x_task v_task)))
         (where/error Q_1 (Q:push Q_0
                                  (x_task
                                   (lambda (none)
-                                    (begin none
-                                           (reset
-                                            (begin
-                                              (catch (lambda (v_err) (task:set-failed! x_task v_err))
-                                                     (task:set-done! x_task (await v_coro)))
-                                              (os/start-soon (task:get-waiters x_task)))))))))
+                                    (reset
+                                     (begin
+                                       (catch (lambda (v_err) (task:set-failed! x_task v_err))
+                                              (begin none (task:set-done! x_task (await v_coro))))
+                                       (os/start-soon (task:get-dependents x_task))))
+                                    ;; EXTENT: indefinite, at the end of the task scope we don't destroy
+                                    ;; tasks that were spawned during the execution of `v_coro`.
+                                    ))))
         (where/error t_1 (step t_0))
         "spawn"]
 
@@ -48,16 +51,14 @@
         (t_1 σ Q T (FS_0 ...
                     (thread (label (in-hole E
                                             (begin
-                                              (task:add-parent! v_awaitable label)
+                                              (task:set-awaited! v_awaitable)
+                                              ;; SUSPENSION: dynamic, if the value is ready no need to suspend
                                               (if (task:is-completed? v_awaitable)
-                                                  (begin (task:set-awaited! v_awaitable)
-                                                         (task:get-result v_awaitable))
-                                                  (shift x_k
-                                                         (task:add-waiter! v_awaitable
-                                                                           (label
-                                                                            (lambda (null)
-                                                                              (begin (task:set-awaited! v_awaitable)
-                                                                                     (x_k (task:get-result v_awaitable))))))))))) F ...) FS_1 ...))
+                                                  (task:get-result v_awaitable)
+                                                  (shift k
+                                                         (task:add-self-as-dependent!
+                                                          v_awaitable
+                                                          (label (task:continue-with v_awaitable k)))))))) F ...) FS_1 ...))
 
         (where #true (task:is-task? v_awaitable))
         (where/error t_1 (step t_0))
@@ -71,53 +72,61 @@
         (t_1 σ Q T (FS_0 ... (thread (root (in-hole E (os/block (spawn v_coro)))) F ...) FS_1 ...))
 
         (where/error t_1 (step t_0))
-        "os/block-coro"]
-
-   ))
+        "os/block-coro"]))
 
 (define -->sys/overriden
   (extend-reduction-relation
-   (union-reduction-relations -->sys -->sys/exn)
+   -->sys/exn
    AsyncIO
 
+   [-->
+    (t_0 σ_0 Q_0 T ((thread F F_rs ...) ... (thread) FS_1 ...))
+    (t_1 σ_1 Q_1 T ((thread F F_rs ...) ... (thread (label_waiting (throw-in v_thunk "cancelled"))) FS_1 ...))
+
+    (where ((label_waiting v_thunk) Q_1) (Q:pop Q_0))
+    (where #true (task:cancelled? σ label_waiting))
+    ;; TODO: in asyncio tasks are edge triggered
+    ;(where/error σ_1 (task:uncancel σ_0 label_waiting))
+    (where/error t_1 (step t_0))
+    "sys/schedule-cancelled"]
+
+   ;; STRENGTH weak, `Q`, the Executor loop is not a part of the GC root set
+   [--> (t_0 (any_before ... (x v) any_after ...) (any_0 ... (x _) any_1 ...) T PS)
+        (t_1 (any_before ... any_after ...) (any_0 ... any_1 ...) T PS)
+        (side-condition
+         (let ([remaining-state (term (T PS any_before ... any_after ...))])
+           (not (memq (term x) (flatten remaining-state)))))
+        (where/error t_1 (step t_0))
+        "sys/gc"]
+
+
    [--> (t_0 σ Q T ((thread (root (in-hole E (os/block v_task)))) FS ...))
-        (t_1 σ Q T ((thread (root (in-hole E (task:get-result v_task)))) FS ...))
+        (t_1 σ Q T ((thread (root (in-hole E (begin
+                                               (cancel x_0 x_1 ...)
+                                               (os/block v_task))))) FS ...))
 
         (where #true (task:settled? σ v_task))
-        ;; XXX: restrict rule to only when there's no unawaited errors
+        (where (x_0 x_1 ...) (store:get-uncancelled-tasks σ))
+        (where/error t_1 (step t_0))
+        "os/block-cancel"]
+
+   [--> (t_0 σ () () ((thread (root (in-hole E (os/block v_task)))) FS ...))
+        (t_1 σ () () ((thread (root (in-hole E (task:get-result v_task)))) FS ...))
+
+        (where #true (task:settled? σ v_task))
+        (where () (store:get-uncancelled-tasks σ))
         (where none (store:find-unawaited-error σ))
         (where/error t_1 (step t_0))
         "os/block-exit"]
 
-   [--> (t_0 σ Q T ((thread (root (in-hole E (os/block v_task)))) FS ...))
-        (t_1 σ Q T ((thread (root (in-hole E (throw v_error)))) FS ...))
+   [--> (t_0 σ () () ((thread (root (in-hole E (os/block v_task)))) FS ...))
+        (t_1 σ () () ((thread (root (in-hole E (throw v_error)))) FS ...))
 
         (where #true (task:settled? σ v_task))
-        ;; XXX: reraises unawaited errors
+        ;; PROPAGATION: reraise, exceptions are reraised at the end of the jk
         (where (some v_error) (store:find-unawaited-error σ))
         (where/error t_1 (step t_0))
-        "os/block-exit-throwing"]
-
-   [--> (t_0 σ_0 Q T (FS_0 ... (thread (label (in-hole E (os/io t v))) F ...) FS_1 ...))
-        (t_1 σ_2 Q T (FS_0 ... (thread
-                                (x_io (os/start-later (+ (os/time) t)
-                                                      x_io
-                                                      (lambda (none)
-                                                        (begin
-                                                          ;; XXX: adds exception handlers
-                                                          (catch (lambda (e) (task:set-failed! x_io e))
-                                                                 (begin
-                                                                   none
-                                                                   (task:set-done! x_io v)))
-                                                          (os/start-soon (task:get-waiters x_io))))))
-
-                                (label (in-hole E x_io)) F ...) FS_1 ...))
-
-        (where/error (σ_1 v_task) (task:allocate σ_0))
-        (where/error (x_io) (gensyms σ_1 (io)))
-        (where/error σ_2 (ext1 σ_1 (x_io v_task)))
-        (where/error t_1 (step t_0))
-        "os/io"]))
+        "os/block-exit-throwing"]))
 
 (define -->aio
   (union-reduction-relations
@@ -140,24 +149,13 @@
     (unit:check-true
      (with-exn-handler
          (evaluates-in-set -->aio (async/main #:threads 2 e) results
+                           #:iterations 5
                            #:extract-result program-output))))
 
   (define-metafunction AsyncIO
     resume! : e e -> e
     [(resume! e_coro e_val)
      (e_coro e_val)]))
-
-#;
-(module+ test
-  (stepper -->aio
-           (async/main #:threads 2
-                       (let* ([exn (async/lambda ()
-                                     (throw "whoops"))]
-                              [main (async/lambda ()
-                                      (begin (spawn (exn))
-                                             (await (os/io 10 42))))])
-                         (catch (lambda (e) e)
-                                (os/block (main)))))))
 
 (module+ test
   (aio-->>=
@@ -201,8 +199,8 @@
    (let* ([exn (async/lambda ()
                  (throw "whoops"))]
           [main (async/lambda ()
-                  (begin (spawn (exn))
-                         (await (os/io 5 42))))])
+                  (let ([t (spawn (exn))])
+                    (await (os/io 1 42))))])
      (catch (lambda (e) e)
             (os/block (main))))
    "whoops")
@@ -227,7 +225,17 @@
             (os/block (main))))
    '("cancelled" 0))
 
-  #;
+  (aio-->>=
+   (let* ([mk-t1 (async/lambda () (throw 42))]
+          [mk-t2 (async/lambda (x)
+                   (catch (lambda (v) v)
+                          (begin
+                            (await (mk-t1))
+                            x)))])
+
+     (os/block (mk-t2 0)))
+   42)
+
   (aio-->>∈
    (let* ([f0 (async/lambda () (await (os/io 1000000 0)))]
           [f1 (async/lambda () (await (spawn (f0))))]

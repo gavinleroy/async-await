@@ -64,7 +64,6 @@
      (e_coro e_val)]))
 
 (module+ test
-
   (rs-->>=
    (resume! ((async/lambda (x) 42) 0) (void))
    42)

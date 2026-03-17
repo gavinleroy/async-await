@@ -1,220 +1,137 @@
 #lang racket
 
 (require redex
-         "lc.rkt"
-         "lc+exn.rkt"
-         "platform.rkt"
-         (prefix-in lib: (submod "lc.rkt" niceties)))
+         "core.rkt"
+         "exn.rkt"
+         "platform.rkt")
 
-(provide JS/Core JS -->js)
+(provide Js -->js)
 
-(define-extended-language JS/Core LC+Exn
+(define-extended-ev-system Js
+  #:def-reduction -->sys
+  #:def-exn-reduction -->sys/exn
+  #:with-base-lang Exn
+  #:with-base-reduction -->exn
+
   (e ::= ....
      (async/lambda (x_!_ ...) e)
      (await e))
 
   (v ::= ....
-     (async/lambda (x_!_ ...) e)
-     (task x_async))
+     (async/lambda (x_!_ ...) e))
 
-  (E ::= ....
-     (await E))
+  (E ::= .... (await E))
+  (M ::= .... (await M))
+  (G ::= .... (await G))
 
   #:binding-forms
 
   (async/lambda (x ...) e #:refers-to (shadow x ...)))
 
-(define-event-loop
-  JS JS/Core)
-
 ;; -----------------------------------------------------------------------------
 ;; Operational Semantics
 ;; -----------------------------------------------------------------------------
 
-(define -->js/sync
+(define -->js/core
   (reduction-relation
-   JS
-   #:domain (t σ Q P)
+   Js
+   #:domain (t σ Q T P)
 
-   [--> (t_0 σ_0 Q ((stack (frame e_0 l) F ...)))
-        (t_1 σ_1 Q ((stack (frame e_1 l) F ...)))
+   [--> (t_0 σ_0 Q T (FS_0 ... (thread (label (in-hole E ((async/lambda (x ..._1) e_body) v ..._1))) F ...) FS_1 ...))
+        (t_1 σ_2 Q T (FS_0 ... (thread
+                                ;; EAGERNESS: eager, the function body is placed on the executing thread to evaluate
+                                (x_task (reset
+                                         (begin
+                                           (catch (lambda (v_err) (task:set-failed! x_task v_err))
+                                                  (task:set-done! x_task e_subst))
+                                           (os/start-soon (task:get-dependents x_task))
+                                           ;; EXTENT: indefinite, at the end of the task scope we don't destroy
+                                           ;; tasks that were spawned during the execution of `v_coro`.
+                                           )))
+                                (label (in-hole E x_task)) F ...) FS_1 ...))
 
-        (side-condition (not (term (value? e))))
-        (where (σ_1 e_1) (⇓base σ_0 e_0))
-        (where/error t_1 (step t_0))
-        "⇓base"]))
-
-
-(define -->js/task
-  (reduction-relation
-   JS
-   #:domain (t σ Q P)
-
-   [--> (t_0 σ_0 Q ((stack (frame (in-hole E ((async/lambda (x ..._1) e) v ..._1)) l) F ...)))
-        (t_1 σ_1 Q ((stack (frame e x_async) (frame (in-hole E (task x_async)) l) F ...)))
-        
-        (where/error (ptr x_async) (malloc σ_0))
-        (where/error σ_1 (ext σ_0 (x_async (new-task)) (x v) ...))
+        (where/error (σ_1 x_task v_task) (task:allocate σ_0))
+        (where/error (x_fresh ...) (gensyms (σ_1 e_body) (x ...)))
+        (where/error σ_2 (ext σ_1 (x_task v_task) (x_fresh v) ...))
+        (where/error e_subst (substitute* e_body (x x_fresh) ...))
         (where/error t_1 (step t_0))
         "async-app"]
 
-   [--> (t_0 σ_0 Q_0 ((stack (frame v l) F ...)))
-        (t_1 σ_1 Q_1 ((stack F ...)))
-
-        (side-condition (async? (term l)))
-        (where x_async l)
-        (where v_obj (lookup σ_0 x_async))
-        (where/error (pending F_waiting ...) (task-status v_obj))
-        (where/error σ_1 (ext1 σ_0 (x_async (task-settle v_obj v))))
-        (where/error Q_1 (q-push Q_0 F_waiting ...))
-        (where/error t_1 (step t_0))
-        "task-return"]
-
-   [--> (t_0 σ_0 Q_0 ((stack (frame (throw v_err) l) F ...)))
-        (t_1 σ_1 Q_1 ((stack F ...)))
-
-        (side-condition (async? (term l)))
-        (where x_async l)
-        (where v_obj (lookup σ_0 x_async))
-        (where/error (pending F_waiting ...)  (task-status v_obj))
-        (where/error σ_1 (ext1 σ_0 (x_async (task-fail v_obj v_err))))
-        (where/error Q_1 (q-push Q_0 F_waiting ...))
-        (where/error t_1 (step t_0))
-        "task-failed"]))
-
-
-(define -->js/await
-  (reduction-relation
-   JS
-   #:domain (t σ Q P)
-
-   [--> (t_0 σ_0 Q ((stack (name current-frame
-                                 (frame (in-hole E (await (task x_async))) l)) F ...)))
-        (t_1 σ_1 Q ((stack F ...)))
-
-        (where v_obj (lookup σ_0 x_async))
-        (where (pending _ ...) (task-status v_obj))
-        (where/error σ_1 (ext1 σ_0 (x_async (task-push-waiting v_obj current-frame))))
-        (where/error t_1 (step t_0))
-        "await-suspend"]
-
-   [--> (t_0 σ Q_0 ((stack (frame (in-hole E (await (task x_async))) l) F ...)))
-        (t_1 σ Q_1 ((stack F ...)))
-
-        (where (done v) (task-status (lookup σ x_async)))
-        (where/error Q_1 (q-push Q_0 (frame (in-hole E v) l)))
-        (where/error t_1 (step t_0))
-        "await-continue"]
-
-   [--> (t_0 σ Q_0 ((stack (frame (in-hole E (await (task x_async))) l) F ...)))
-        (t_1 σ Q_1 ((stack F ...)))
-
-        (where (failed v) (task-status (lookup σ x_async)))
-        (where/error Q_1 (q-push Q_0 (frame (in-hole E (throw v)) l)))
-        (where/error t_1 (step t_0))
-        "await-failed"]))
-
-
-(define -->js/io
-  (reduction-relation
-   JS
-   #:domain (t σ Q P)
-
-   [--> (t_0 σ_0 Q_0 ((stack (frame (in-hole E (os/io natural v)) l) F ...)))
-        (t_1 σ_1 Q_1 ((stack (frame (in-hole E (task x_async)) l) F ...)))
-
-        (where (ptr x_async) (malloc σ_0))
-        (where/error σ_1 (ext1 σ_0 (x_async (new-task))))
-        (where/error Q_1 (q-push Q_0 (frame (os/resolve (task x_async) (lib:Σ t_0 natural) v) x_async)))
-        (where/error t_1 (step t_0))
-        "os/io"]
-
-   [--> (t_0 σ_0 Q_0 ((stack (frame (in-hole E (os/resolve (task x_async) t_resolve v)) l) F ...)))
-        (t_1 σ_1 Q_1 ((stack F ...)))
-
-        (side-condition (>= (term t_0) (term t_resolve)))
-        (where v_obj (lookup σ_0 x_async))
-        (where/error (pending F_waiting ...) (task-status v_obj))
-        (where/error σ_1 (ext1 σ_0 (x_async (task-settle v_obj v))))
-        (where/error Q_1 (q-push Q_0 F_waiting ...))
-        (where/error t_1 (step t_0))
-        "os/resolve"]
-
-   [--> (t_0 σ Q_0 ((stack (name current-frame
-                                 (frame (in-hole E (os/resolve v_task t_resolve v)) l)) F ...)))
-        (t_1 σ Q_1 ((stack F ...)))
-
-        (side-condition (< (term t_0) (term t_resolve)))
-        (where/error Q_1 (q-push Q_0 current-frame))
-        (where/error t_1 (step t_0))
-        "os/resolve-requeue"]))
-
-
-(define -->js/sys
-  (reduction-relation
-   JS
-   #:domain (t σ Q P)
-
-   [--> (t_0 σ Q_0 ((stack)))
-        (t_1 σ Q_1 ((stack F_head)))
-
-        (where (F_head Q_1) (q-pop Q_0))
-        (where/error t_1 (step t_0))
-        "dequeue"]
-
-   [--> (t_0 σ Q ((stack (frame (in-hole E (block (task x_async))) l))))
-        (t_1 σ Q ((stack (frame (in-hole E (await (task x_async))) l))))
+   [--> (t_0 σ Q T (FS_0 ... (thread (label (in-hole E (await v_awaitable))) F ...) FS_1 ...))
+        (t_1 σ Q T (FS_0 ... (thread (label (in-hole E
+                                                     ;; SUSPENSION: static, always suspend
+                                                     (shift k
+                                                            (task:add-self-as-dependent!
+                                                             v_awaitable
+                                                             (label (task:continue-with v_awaitable k)))))) F ...) FS_1 ...))
 
         (where/error t_1 (step t_0))
-        "block"]))
+        "await"]))
 
-
+(define -->sys/overrides
+  (extend-reduction-relation
+   -->sys/exn
+   Js
+   ;; DESTRUCTION: awaited (the default for the platform)
+   ))
 
 (define -->js
   (union-reduction-relations
-   -->js/sync
-   -->js/task
-   -->js/await
-   -->js/io
-   -->js/sys))
-
-(define -->base
-  (extend-reduction-relation -->exn JS))
-
-(define-big-step ⇓base
-  -->base JS)
+   ;; REFERENCE STRENGTH: strong, the default GC rule keeps `Q` in the root set
+   ;; PROPAGATION: await, no rule reraises unawaited exceptions
+   ;; CANCELLATION: undefined
+   (make-big-step -->sys/exn)
+   -->js/core))
 
 ;; -----------------------------------------------------------------------------
 ;; Tests
 ;; -----------------------------------------------------------------------------
 
 (module+ test
-  (require "utils.rkt"
-           (submod "lc.rkt" niceties))
-
-  (define-syntax-rule (js-->>= e v)
-    (test-->> -->js #:equiv prog/equiv (async/main #:threads 1 e) v))
+  (require (submod "core.rkt" niceties)
+           "utils.rkt")
 
   (define-syntax-rule (js-->>∈ e results)
-    (evaluates-in-set -->js (async/main #:threads 1 e) results
+    (evaluates-in-set -->js (async/main #:threads 2 e) results
                       #:extract-result program-output))
 
+  (define-syntax-rule (js-->>= e v)
+    (test-->> -->js #:equiv prog/equiv (async/main #:threads 1 e) v)))
+
+(module+ test
   (js-->>=
-   (block ((async/lambda () 42)))
+   (os/block ((async/lambda () 42)))
    42)
 
   (js-->>=
-   (block ((async/lambda (x) x) 42))
+   (os/block ((async/lambda (x) x) 42))
    42)
 
   (js-->>=
-   (let* ([yield (async/lambda () (void))]
+   (let* ([suspend (async/lambda () (void))]
           [id (async/lambda (x)
                 (begin
-                  (await (yield))
+                  (await (suspend))
                   x))])
+     (os/block (id 42)))
+   42)
 
-     (block (id 42)))
+  (js-->>=
+   (let* ([mk-t1 (async/lambda ()
+                   (throw 42))]
+          [mk-t2 (async/lambda (x)
+                   (catch (lambda (v) v)
+                          (begin
+                            (await (mk-t1))
+                            x)))])
+
+     (os/block (mk-t2 0)))
+   42)
+
+  (js-->>=
+   (let ([work (async/lambda ()
+                 (await (os/io 5 42)))])
+     (os/block (work)))
    42)
 
   (js-->>=
@@ -225,12 +142,7 @@
                             (await (mk-t1))
                             x)))])
 
-     (block (mk-t2 0)))
-   42)
-
-  (js-->>=
-   (let ([work (async/lambda () (await (os/io 5 42)))])
-     (block (work)))
+     (os/block (mk-t2 0)))
    42)
 
   (js-->>=
@@ -239,45 +151,48 @@
                     (begin
                       (print (await (os/io 1 msg)))
                       (print (await (os/io 1 msg)))))])
-       (block (work "A"))))
+       (os/block (work "A"))))
    "AA")
 
   (js-->>=
    (trace-stdout (print)
      (let* ([get-truth (async/lambda () #true)]
-            [work (async/lambda (msg)
-                    (begin (print msg)
-                           (dotimes (i 3)
-                                    (when (await (get-truth))
-                                      (print msg)))))]
+            ;; print `msg` `n` times
+            [work (async/lambda (msg n)
+                    (let ([i 0])
+                      (letrec ([loop (lambda ()
+                                       (if (< i n)
+                                           (begin (if (await (get-truth))
+                                                      (print msg)
+                                                      (void))
+                                                  (set! i (+ i 1))
+                                                  (loop))
+                                           (void)))])
+                        (loop))))]
             [main (async/lambda ()
-                    (let ([task0 (work "A")]
-                          [task1 (work "B")])
+                    (let ([task0 (work "A" 3)]
+                          [task1 (work "B" 3)])
                       (begin (print "C")
                              (await task0)
                              (await task1))))])
-       (block (main))))
-   "ABCABABAB")
+       (os/block (main))))
+   "AAABBBC")
 
-  (js-->>=
+  (js-->>∈
    (trace-stdout (print)
-     (let* ([get-truth (async/lambda () (throw "T"))]
-            [work (async/lambda (msg)
-                    (begin (print msg)
-                           (dotimes (i 3)
-                                    (when (await (get-truth))
-                                      (print msg)))))]
+     (let* ([work (async/lambda (msg)
+                    (begin (await (os/io 0 (void)))
+                           (print msg)))]
             [main (async/lambda ()
                     (let ([task0 (work "A")]
                           [task1 (work "B")])
-                      (catch (lambda (e) (print e))
-                             (begin (print "C")
-                                    (await task0)
-                                    (await task1)))))])
-       (block (main))))
-   "ABCT")
-  
-  (js-->>=
+                      (begin
+                        (await task0)
+                        (await task1))))])
+       (os/block (main))))
+   (list "AB" "BA"))
+
+  (js-->>∈
    (trace-stdout (print)
      (let* ([work (async/lambda (msg)
                     (begin (await (os/io 5 (void)))
@@ -288,5 +203,5 @@
                       (begin (print "C")
                              (await task0)
                              (await task1))))])
-       (block (main))))
-   "CAB"))
+       (os/block (main))))
+   (string-permutations "ABC")))

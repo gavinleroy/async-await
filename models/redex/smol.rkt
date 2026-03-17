@@ -5,9 +5,9 @@
          "rust.rkt"
          "platform.rkt")
 
-(provide Tokio -->tokio)
+(provide Smol -->smol)
 
-(define-extended-ev-system Tokio
+(define-extended-ev-system Smol
   #:def-reduction -->sys
   #:with-base-lang Rust
   #:with-base-reduction -->rs
@@ -19,9 +19,9 @@
 ;; Operational Semantics
 ;; -----------------------------------------------------------------------------
 
-(define -->tokio/core
+(define -->smol/core
   (reduction-relation
-   Tokio
+   Smol
    #:domain (t σ Q T P)
 
    [--> (t_0 σ_0 Q_0 T (FS_0 ... (thread (label (in-hole E (spawn v_coro))) F ...) FS_1 ...))
@@ -55,7 +55,13 @@
         "await-task"]
 
    [--> (t_0 σ Q T (FS_0 ... (thread (label (in-hole E (cancel v_task))) F ...) FS_1 ...))
-        (t_0 σ Q T (FS_0 ... (thread (label (in-hole E (task:set-cancelled! v_task))) F ...) FS_1 ...))
+        (t_1 σ Q T (FS_0 ... (thread (label (in-hole E
+                                                     (spawn ((async/lambda ()
+                                                               (begin (task:set-cancelled! v_task)
+                                                                      (await v_task)
+                                                                      (void))))))) F ...) FS_1 ...))
+
+        (where/error t_1 (step t_0))
         "cancel"]
 
    [--> (t_0 σ Q T (FS_0 ... (thread (root (in-hole E (os/block (name v_coro (lambda (x) e))))) F ...) FS_1 ...))
@@ -67,40 +73,24 @@
 (define -->sys/overrides
   (extend-reduction-relation
    -->sys
-   Tokio
-
-   [--> (t_0 σ Q_0 T ((thread F F_rs ...) ... (thread) FS_1 ...))
-        (t_1 σ Q_1 T ((thread F F_rs ...) ...
-                      (thread (label_waiting (if (task:is-cancelled? label_waiting)
-                                                 ;; XXX: if a task is cancelled just throw it out
-                                                 (void)
-                                                 (v_thunk (void))))) FS_1 ...))
-
-        (where ((label_waiting v_thunk) Q_1) (Q:pop Q_0))
-        (where/error t_1 (step t_0))
-        "sys/schedule"]
-
+   Smol
 
    [-->
     (t_0 σ Q_0 T ((thread F F_rs ...) ... (thread) FS_1 ...))
-    (t_1 σ Q_1 T ((thread F F_rs ...) ... (thread) FS_1 ...))
+    (t_1 σ Q_1 T ((thread F F_rs ...) ... (thread
+                                           (label_waiting (begin (task:set-failed! label_waiting (void))
+                                                                 (os/start-soon (task:get-dependents x_task))))) FS_1 ...))
+
     (where ((label_waiting _) Q_1) (Q:pop Q_0))
     (where #true (task:cancelled? σ label_waiting))
     (where/error t_1 (step t_0))
-    "sys/schedule-cancelled"]
-
-   [--> (t_0 σ Q T_0 P)
-        (t_1 σ Q T_1 P)
-
-        (where (some (_ _ T_1)) (T:pop-cancelled σ T_0))
-        (where/error t_1 (step t_0))
-        "sys/signal-cancel"]))
+    "sys/schedule-cancelled"]))
 
 
-(define -->tokio
+(define -->smol
   (union-reduction-relations
    (make-big-step -->sys/overrides)
-   -->tokio/core))
+   -->smol/core))
 
 ;; -----------------------------------------------------------------------------
 ;; Tests
@@ -111,17 +101,17 @@
            "utils.rkt"
            (prefix-in unit: rackunit))
 
-  (define-syntax-rule (tokio-->>= e v)
-    (test-->> -->tokio #:equiv prog/equiv (async/main #:threads 2 e) v))
+  (define-syntax-rule (smol-->>= e v)
+    (test-->> -->smol #:equiv prog/equiv (async/main #:threads 2 e) v))
 
-  (define-syntax-rule (tokio-->>∈ e results)
+  (define-syntax-rule (smol-->>∈ e results)
     (unit:check-true
      (with-exn-handler
-         (evaluates-in-set -->tokio (async/main #:threads 2 e) results
+         (evaluates-in-set -->smol (async/main #:threads 2 e) results
                            #:extract-result program-output)))))
 
 (module+ test
-  (tokio-->>=
+  (smol-->>=
    (trace-stdout (print)
      (let* ([suspend (async/lambda () (void))]
             [work (async/lambda (msg)
@@ -131,13 +121,13 @@
        (os/block c)))
    "A")
 
-  (tokio-->>=
+  (smol-->>=
    (let* ([work (async/lambda ()
                   (await (os/io 1 42)))])
      (os/block (work)))
    42)
 
-  (tokio-->>=
+  (smol-->>=
    (let* ([work (async/lambda ()
                   (begin (await (os/io 1 (void)))
                          (await (os/io 1 (void)))
@@ -145,7 +135,7 @@
      (os/block (work)))
    42)
 
-  (tokio-->>=
+  (smol-->>=
    (let* ([work (async/lambda ()
                   (begin (await (os/io 1 (void)))
                          (await (os/io 1 (void)))
@@ -154,7 +144,7 @@
      (os/block (main)))
    42)
 
-  (tokio-->>=
+  (smol-->>=
    (trace-stdout (print)
      (let* ([append-it (async/lambda () (print "A"))]
             [transparent (async/lambda ()
@@ -163,7 +153,7 @@
        (os/block (transparent))))
    "B")
 
-  (tokio-->>∈
+  (smol-->>∈
    (trace-stdout (print)
      (let* ([work (async/lambda ()
                     (letrec ([loop (lambda ()
@@ -179,7 +169,7 @@
    (for/list ([i (in-range 5)])
      (make-string i #\A)))
 
-  (tokio-->>=
+  (smol-->>=
    (trace-stdout (print)
      (let* ([work (async/lambda (msg)
                     (print (await (os/io 1 msg))))]
@@ -192,7 +182,7 @@
        (os/block (main))))
    "CAB")
 
-  (tokio-->>∈
+  (smol-->>∈
    (trace-stdout (print)
      (let* ([work (async/lambda (msg)
                     (print (await (os/io 1 msg))))]

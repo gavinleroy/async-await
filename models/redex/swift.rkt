@@ -1,259 +1,146 @@
-#lang racket
+#lang racket/base
 
 (require redex
-         "lc.rkt"
-         (prefix-in lib: (submod "lc.rkt" niceties))
-         "lc+exn.rkt"
+         "core.rkt"
+         "exn.rkt"
          "platform.rkt")
 
-(provide Swift/Core Swift -->swift)
+(provide Swift -->swift)
 
-(define-extended-language Swift/Core LC+Exn
+(define-extended-ev-system Swift
+  #:def-reduction -->sys
+  #:def-exn-reduction -->sys/exn
+  #:with-base-lang Exn
+  #:with-base-reduction -->exn
+
   (e ::= ....
      (async/lambda (x_!_ ...) e)
      (await e)
      (cancel e)
      (cancelled?))
-  
+
   (v ::= ....
-     (async/lambda (x_!_ ...) e)
-     (task x_async))
-  
-  (E ::= ....
-     (await E)
-     (cancel E)
-     (run E))
+     (async/lambda (x_!_ ...) e))
+
+  (E ::= .... (await E) (cancel E))
+  (M ::= .... (await M) (cancel M))
+  (G ::= .... (await G) (cancel G))
 
   #:binding-forms
-  
-  (async/lambda (x ...) e #:refers-to (shadow x ...)))
 
-(define-event-loop
-  Swift Swift/Core)
+  (async/lambda (x ...) e #:refers-to (shadow x ...)))
 
 ;; -----------------------------------------------------------------------------
 ;; Operational Semantics
 ;; -----------------------------------------------------------------------------
 
-(define -->swift/sync
+(define -->swift/core
   (reduction-relation
    Swift
-   #:domain (t σ Q P)
-   
-   [--> (t_0 σ_0 Q (FS_0 ... (stack (frame e_0 l) F ...) FS_1 ...))
-        (t_1 σ_1 Q (FS_0 ... (stack (frame e_1 l) F ...) FS_1 ...))
+   #:domain (t σ Q T P)
 
-        (side-condition (not (term (value? e))))
-        (where (σ_1 e_1) (⇓base σ_0 e_0))
-        (where t_1 (step t_0))
-        "⇓base"]))
+   [--> (t_0 σ_0 Q_0 T (FS_0 ... (thread (label (in-hole E ((async/lambda (x ..._1) e_body) v ..._1))) F ...) FS_1 ...))
+        (t_1 σ_2 Q_1 T (FS_0 ... (thread (label (in-hole E x_task)) F ...) FS_1 ...))
 
-
-(define -->swift/task
-  (reduction-relation
-   Swift
-   #:domain (t σ Q P)
-
-   [--> (t_0 σ_0 Q_0 (FS_0 ... (stack (frame (in-hole E ((async/lambda (x ..._1) e) v ..._1)) l) F ...) FS_1 ...))
-        (t_1 σ_1 Q_1 (FS_0 ... (stack (frame (in-hole E (task x_async)) l) F ...) FS_1 ...))
-        
-        (where (ptr x_async) (malloc σ_0))
-        (where/error σ_1 (ext σ_0 (x_async (new-task (task-owner l))) (x v) ...))
-        (where/error Q_1 (q-push Q_0 (frame e x_async)))
+        ;; XXX: tie to spawning context
+        (where/error (σ_1 x_task v_task) (task:allocate-dependency σ_0 label))
+        (where/error (x_fresh ...) (gensyms (σ_1 e_body) (x ...)))
+        (where/error σ_2 (ext σ_1 (x_task v_task) (x_fresh v) ...))
+        (where/error e_subst (substitute* e_body (x x_fresh) ...))
+        (where/error Q_1 (Q:push Q_0 (x_task (lambda (null)
+                                               (begin null
+                                                      (reset
+                                                       (begin
+                                                         (catch (lambda (v_err)
+                                                                  (task:set-failed! x_task v_err))
+                                                                (task:set-done! x_task e_subst))
+                                                         ;; XXX: cancel on destruction
+                                                         (task:cancel-dependencies x_task)
+                                                         ;; XXX: dynamic-extent enforcement
+                                                         (task:wait-on-dependencies x_task)
+                                                         (os/start-soon (task:get-dependents x_task)))))))))
         (where/error t_1 (step t_0))
         "async-app"]
 
-   [--> (t_0 σ_0 Q_0 (FS_0 ... (stack (frame v l) F ...) FS_1 ...))
-        (t_1 σ_1 Q_1 (FS_0 ... (stack F ...) FS_1 ...))
-        
-        (side-condition (async? (term l)))
-        (where x_async l)
-        (where none (task-tree-running-child σ_0 x_async))
-        (where/error v_obj (lookup σ_0 x_async))
-        (where/error (pending F_waiting ...) (task-state v_obj))
-        (where/error σ_1 (ext1 σ_0 (x_async (task-settle v_obj v))))
-        (where/error Q_1 (q-push Q_0 F_waiting ...))
+   [--> (t_0 σ Q T (FS_0 ... (thread (label (in-hole E (await v_awaitable))) F ...) FS_1 ...))
+        (t_1 σ Q T (FS_0 ... (thread (label (in-hole E
+                                                     (if (task:is-completed? v_awaitable)
+                                                         (task:get-result v_awaitable)
+                                                         (shift k
+                                                                (task:add-self-as-dependent!
+                                                                 v_awaitable
+                                                                 (label (task:continue-with v_awaitable k))))))) F ...) FS_1 ...))
+
         (where/error t_1 (step t_0))
-        "task-return"]
+        "await"]
 
-   [--> (t_0 σ_0 Q_0 (FS_0 ... (stack (frame (throw v_err) l) F ...) FS_1 ...))
-        (t_1 σ_1 Q_1 (FS_0 ... (stack F ...) FS_1 ...))
+   [--> (t_0 σ Q T (FS_0 ... (thread (label (in-hole E (cancel v_task))) F ...) FS_1 ...))
+        (t_0 σ Q T (FS_0 ... (thread (label (in-hole E (task:set-cancelled! v_task))) F ...) FS_1 ...))
 
-        (side-condition (async? (term l)))
-        (where x_async l)
-        (where v_obj (lookup σ_0 x_async))
-        (where/error (pending F_waiting ...) (task-state v_obj))
-        (where/error σ_1 (ext1 σ_0 (x_async (task-fail v_obj v_err))))
-        (where/error Q_1 (q-push Q_0 F_waiting ...))
-        (where/error t_1 (step t_0))
-        "task-failed"]
-
-   [--> (t_0 σ_0 Q (FS_0 ... (stack (name parent-frame (frame v l)) F ...) FS_1 ...))
-        (t_1 σ_1 Q (FS_0 ... (stack F ...) FS_1 ...))
-        
-        (side-condition (async? (term l)))
-        (where x_async l)
-        (where (some x_child) (task-tree-running-child σ_0 x_async))
-        (where/error σ_1 (ext1 (x_child (task-push-waiting (lookup σ_0 x_child) parent-frame))))
-        (where/error t_1 (step t_0))
-        "task-return-await-children"]
-
-   ;; TODO, what happens for task-exn-trap
-   ))
-
-
-(define -->swift/await
-  (reduction-relation
-   Swift
-   #:domain (t σ Q P)
-
-   [--> (t_0 σ Q (FS_0 ... (stack (frame (in-hole E (await (task x_async))) l) F ...) FS_1 ...))
-        (t_1 σ Q (FS_0 ... (stack (frame (in-hole E v) l) F ...) FS_1 ...))
-
-        (where (done v) (task-state (lookup σ x_async)))
-        (where/error t_1 (step t_0))
-        "await-continue"]
-
-   [--> (t_0 σ Q (FS_0 ... (stack (frame (in-hole E (await (task x_async))) l) F ...) FS_1 ...))
-        (t_1 σ Q (FS_0 ... (stack (frame (in-hole E (throw v)) l) F ...) FS_1 ...))
-
-        (where (failed v) (task-state (lookup σ x_async)))
-        (where/error t_1 (step t_0))
-        "await-failed"]
-
-   [--> (t_0 σ_0 Q (FS_0 ... (stack (name current-frame
-                                          (frame (in-hole E (await (task x_async))) l)) F ...)
-                    FS_1 ...))
-        (t_1 σ_1 Q (FS_0 ... (stack F ...) FS_1 ...))
-
-        (side-condition (async? (term l)))
-        (where v_obj (lookup σ_0 x_async))
-        (where (pending _ ...) (task-state v_obj))
-        (where/error σ_1 (ext1 σ_0 (x_async (task-push-waiting v_obj current-frame))))
-        (where/error t_1 (step t_0))
-        "await-suspend"]))
-
-
-(define -->swift/cancel
-  (reduction-relation
-   Swift
-   #:domain (t σ Q P)
-
-   [--> (t_0 σ_0 Q (FS_0 ... (stack (frame (in-hole E (cancel (task x_async))) l) F ...) FS_1 ...))
-        (t_1 σ_1 Q (FS_0 ... (stack (frame (in-hole E (void)) l) F ...) FS_1 ...))
-
-        (where/error σ_1 (ext1 σ_0 (x_async (task-cancel (lookup σ_0 x_async)))))
-        (where/error t_1 (step t_0))
         "cancel"]
 
-   [--> (t_0 σ Q (FS_0 ... (stack (frame (in-hole E (cancelled?)) l) F ...) FS_1 ...))
-        (t_1 σ Q (FS_0 ... (stack (frame (in-hole E boolean) l) F ...) FS_1 ...))
+   [--> (t_0 σ Q T (FS_0 ... (thread (label (in-hole E (cancelled?))) F ...) FS_1 ...))
+        (t_0 σ Q T (FS_0 ... (thread (label (in-hole E (task:cancelled? σ label))) F ...) FS_1 ...))
 
-        (side-condition (async? (term l)))
-        (where x_async l)
-        (where/error boolean (task-tree-cancelled? σ x_async))
-        (where/error t_1 (step t_0))
         "cancelled?"]))
 
 
-(define -->swift/io
-  (reduction-relation
+(define -->sys/overrides
+  (extend-reduction-relation
+   -->sys/exn
    Swift
-   #:domain (t σ Q P)
 
-   [--> (t_0 σ_0 Q_0 (FS_0 ... (stack (frame (in-hole E (os/io natural v)) l) F ...) FS_1 ...))
-        (t_1 σ_1 Q_1
-             (FS_0 ... (stack (frame (in-hole E (task x_async)) l) F ...) FS_1 ...))
+   [-->
+    (t_0 σ_0 Q T (FS_0 ... (thread (label (in-hole E (os/io t v))) F ...) FS_1 ...))
+    (t_1 σ_2 Q T (FS_0 ... (thread
+                            (x_io (os/start-later (+ (os/time) t)
+                                                  x_io
+                                                  (lambda (none)
+                                                    (begin (catch (lambda (e) (task:set-failed! x_io e))
+                                                                  (begin none
+                                                                         (task:set-done! x_io v)))
+                                                           (os/start-soon (task:get-dependents x_io))))))
+                            (label (in-hole E x_io)) F ...)
+                  FS_1 ...))
 
-        (where (ptr x_async) (malloc σ_0))
-        (where σ_1 (ext1 σ_0 (x_async (new-task))))
-        (where Q_1 (q-push Q_0 (frame (os/resolve (task x_async) (lib:Σ t_0 natural) v) x_async)))
-        (where t_1 (step t_0))
-        "os/io"]
-
-   [--> (t_0 σ_0 Q_0
-             (FS_0 ... (stack (frame (in-hole E (os/resolve (task x_async) t_resolve v)) l) F ...)
-                   FS_1 ...))
-        (t_1 σ_1 Q_1 (FS_0 ... (stack F ...) FS_1 ...))
-
-        (side-condition (>= (term t_0) (term t_resolve)))
-        (where v_obj (lookup σ_0 x_async))
-        (where/error (pending F_waiting ...) (task-state v_obj))
-        (where/error σ_1 (ext1 σ_0 (x_async (task-settle v_obj v))))
-        (where/error Q_1 (q-push Q_0 F_waiting ...))
-        (where/error t_1 (step t_0))
-        "os/resolve"]
-
-   [--> (t_0 σ Q_0 (FS_0 ... (stack (name current-frame (frame (in-hole E (os/resolve v_task t_resolve v)) l)) F ...) FS_1 ...))
-        (t_1 σ Q_1 (FS_0 ... (stack F ...) FS_1 ...))
-
-        (side-condition (< (term t_0) (term t_resolve)))
-        (where/error Q_1 (q-push Q_0 current-frame))
-        (where/error t_1 (step t_0))
-        "os/resolve-suspend"]))
-
-
-(define -->swift/sys
-  (reduction-relation
-   Swift
-   #:domain (t σ Q P)
-
-   [--> (t_0 σ Q_0 (FS_main FS_0 ... (stack) FS_1 ...))
-        (t_1 σ Q_1 (FS_main FS_0 ... (stack F_head) FS_1 ...))
-
-        (side-condition (term (all-busy? FS_0 ...)))
-        (where (F_head Q_1) (q-pop Q_0))
-        (where t_1 (step t_0))
-        "dequeue"]
-
-   [--> (t_0 σ Q ((stack (frame (in-hole E (block (task x_async))) l)) FS_rest ...))
-        (t_1 σ Q ((stack (frame (in-hole E v) l)) FS_rest ...))
-
-        (side-condition (sync? (term l)))
-        (side-condition (not (term (any-busy? FS_rest ...))))
-        (where (done v) (task-state (lookup σ x_async)))
-        (where/error t_1 (step t_0))
-        "block"]))
+    ;; XXX: add dependency edge
+    (where/error (σ_1 x_io v_task) (task:allocate-dependency σ_0 label))
+    (where/error σ_2 (ext1 σ_1 (x_io v_task)))
+    (where/error t_1 (step t_0))
+    "os/io"]))
 
 
 (define -->swift
   (union-reduction-relations
-   -->swift/sync
-   -->swift/task
-   -->swift/await
-   -->swift/cancel
-   -->swift/io
-   -->swift/sys))
-
-
-(define -->base
-  (extend-reduction-relation -->exn Swift))
-
-
-(define-big-step ⇓base
-  -->base Swift)
+   (make-big-step -->sys/overrides)
+   -->swift/core))
 
 ;; -----------------------------------------------------------------------------
 ;; Tests
 ;; -----------------------------------------------------------------------------
 
 (module+ test
-  (require (submod "lc.rkt" niceties)
-           "utils.rkt")
-  
+  (require (submod "core.rkt" niceties)
+           "utils.rkt"
+           (prefix-in unit: rackunit))
+
   (define-syntax-rule (swift-->>= e v)
     (test-->> -->swift #:equiv prog/equiv (async/main #:threads 2 e) v))
 
   (define-syntax-rule (swift-->>∈ e results)
-    (evaluates-in-set -->swift (async/main #:threads 2 e) results
-                      #:extract-result program-output))
-  
+    (unit:check-true
+     (with-exn-handler
+         (evaluates-in-set -->swift (async/main #:threads 2 e) results
+                           #:iterations 1
+                           #:extract-result program-output)))))
+
+(module+ test
   (swift-->>=
-   (block ((async/lambda () 42)))
+   (os/block ((async/lambda () 42)))
    42)
 
   (swift-->>=
-   (block ((async/lambda (x) x) 42))
+   (os/block ((async/lambda (x) x) 42))
    42)
 
   (swift-->>=
@@ -262,8 +149,8 @@
                 (begin
                   (await (yield))
                   x))])
-     
-     (block (id 42)))
+
+     (os/block (id 42)))
    42)
 
   (swift-->>=
@@ -273,13 +160,13 @@
                           (begin
                             (await (mk-t1))
                             x)))])
-     
-     (block (mk-t2 0)))
+
+     (os/block (mk-t2 0)))
    42)
 
   (swift-->>=
    (let ([work (async/lambda () (await (os/io 5 42)))])
-     (block (work)))
+     (os/block (work)))
    42)
 
   (swift-->>=
@@ -288,44 +175,50 @@
                     (begin
                       (print (await (os/io 1 msg)))
                       (print (await (os/io 1 msg)))))])
-       (block (work "A"))))
+       (os/block (work "A"))))
    "AA")
 
   (swift-->>=
    (let* ([work (async/lambda () (cancelled?))])
-       (block (work)))
+     (os/block (work)))
    #false)
-  
+
   (swift-->>∈
    (trace-stdout (print)
      (let* ([worker (async/lambda ()
-                      (dotimes (i 3)
-                        (if (cancelled?)
-                            (throw "cancelled")
-                            (await (os/io 1 (print "A"))))))]
+                      (letrec ([loop (lambda (i)
+                                       (when (< i 3)
+                                         (begin
+                                           (await (os/io 1 (print "A")))
+                                           (loop (+ 1 i)))))])
+                        (loop 0)))]
             [main (async/lambda ()
                     (let ([w (worker)])
                       (begin (await (os/io 1 (void)))
                              (cancel w)
                              (catch (lambda (e) (print "C"))
                                     (await w)))))])
-       (block (main))))
+       (os/block (main))))
    '("C" "AC" "AAC" "AAAC" "AAA"))
 
   (swift-->>∈
    (trace-stdout (print)
      (let* ([get-truth (async/lambda () #true)]
             [work (async/lambda (msg)
-                    (dotimes (i 3)
-                             (when (await (get-truth))
-                               (print msg))))]
+                    (letrec ([loop (lambda (i)
+                                     (when (< i 3)
+                                       (begin
+                                         (when (await (get-truth))
+                                           (print msg))
+                                         (loop (+ 1 i)))))])
+                      (loop 0)))]
             [main (async/lambda ()
                     (let ([task0 (work "A")]
                           [task1 (work "B")])
                       (begin (print "C")
                              (await task0)
                              (await task1))))])
-       (block (main))))
+       (os/block (main))))
    (map (lambda (s) (string-append "C" s))
         (string-permutations "AAABBB")))
 
@@ -340,5 +233,5 @@
                       (begin (print "C")
                              (await task0)
                              (await task1))))])
-       (block (main))))
+       (os/block (main))))
    (string-permutations "ABC")))

@@ -82,13 +82,30 @@
      (let ([any_x any]) (let* ([any_x_s any_s] ...) any_body))])
 
   (define-metafunction REDEX
+    when : any any ... -> any
+    [(when any_cnd any_body ...)
+     (if any_cnd
+         (begin any_body ...)
+         (void))])
+
+  (define-metafunction REDEX
     letrec : ([any any]) any -> any
     [(letrec ([any_x (lambda (any_x_args ...) any_fbody)]) any_body)
      (let ([any_x (fix (lambda (any_x) (lambda (any_x_args ...) any_fbody)))])
        any_body)])
 
   (define-metafunction REDEX
-    trace-stdout : (any_print) any ... -> any
+    for-each : any any -> any
+    [(for-each any_lambda any_lst)
+     (letrec ([loop (lambda (lst)
+                      (if (empty? lst)
+                          (void)
+                          (begin (any_lambda (car lst))
+                                 (loop (cdr lst)))))])
+       (loop any_lst))])
+
+  (define-metafunction REDEX
+    trace-stdout : (any) any ... -> any
     [(trace-stdout (any_print) any_s ...)
      (let* ([any_stdout ""]
             [any_print (lambda (s)

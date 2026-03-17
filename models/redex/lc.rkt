@@ -242,12 +242,12 @@
         (σ (in-hole E #false))
         "empty?-false"]
 
-   [--> (σ (in-hole E (car (list v_0 v...))))
+   [--> (σ (in-hole E (car (list v_0 v ...))))
         (σ (in-hole E v_0))
         "car"]
 
-   [--> (σ (in-hole E (cdr (list v_0 v...))))
-        (σ (in-hole E (list v...)))
+   [--> (σ (in-hole E (cdr (list v_0 v ...))))
+        (σ (in-hole E (list v ...)))
         "cdr"]
 
    [--> (σ (in-hole E (cons v_new (list v ...))))
