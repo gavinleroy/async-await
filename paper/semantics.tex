@@ -1,6 +1,12 @@
 \section{Semantics}\label{sec:semantics}
 
-A key contribution of this paper is a precise and neutral description of the operational behavior of several contemporary async systems. To reduce the cosmetic noise we provide the operational semantics as extensions to a base $\lambda$-calculus variant, henceforth refered to as \lc. By providing the semantics in layers we highlight the control features necessary for a given language's implementation and can more easily compare the operational behavior between two languages that have seemingly incomparable semantics. We additionally provide all the semantics in this section as a runnable Redex model, available in the supplementary materials.~\missingcite
+The goal of the preceding section is to give a reasonable intuition for our characterization of the straight-line asynchrony design space. Next, we seek to articulate the design dimensions more precisely in terms of variants on a formal operational semantics for a core asynchronous language, \lc. 
+The goal is to give a semantics that is Python-esque/Rust-ic/etc., but which otherwise eliminates irrelevant language-specific details. For example, we unify the languages' implementation of asynchrony using delimited continuations rather than faithfully modeling each implementation using state machines and other such mechanisms.
+% A key contribution of this paper is a precise and neutral description of the operational behavior of several contemporary async systems. To reduce the cosmetic noise we provide the operational semantics as extensions to a base $\lambda$-calculus variant, henceforth refered to as \lc.
+ 
+The full semantics is too large to include in its entirety. We focus here on a minimal set of rules which correspond to the design dimensions in \Cref{sec:designdims}. The remaining rules are provided in the appendix, and a complete executable model via Redex is available in the supplementary materials.
+
+% By providing the semantics in layers we highlight the control features necessary for a given language's implementation and can more easily compare the operational behavior between two languages that have seemingly incomparable semantics. We additionally provide all the semantics in this section as a runnable Redex model, available in the supplementary materials.~\missingcite
 
 \begin{figure}[H]
   \begin{subfigure}[c]{0.35\textwidth}

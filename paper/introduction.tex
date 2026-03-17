@@ -69,15 +69,16 @@ async fn ex3():
   \label{fig:motivating-example}
 \end{figure}
 
-As a concrete example, consider the pseudocode in \Cref{fig:motivating-example}, showing two ways to run a background task that writes information to a log.  Languages differ with respect to what happens with tasks at the end of their spawning scope. Languages also differ in terms of when and how running tasks are stopped in the event of cancellation. As shown in \Cref{fig:motivating-example-outcomes}, when comparing five modern approaches to async/await, none of them exhibit the same behavior on all three examples.
+As a concrete example, consider the pseudocode in \Cref{fig:motivating-example}, showing two ways to run a background task that writes information to a log.  Languages differ with respect to what happens with tasks at the end of their spawning scope. Languages also differ in terms of when and how running tasks are stopped in the event of cancellation. As shown in \Cref{fig:motivating-example-outcomes}, when comparing five modern approaches to async/await, none of them exhibit the same behavior on three simple calling contexts.
 
 Observing this conceptual chaos, we set out to perform a \emph{design space exploration} of async/await in modern languages. The contribution of this paper is the results of that exploration, articulated in three parts:
 \begin{enumerate}
-  \item \textbf{We start by situating the paper with a high-level overview of asynchronous programming} (\Cref{sec:motivation}). We contrast asynchrony against concurrency and parallelism, and introduce common asynchrony mechanisms such as racing and cancellation. 
+  \item \textbf{We start by situating the work with a high-level overview of asynchronous programming} (\Cref{sec:motivation}). We contrast asynchrony against concurrency and parallelism, and introduce common asynchrony mechanisms such as racing and cancellation. 
 
   \item \textbf{We describe the core design dimensions of asynchrony designs in modern languages} (\Cref{sec:designdims}). Our goal is to capture all of the most fundamental distinctions between designs, with a focus on design choices that cause similar-looking programs to exhibit divergent semantics (not just performance).
 
-  \item \textbf{We provide a precise description of each design dimension as operational semantics} (\Cref{sec:semantics}). [WRITE ME ONCE SECTION IS COMPLETED.]
+  \item \textbf{We provide a precise description of each design dimension as operational semantics} (\Cref{sec:semantics}). We give a precise model of each language's async design in terms of variants on a core asynchrony calculus with delimited continuations. 
+  % [WRITE ME ONCE SECTION IS COMPLETED.]
 \end{enumerate}
 
 We conclude by discussing connections to related work (\Cref{sec:relatedwork}) and connections to languages with emerging asynchrony designs (\Cref{sec:discussion}).
