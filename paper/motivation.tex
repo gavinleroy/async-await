@@ -1,7 +1,7 @@
 \section{Core Concepts in Asynchrony}\label{sec:motivation}
 
 Async/await are just keywords --- what is the underlying concept being expressed across these languages? The obvious answer is \emph{asynchronous programming} or, more simply, \emph{asynchrony}.
-Like the words concurrency and parallelism, asynchrony does not have a definitive meaning. Rather, its meaning is socially constructed out of the types of programs people want to write. Fifteen years ago, asynchronous programming was ``characterized by many simultaneously pending reactions to internal or external events''~\cite{spl:fsharp-async}. Today, we might add to that list: running I/O-bound computations in parallel, or having fine-grained control over the execution of computations. The scope of asynchronous programming has expanded.
+Like the words concurrency and parallelism, asynchrony does not have a definitive meaning. Rather, its meaning is socially constructed out of the types of programs people want to write. Fifteen years ago, asynchronous programming was ``characterized by many simultaneously pending reactions to internal or external events''~\cite{spl:fsharp-async}. Today, we might add to that list: running \abbr{i/o}-bound computations in parallel, or having fine-grained control over the execution of computations. The scope of asynchronous programming has expanded.
 
 Moreover, async/await is only one form of asynchrony. The job of async/await is to avoid the inversion of control associated with callbacks and event loops. The goal, as the \CSharp documentation says, is ``to enable code that reads like a sequence of statements, but executes in a more complicated order''~\cite{wagner_asynchronous_2025}. Async/await is about leaning on the language to simplify control-flow patterns, as opposed to implementing asynchrony abstractions entirely in userspace.
 
@@ -28,7 +28,7 @@ Asynchrony also has paradigms. Callback asynchrony uses higher-order functions t
 \end{displayquote}
 
 \begin{displayquote}%rust
-  \textbf{(Rust)} In brief, an asynchronous function returns a future, rather than evaluating immediately when it is called. Inside the function, other futures can be awaited using an await expression, which causes them to yield control while the future is being polled. From a user's perspective, they can use async/await as if it were synchronous code, and only need to annotate their functions and calls.~\cite{withoutboats_2394-async_await_nodate}
+  \textbf{(Rust)} In brief, an asynchronous function returns a future, rather than evaluating immediately when it is called. Inside the function, other futures can be awaited using an await expression, which causes them to yield control while the future is being polled. From a user's perspective, they can use async/await as if it were synchronous code, and only need to annotate their functions and calls.~\cite{withoutboats_2394_2018}
 \end{displayquote}
 
 \subsection{Straight-line Asynchrony}

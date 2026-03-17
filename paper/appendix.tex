@@ -9,11 +9,11 @@
 \label{app:design-docs}
 
 \begin{displayquote}%js
-  \textbf{(JavaScript)} With async functions, all the remaining boilerplate is removed, leaving only the semantically meaningful code in the program text.~\cite{noauthor_async_nodate-1}
+  \textbf{(JavaScript)} With async functions, all the remaining boilerplate is removed, leaving only the semantically meaningful code in the program text.~\cite{ecma_tc_39_tc39_2016}
 \end{displayquote}
 
 \begin{displayquote}%swift
-  \textbf{(Swift)} Modern Swift development involves a lot of asynchronous (or ``async'') programming using closures and completion handlers, but these APIs are hard to use. This gets particularly problematic when many asynchronous operations are used, error handling is required, or control flow between asynchronous calls gets complicated. This proposal describes a language extension to make this a lot more natural and less error prone.~\cite{noauthor_swift-evolutionproposals0296-async-awaitmd_nodate}
+  \textbf{(Swift)} Modern Swift development involves a lot of asynchronous (or ``async'') programming using closures and completion handlers, but these APIs are hard to use. This gets particularly problematic when many asynchronous operations are used, error handling is required, or control flow between asynchronous calls gets complicated. This proposal describes a language extension to make this a lot more natural and less error prone.~\cite{mccall_swift_2020}
 \end{displayquote}
 
 \subsection{Additional Implementations of timeout}
@@ -371,5 +371,5 @@ fn run_client_server(io: Io) !void {
 }
 \end{lstlisting}
   \cprotect\caption{An example of Zig's unstabalized async/await features. Zig code is now parameterized over an implementation of the \code{Io} interface. Clients can instantiate the interface with a threaded, asynchronous, concurrent, or synchronous implementation.}
-  \label{fig:zig}
+  \label{fig:zig:async}
 \end{figure}

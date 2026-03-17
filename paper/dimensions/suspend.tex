@@ -12,7 +12,7 @@ In only one language surveyed, \Js, an await point is guaranteed according to th
 
 \paragraph{Design rationale.}
 
-The principal reason to adopt \static suspension is to prevent starvation. Under an eager approach with \dynamic suspension, if a compute-bound task is called before calling I/O-bound tasks, the first task can starve the remaining tasks of CPU time. A \static suspension policy reduces the likelihood of that compute-bound task never yielding control back to the executor.
+The principal reason to adopt \static suspension is to prevent starvation. Under an eager approach with \dynamic suspension, if a compute-bound task is called before calling \abbr{i/o}-bound tasks, the first task can starve the remaining tasks of CPU time. A \static suspension policy reduces the likelihood of that compute-bound task never yielding control back to the executor.
 
 \Static suspension comes at a performance cost. In the case of awaiting a completed task, \static suspension requires a round-trip to the runtime and back to continue past the await. Languages with \dynamic suspension can mitigate the starvation issue by providing a \code|yield_now| primitive which has no effect but to yield control to the runtime.
 
