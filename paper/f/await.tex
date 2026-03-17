@@ -1,11 +1,11 @@
 \noindent
 \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
-$\langle t_0, \sigma, Q, T, P \uplus \{ \langle \ell, E[\mathrm{await}\ v_{\mathit{aw}}] \rangle \circ FS \} \rangle$ & [\CSharp/Swift/Asycio/Trio/Smol-Await] \\
-$\longrightarrow \langle \mathrm{step}(t_0), \sigma, Q, T, P \uplus \{ \langle \ell, E[e_{\mathit{check}}] \rangle \circ FS \} \rangle$ & \\
+$\langle t_0, \sigma, Q, T, P \uplus \{ \langle \ell, E[\mathbfsf{await}\ v_{\mathit{aw}}] \rangle \circ FS \} \rangle$ & [\CSharp/Swift/Asycio/Trio/Smol-Await] \\
+$\longrightarrow \langle \mathsf{step}(t_0), \sigma, Q, T, P \uplus \{ \langle \ell, E[e_{\mathit{check}}] \rangle \circ FS \} \rangle$ & \\
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
-  \textbf{where}\ e_k = \mathrm{shift}\ k \to \mathrm{task\_add\_waiter}(v_{\mathit{aw}}, \ell, \mathrm{task\_continue\_with}(v_{\mathit{aw}}, k)) \\
-  \qquad e_{\mathit{check}} = \csus{\mathrm{if}\ \mathrm{task\_is\_completed}(v_{\mathit{aw}})\ \mathrm{then}\ \mathrm{task\_get\_result}(v_{\mathit{aw}})\ \mathrm{else}\ e_k}
+  \where\ e_k = \mathsf{shift}\ k \to \mathsf{task\_add\_waiter}(v_{\mathit{aw}}, \ell, \mathsf{task\_continue\_with}(v_{\mathit{aw}}, k)) \\
+  \qquad e_{\mathit{check}} = \csus{\mathsf{if}\ \mathsf{task\_is\_completed}(v_{\mathit{aw}})\ \mathsf{then}\ \mathsf{task\_get\_result}(v_{\mathit{aw}})\ \mathsf{else}\ e_k}
   \end{array}$
 }
 \end{tabular*}
@@ -13,11 +13,11 @@ $\longrightarrow \langle \mathrm{step}(t_0), \sigma, Q, T, P \uplus \{ \langle \
 \vspace{1em}
 \noindent
 \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
-$\langle t_0, \sigma, Q, T, P \uplus \{ \langle \ell, E[\mathrm{await}\ v_{\mathit{aw}}] \rangle \circ FS \} \rangle$ & [\Js-Await] \\
-$\longrightarrow \langle \mathrm{step}(t_0), \sigma, Q, T, P \uplus \{ \langle \ell, E[\csus{e_k}] \rangle \circ FS \} \rangle$ & \\
+$\langle t_0, \sigma, Q, T, P \uplus \{ \langle \ell, E[\mathbfsf{await}\ v_{\mathit{aw}}] \rangle \circ FS \} \rangle$ & [\Js-Await] \\
+$\longrightarrow \langle \mathsf{step}(t_0), \sigma, Q, T, P \uplus \{ \langle \ell, E[\csus{e_k}] \rangle \circ FS \} \rangle$ & \\
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
-  \textbf{where}\ e_k = \mathrm{shift}\ k \to \mathrm{task\_add\_waiter}(v_{\mathit{aw}}, \ell, \mathrm{task\_continue\_with}(v_{\mathit{aw}}, k)) \\
+  \where\ e_k = \mathsf{shift}\ k \to \mathsf{task\_add\_waiter}(v_{\mathit{aw}}, \ell, \mathsf{task\_continue\_with}(v_{\mathit{aw}}, k)) \\
   \end{array}$
 }
 \end{tabular*}

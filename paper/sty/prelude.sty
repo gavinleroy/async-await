@@ -34,6 +34,7 @@
 \usepackage{array}
 \usepackage{etoolbox}
 \usepackage{forest}
+\usepackage{bm}
 
 
 %%%%
@@ -318,6 +319,9 @@
 %%%%
 %% Typesetting OP semantics
 
+\newcommand{\mathbfsf}[1]{\bm{\mathsf{#1}}}
+\newcommand{\where}{\mathrm{where}\xspace}
+
 \newcommand*\lc{$\lambda_v$\xspace}
 \newcommand*\exn{$\lambda_{\mathit{exn}}$\xspace}
 
@@ -336,13 +340,35 @@
 \newcommand*\leasync{$\lambda_{\mathit{async}}$\xspace}
 \newcommand*\qpush{\lhd}
 
+\newcommand{\hltikz}[3]{%
+  \tikz[baseline=(X.base)]\node[%
+    rounded corners=1pt,%
+    inner sep=3pt,%
+    text depth=0pt,%  
+    shade,%
+    shading=radial,%
+    inner color=#1!95,%
+    outer color=#1!60,%
+    text opacity=1.0,%
+    text=#2%
+  ](X){#3};%
+}
+
 \newcommand{\highlightbox}[3]{%
   \mathchoice%
-    {\colorbox{#1}{\(\displaystyle\color{#2}#3\)}}%
-    {\colorbox{#1}{\(\textstyle\color{#2}#3\)}}%
-    {\colorbox{#1}{\(\scriptstyle\color{#2}#3\)}}%
-    {\colorbox{#1}{\(\scriptscriptstyle\color{#2}#3\)}}%
+    {\hltikz{#1}{#2}{\(\displaystyle#3\)}}%
+    {\hltikz{#1}{#2}{\(\textstyle#3\)}}%
+    {\hltikz{#1}{#2}{\(\scriptstyle#3\)}}%
+    {\hltikz{#1}{#2}{\(\scriptscriptstyle#3\)}}%
 }
+
+% \newcommand{\highlightbox}[3]{%
+%   \mathchoice%
+%     {\colorbox{#1}{\(\displaystyle\color{#2}#3\)}}%
+%     {\colorbox{#1}{\(\textstyle\color{#2}#3\)}}%
+%     {\colorbox{#1}{\(\scriptstyle\color{#2}#3\)}}%
+%     {\colorbox{#1}{\(\scriptscriptstyle\color{#2}#3\)}}%
+% }
 
 \definecolor{P1C1}{HTML}{C8DCF0} % Steel blue
 \definecolor{P1C2}{HTML}{C8E6C6} % Sage green
@@ -364,17 +390,14 @@
 
 \definecolor{metafunction}{HTML}{A9A9A9}
 
-\newcommand{\ceag}[1]{\ifmmode\highlightbox{P1C1}{P1C1t}{#1}\else\colorbox{P1C1}{\color{P1C1t}#1}\fi}
-\newcommand{\cext}[1]{\ifmmode\highlightbox{P1C2}{P1C2t}{#1}\else\colorbox{P1C2}{\color{P1C2t}#1}\fi}
-% NOTE: note using anywhere, I'll repurpose the color for a cancellation axis
-% \newcommand{\crfe}[1]{\ifmmode\highlightbox{P1C3}{P1C3t}{#1}\else\colorbox{P1C3}{\color{P1C3t}#1}\fi}
-\newcommand{\cdes}[1]{\ifmmode\highlightbox{P1C6}{P1C6t}{#1}\else\colorbox{P1C6}{\color{P1C6t}#1}\fi}
-\newcommand{\cpro}[1]{\ifmmode\highlightbox{P1C5}{P1C5t}{#1}\else\colorbox{P1C5}{\color{P1C5t}#1}\fi}
-\newcommand{\csus}[1]{\ifmmode\highlightbox{P1C7}{P1C7t}{#1}\else\colorbox{P1C7}{\color{P1C7t}#1}\fi}
-% Cancellation dimensions
-\newcommand{\cawa}[1]{\ifmmode\highlightbox{P1C4}{P1C4t}{#1}\else\colorbox{P1C4}{\color{P1C4t}#1}\fi}
-\newcommand{\cdir}[1]{\ifmmode\highlightbox{P1C3}{P1C3t}{#1}\else\colorbox{P1C3}{\color{P1C3t}#1}\fi}
-\newcommand{\cper}[1]{\ifmmode\highlightbox{P1C8}{P1C8t}{#1}\else\colorbox{P1C8}{\color{P1C8t}#1}\fi}
+\newcommand{\ceag}[1]{\ifmmode\highlightbox{P1C1}{P1C1t}{#1}\else\hltikz{P1C1}{P1C1t}{#1}\fi}
+\newcommand{\cext}[1]{\ifmmode\highlightbox{P1C2}{P1C2t}{#1}\else\hltikz{P1C2}{P1C2t}{#1}\fi}
+\newcommand{\cdes}[1]{\ifmmode\highlightbox{P1C6}{P1C6t}{#1}\else\hltikz{P1C6}{P1C6t}{#1}\fi}
+\newcommand{\cpro}[1]{\ifmmode\highlightbox{P1C5}{P1C5t}{#1}\else\hltikz{P1C5}{P1C5t}{#1}\fi}
+\newcommand{\csus}[1]{\ifmmode\highlightbox{P1C7}{P1C7t}{#1}\else\hltikz{P1C7}{P1C7t}{#1}\fi}
+\newcommand{\cawa}[1]{\ifmmode\highlightbox{P1C4}{P1C4t}{#1}\else\hltikz{P1C4}{P1C4t}{#1}\fi}
+\newcommand{\cdir}[1]{\ifmmode\highlightbox{P1C3}{P1C3t}{#1}\else\hltikz{P1C3}{P1C3t}{#1}\fi}
+\newcommand{\cper}[1]{\ifmmode\highlightbox{P1C8}{P1C8t}{#1}\else\hltikz{P1C8}{P1C8t}{#1}\fi}
 
 \newcommand{\difff}[1]{{\color{metafunction}#1}}
 

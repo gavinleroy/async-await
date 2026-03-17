@@ -1,15 +1,15 @@
 \noindent
 \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
-$\langle t_0, \sigma_0, Q_0, T, P \uplus \{ \langle \ell, E[\mathrm{spawn}\ v_{\mathit{coro}}] \rangle \circ FS \} \rangle$ & [Asyncio/Tokio/Smol-Spawn] \\
-$\longrightarrow \langle \mathrm{step}(t_0), \sigma_2, Q_0 \qpush (x_{\mathit{task}}, \kappa), T, P \uplus \{ \langle \ell, E[x_{\mathit{task}}] \rangle \circ FS \} \rangle$ & \\
+$\langle t_0, \sigma_0, Q_0, T, P \uplus \{ \langle \ell, E[\mathsf{spawn}\ v_{\mathit{coro}}] \rangle \circ FS \} \rangle$ & [Asyncio/Tokio/Smol-Spawn] \\
+$\longrightarrow \langle \mathsf{step}(t_0), \sigma_2, Q_0 \qpush (x_{\mathit{task}}, \kappa), T, P \uplus \{ \langle \ell, E[x_{\mathit{task}}] \rangle \circ FS \} \rangle$ & \\
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
-  \textbf{where}\ (\sigma_1, x_{\mathit{task}}, v_{\mathit{task}}) = \mathrm{task\_alloc}(\sigma_0) \\
+  \where\ (\sigma_1, x_{\mathit{task}}, v_{\mathit{task}}) = \mathsf{task\_alloc}(\sigma_0) \\
   \qquad \sigma_2 = \sigma_1[x_{\mathit{task}} \mapsto v_{\mathit{task}}] \\
-  \qquad \kappa = \mathbf{fn}\ x_{\mathit{unit}} \to x_{\mathit{unit}} \mathbin{;} \mathrm{reset}\ ( \\
-  \qquad \qquad \difff{\mathrm{try}}\ \mathrm{task\_set\_done}(x_{\mathit{task}}, \mathbf{await}\ v_{\mathit{coro}})\ \difff{\mathrm{catch}\ v_{\mathit{err}} \to \mathrm{task\_set\_failed}(x_{\mathit{task}}, v_{\mathit{err}})} \mathbin{;} \\
+  \qquad \kappa = \mathbfsf{fn}\ x_{\mathit{unit}} \to x_{\mathit{unit}} \mathbin{;} \mathsf{reset}\ ( \\
+  \qquad \qquad \difff{\mathsf{try}}\ \mathsf{task\_set\_done}(x_{\mathit{task}}, \mathbfsf{await}\ v_{\mathit{coro}})\ \difff{\mathsf{catch}\ v_{\mathit{err}} \to \mathsf{task\_set\_failed}(x_{\mathit{task}}, v_{\mathit{err}})} \mathbin{;} \\
   \qquad \cdes{\vphantom{o}}\,\cext{\vphantom{o}}\,\cpro{\vphantom{o}}\,
-  \mathrm{os\_start\_soon}(\mathrm{task\_get\_dependents}(x_{\mathit{task}})))
+  \mathsf{os\_start\_soon}(\mathsf{task\_get\_dependents}(x_{\mathit{task}})))
   \end{array}$
 }
 \end{tabular*}
@@ -17,16 +17,16 @@ $\longrightarrow \langle \mathrm{step}(t_0), \sigma_2, Q_0 \qpush (x_{\mathit{ta
 \vspace{1em}
 \noindent
 \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
-$\langle t_0, \sigma_0, Q_0, T, P \uplus \{ \langle \ell, E[\mathrm{spawn}\ v_{\mathit{coro}}] \rangle \circ FS \} \rangle$ & [Trio-Spawn] \\
-$\longrightarrow \langle \mathrm{step}(t_0), \sigma_2, Q_0 \qpush (x_{\mathit{task}}, \kappa), T, P \uplus \{ \langle \ell, E[x_{\mathit{task}}] \rangle \circ FS \} \rangle$ & \\
+$\langle t_0, \sigma_0, Q_0, T, P \uplus \{ \langle \ell, E[\mathsf{spawn}\ v_{\mathit{coro}}] \rangle \circ FS \} \rangle$ & [Trio-Spawn] \\
+$\longrightarrow \langle \mathsf{step}(t_0), \sigma_2, Q_0 \qpush (x_{\mathit{task}}, \kappa), T, P \uplus \{ \langle \ell, E[x_{\mathit{task}}] \rangle \circ FS \} \rangle$ & \\
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
-  \textbf{where}\ (\sigma_1, x_{\mathit{task}}, v_{\mathit{task}}) = \cext{\mathrm{task\_allocate\_dependency}(\sigma_0, \ell)} \\
+  \where\ (\sigma_1, x_{\mathit{task}}, v_{\mathit{task}}) = \cext{\mathsf{task\_allocate\_dependency}(\sigma_0, \ell)} \\
   \qquad \sigma_2 = \sigma_1[x_{\mathit{task}} \mapsto v_{\mathit{task}}] \\
-  \qquad \kappa = \mathbf{fn}\ x_{\mathit{unit}} \to x_{\mathit{unit}} \mathbin{;} \mathrm{reset}\ ( \\
-  \qquad \qquad \mathrm{try}\ \mathrm{task\_set\_done}(x_{\mathit{task}}, \mathrm{await}\ v_{\mathit{coro}})\ \mathrm{catch}\ v_{\mathit{err}} \to \mathrm{task\_set\_failed}(x_{\mathit{task}}, v_{\mathit{err}}) \mathbin{;} \\
-  \qquad \quad \cdes{\vphantom{dp}}\, \cpro{\mathrm{task\_await\_dependencies}}\cext{(x_{\mathit{task}})} \\
-  \qquad \qquad \mathrm{os\_start\_soon}(\mathrm{task\_get\_dependents}(x_{\mathit{task}})))
+  \qquad \kappa = \mathbfsf{fn}\ x_{\mathit{unit}} \to x_{\mathit{unit}} \mathbin{;} \mathsf{reset}\ ( \\
+  \qquad \qquad \mathsf{try}\ \mathsf{task\_set\_done}(x_{\mathit{task}}, \mathsf{await}\ v_{\mathit{coro}})\ \mathsf{catch}\ v_{\mathit{err}} \to \mathsf{task\_set\_failed}(x_{\mathit{task}}, v_{\mathit{err}}) \mathbin{;} \\
+  \qquad \quad \cdes{\vphantom{dp}}\, \cpro{\mathsf{task\_await\_dependencies}}\cext{(x_{\mathit{task}})} \\
+  \qquad \qquad \mathsf{os\_start\_soon}(\mathsf{task\_get\_dependents}(x_{\mathit{task}})))
   \end{array}$
 }
 \end{tabular*}

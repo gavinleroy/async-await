@@ -1,21 +1,21 @@
 \section{Semantics}\label{sec:semantics}
 
 \begin{figure}[t]
-  \begin{subfigure}[t]{0.35\textwidth}
+  \begin{subfigure}[t]{0.4\textwidth}
     \vspace{0cm}
     \input{./f/lc-gr.tex}
     \cprotect\caption{The grammar for \lc.
     \label{fig:lang:lc}}
   \end{subfigure}\hfill%
-  \begin{minipage}[t]{0.62\textwidth}
+  \begin{minipage}[t]{0.55\textwidth}
     \vspace{10pt}
-    \begin{subfigure}{0.62\textwidth}
+    \begin{subfigure}{\textwidth}
       \vspace{0cm}
       \input{./f/exn-gr.tex}
       \cprotect\subcaption{The grammar for \exn, which extends \lc with \code|try|/\code|catch|, and \code|throw| forms.}
       \label{fig:lang:exn}
     \end{subfigure}
-    \begin{subfigure}{0.62\textwidth}
+    \begin{subfigure}{\textwidth}
       \vspace{1em}
       \input{./f/exn-rr.tex}
       \cprotect\subcaption{The operational semantics for the \exn.}
