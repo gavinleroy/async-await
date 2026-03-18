@@ -168,7 +168,7 @@
           (with-handlers ([nondeterministic? (lambda (e) 'stuck)])
             (let* ([α-equiv? (lambda (a b) (alpha-equivalent? Lang a b))]
                    [reduced
-                    (reduce red term #:deterministic? det? #:max-steps 50 #:α-equiv? α-equiv?)])
+                    (reduce red term #:deterministic? det? #:max-steps 1 #:α-equiv? α-equiv?)])
               (when (α-equiv? term reduced)
                 (raise 'big-step "form reduced to itself"))
               reduced)))
@@ -297,6 +297,14 @@
             (where #false (task:cancelled? σ label_waiting))
             (where/error t_1 (step t_0))
             "sys/schedule"]
+
+          [-->
+            (t_0 σ Q_0 T ((thread F F_rs (... ...)) (... ...) (thread) FS_1 (... ...)))
+            (t_1 σ Q_1 T ((thread F F_rs (... ...)) (... ...) (thread) FS_1 (... ...)))
+            (where ((label_waiting v_thunk) Q_1) (Q:pop Q_0))
+            (where #true (task:cancelled? σ label_waiting))
+            (where/error t_1 (step t_0))
+            "sys/schedule-cancelled"]
 
            [-->
             (t σ Q T (FS_0 (... ...) (thread (label (void)) F_rs (... ...)) FS_1 (... ...)))

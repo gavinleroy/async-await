@@ -48,7 +48,9 @@
                                                 (shift k
                                                        (task:add-self-as-dependent!
                                                         v_awaitable
-                                                        (label (task:continue-with v_awaitable k))))))) F ...) FS_1 ...))
+                                                        (label
+                                                         (lambda (none)
+                                                           (k (task:get-result v_awaitable))))))))) F ...) FS_1 ...))
 
         (where #true (task:is-task? v_awaitable))
         (where/error t_1 (step t_0))
@@ -78,8 +80,8 @@
    [-->
     (t_0 σ Q_0 T ((thread F F_rs ...) ... (thread) FS_1 ...))
     (t_1 σ Q_1 T ((thread F F_rs ...) ... (thread
-                                           (label_waiting (begin (task:set-failed! label_waiting (void))
-                                                                 (os/start-soon (task:get-dependents x_task))))) FS_1 ...))
+                                           (label_waiting (begin (task:set-done! label_waiting "cancelled")
+                                                                 (os/start-soon (task:get-dependents label_waiting))))) FS_1 ...))
 
     (where ((label_waiting _) Q_1) (Q:pop Q_0))
     (where #true (task:cancelled? σ label_waiting))
@@ -164,7 +166,7 @@
             [main (async/lambda ()
                     (let ([t (spawn (work))])
                       (begin (await (os/io 2 (void)))
-                             (cancel t))))])
+                             (await (cancel t)))))])
        (os/block (main))))
    (for/list ([i (in-range 5)])
      (make-string i #\A)))

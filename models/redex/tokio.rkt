@@ -48,7 +48,9 @@
                                                 (shift k
                                                        (task:add-self-as-dependent!
                                                         v_awaitable
-                                                        (label (task:continue-with v_awaitable k))))))) F ...) FS_1 ...))
+                                                        (label
+                                                         (lambda (none)
+                                                           (k (task:get-result v_awaitable))))))))) F ...) FS_1 ...))
 
         (where #true (task:is-task? v_awaitable))
         (where/error t_1 (step t_0))
