@@ -85,7 +85,6 @@
 
     (where ((label_waiting v_thunk) Q_1) (Q:pop Q_0))
     (where #true (task:cancelled? σ label_waiting))
-    ;; TODO: in asyncio tasks are edge triggered
     ;(where/error σ_1 (task:uncancel σ_0 label_waiting))
     (where/error t_1 (step t_0))
     "sys/schedule-cancelled"]

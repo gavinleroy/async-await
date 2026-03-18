@@ -369,7 +369,6 @@
            #;racket/control
            #;rackunit)
 
-  ;; TODO, define macros for the niceties lib and then run things in racket
   (define-syntax-rule (eval-in-racket e)
     (let-syntax ()
       (void)
