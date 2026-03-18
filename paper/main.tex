@@ -40,40 +40,9 @@
 \setlength{\enumerateparindent}{\parindent}
 
 \begin{abstract}
-  Many modern programming languages include some form of
-  asynchronous programming. In particular, a growing number now have
-  what we call straight-line asychrony: attempts to provide
-  asychronous functions that look similar to synchronous functions,
-  thereby enabling asychrony without introducing complex control.
-  %
-  These languages often share construct names like ``async'' and
-  ``await'', which suggests that they have deep semantic
-  similarities. Yet, a close examination reveals that these languages
-  are quite different along several dimensions,
-  often subtly. These differences have real semantic
-  consequences: similar-looking programs can exhibit divergent behavior,
-  confusing developers and language designers alike.
+  Many modern programming languages include some form of asynchronous programming. In particular, a growing number now have what we call straight-line asychrony: attempts to provide asychronous functions that look similar to synchronous functions, thereby enabling asychrony without introducing complex control. These languages often share construct names like ``async'' and ``await,'' which suggests that they have deep semantic similarities. Yet, a close examination reveals that these languages are quite different along several dimensions, often subtly. These differences have real semantic consequences: similar-looking programs can exhibit divergent behavior, confusing developers and language designers alike.
 
-  % Language designers must continually reinvent new terminology
-  % to describe the same ideas.
-  % These differences can confuse developers when similar-looking programs
-  % exhibit divergent behavior. 
-  % Precisely articulating these differences
-  % These differences can also make the space
-  % difficult to navigate for language designers who are either creating
-  % new languages or trying to add these features to existing ones.
-
-  This paper therefore presents a \emph{design space exploration} of
-  straight-line asychrony. We dissect several existing languages, and show how
-  no two of them agree as a whole on designs decisions which affect the presence and ordering of execution.
-  We articulate a design space with nine dimensions covering the full lifecycle of an asynchronous computation, covering questions such as: 
-  What precise guarantees does a language give upon calling an asynchronous function? What happens at the end of a task's life? How can a task handle being cancelled? 
-  We explore these questions through concrete examples, informal design discussion, and a formal semantics. 
-  % We also show how,
-  % as a consequence, languages can provide or preclude reasoning about
-  % certain program properties. 
-  Our ultimate goal is to help
-  programmers, language designers, and language theorists all better understand the emerging landscape of straight-line asynchrony.
+  This paper therefore presents a \emph{design space exploration} of straight-line asychrony. We dissect several existing languages, and show how no two of them agree as a whole on designs decisions which affect the presence and ordering of execution. We articulate a design space with nine dimensions covering the full lifecycle of an asynchronous computation, covering questions such as: What precise guarantees does a language give upon calling an asynchronous function? What happens at the end of a task's life? How can a task handle being cancelled? We explore these questions through concrete examples, informal design discussion, and a formal semantics. Our ultimate goal is to help programmers, language designers, and language theorists all better understand the emerging landscape of straight-line asynchrony.
 \end{abstract}
 
 %%%%
