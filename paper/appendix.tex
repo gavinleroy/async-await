@@ -3,7 +3,13 @@
 
 \subsection{Translating Pseudocode to Each Language}
 
-[DESCRIBE THE PROCESS]
+The translation from pseudocode to each language is straightforward:
+
+\begin{enumerate}
+  \item Function calls translate into function calls
+  \item \code|spawn| is translated into a \code|spawn| for runtimes that have it (Asyncio, Trio, Tokio, Smol) and a \emph{noop} for languages that don't (\CSharp, \Js, Swift)
+  \item All throwing function are assumed to have a \code|try| in front of them following Swift semantics
+\end{enumerate}
 
 \subsection{Design Documents Describing Straight-Line Asynchrony}
 \label{app:design-docs}
@@ -331,18 +337,20 @@ async Task Main() {
 
 \subsection{Semantics}\label{app:semantics}
 
-\lstinputlisting[language=Racket]{./models/core.rkt}
-\lstinputlisting[language=Racket]{./models/lc.rkt}
-\lstinputlisting[language=Racket]{./models/exn.rkt}
-\lstinputlisting[language=Racket]{./models/py.rkt}
-\lstinputlisting[language=Racket]{./models/rust.rkt}
-\lstinputlisting[language=Racket]{./models/javascript.rkt}
-\lstinputlisting[language=Racket]{./models/csharp.rkt}
-\lstinputlisting[language=Racket]{./models/swift.rkt}
-\lstinputlisting[language=Racket]{./models/tokio.rkt}
-\lstinputlisting[language=Racket]{./models/smol.rkt}
-\lstinputlisting[language=Racket]{./models/aio.rkt}
-\lstinputlisting[language=Racket]{./models/trio.rkt}
+See the provided supplemental for the Redex model. A fully typeset version of the rules can be provided at a later time.
+
+% \lstinputlisting[language=Racket]{./models/core.rkt}
+% \lstinputlisting[language=Racket]{./models/lc.rkt}
+% \lstinputlisting[language=Racket]{./models/exn.rkt}
+% \lstinputlisting[language=Racket]{./models/py.rkt}
+% \lstinputlisting[language=Racket]{./models/rust.rkt}
+% \lstinputlisting[language=Racket]{./models/javascript.rkt}
+% \lstinputlisting[language=Racket]{./models/csharp.rkt}
+% \lstinputlisting[language=Racket]{./models/swift.rkt}
+% \lstinputlisting[language=Racket]{./models/tokio.rkt}
+% \lstinputlisting[language=Racket]{./models/smol.rkt}
+% \lstinputlisting[language=Racket]{./models/aio.rkt}
+% \lstinputlisting[language=Racket]{./models/trio.rkt}
 
 \subsection{Zig async/await}\label{appx:zig}
 
