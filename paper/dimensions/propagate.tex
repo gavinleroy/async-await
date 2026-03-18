@@ -3,7 +3,7 @@
 One final point of divergence at a task's end of life is the handling of exceptions. In all surveyed languages with exceptions (Python, Swift, \Js, \CSharp), awaiting on an async function that has thrown an exception will re-raise the exception at the await point. However, what happens to an exception raised in a task that is never awaited? We call this the \Propagation dimension. 
 
 \begin{wrapfigure}{r}{0.42\linewidth}
-\begin{lstlisting}[language=Python]
+\begin{lstlisting}[language=Py]
 async def fail():
   raise Exception()
 
@@ -27,7 +27,7 @@ The downside is that the \destruction approach may run counter to either a devel
 
 % \begin{figure}[H]
 %   \begin{minipage}[t]{0.49\textwidth}
-% \begin{lstlisting}[language=Python]
+% \begin{lstlisting}[language=Py]
 % import asyncio
 
 % async def inner():

@@ -10,7 +10,7 @@ Rust and Python+Asyncio use \instantaneous cancellation. In Rust's case, because
 \paragraph{Design rationale.} For \noncoop cancellation, \persistence is a moot point, so the main question is which design best fits \coop cancellation. This perhaps comes down to a philosophy on why tasks would choose to ignore their cancellation, and what risks are incurred as a result.
 
 \begin{wrapfigure}{r}{0.4\linewidth}
-  \begin{lstlisting}[language=Python]
+  \begin{lstlisting}[language=Py]
 with trio.move_on_after(TIMEOUT):
   conn = make_connection()
   try:

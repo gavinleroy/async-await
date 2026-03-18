@@ -232,7 +232,7 @@ In Python when a \coro goes out of scope its destructor is run, however, unlike 
 
 
 \begin{lrbox}{\aastateA}
-\begin{lstlisting}[language=Python,numbers=none]
+\begin{lstlisting}[language=Py,numbers=none]
 async def process_payment(user_id):
   # ...
 
@@ -241,13 +241,13 @@ async def checkout(lock, store, user, item):
 \end{lrbox}
 
 \begin{lrbox}{\aastateB}
-\begin{lstlisting}[language=Python,numbers=none]
+\begin{lstlisting}[language=Py,numbers=none]
     async with lock:
 \end{lstlisting}
 \end{lrbox}
 
 \begin{lrbox}{\aastateC}
-\begin{lstlisting}[language=Python,numbers=none]
+\begin{lstlisting}[language=Py,numbers=none]
       stock = store.get(item, 0)
       if stock == 0:
         raise Exception("out of stock")
@@ -260,7 +260,7 @@ async def checkout(lock, store, user, item):
 \end{lrbox}
 
 \begin{lrbox}{\aastateD}
-\begin{lstlisting}[language=Python,numbers=none]
+\begin{lstlisting}[language=Py,numbers=none]
       except Exception as e:
         store[item] = stock + 1
         raise e
@@ -268,7 +268,7 @@ async def checkout(lock, store, user, item):
 \end{lrbox}
 
 \begin{lrbox}{\aastateE}
-\begin{lstlisting}[language=Python,numbers=none]
+\begin{lstlisting}[language=Py,numbers=none]
     return
 \end{lstlisting}
 \end{lrbox}
@@ -305,7 +305,7 @@ async def checkout(lock, store, user, item):
   \begin{minipage}[t]{0.49\textwidth}
     \vspace{0pt}
     \begin{subfigure}{\textwidth}
-\begin{lstlisting}[language=Python,numbers=none]
+\begin{lstlisting}[language=Py,numbers=none]
 try:
   async with asyncio.timeout(4):
     await checkout(lock, store, user, item)
@@ -374,7 +374,7 @@ async fn checkout(
 Python employs bottom-up cancellation propagation. Consider the Asyncio (Python) code in \Cref{fig:cooperation:py}. When the \coro associated with \code{checkout} is destroyed, a cancellation exception is thrown into the \coro, temporarily resuming the code for finalizers to run. The exception is raised at the next possible await point, which is the deepest await point in the dependency graph that suspended the computation.
 
 \begin{wrapfigure}{l}{0.45\textwidth}
-\begin{lstlisting}[language=Python]
+\begin{lstlisting}[language=Py]
 async def process_payment(user_id):
   try:
     # ...

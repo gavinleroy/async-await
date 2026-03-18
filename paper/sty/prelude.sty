@@ -6,10 +6,10 @@
     listings,
     ./sty/listings-rust,
     ./sty/listings-js,
-    ./sty/listings-py,
     ./sty/listings-swift,
     ./sty/listings-kotlin,
     ./sty/listings-csharp,
+    ./sty/listings-racket,
     ./sty/listings-zig,
 }
 \usepackage[listings,skins]{tcolorbox}
@@ -35,7 +35,6 @@
 \usepackage{etoolbox}
 \usepackage{forest}
 \usepackage{bm}
-
 
 %%%%
 %% TIKZ packages
@@ -91,6 +90,7 @@
 \newcommand{\todo}[1]{\textcolor{WildStrawberry}{#1}}
 
 \lstdefinestyle{grayish}{
+    morekeywords={async, await, try, defer},
     basicstyle=\ttfamily\footnotesize,
     stringstyle=\color{gray},
     commentstyle=\color{gray},
@@ -122,6 +122,16 @@
   morestring=[b]",
   morestring=[b]',
 }
+
+\lstdefinelanguage{Py}[]{Python}{
+  morekeywords={async, await},
+}
+
+\lstdefinelanguage{Js}[]{JavaScript}{
+  morekeywords={async, await, Promise},
+}
+
+%%%%%
 
 \newcommand{\code}{\lstinline[language=Pseudo]}
 \newcommand{\citeurlwith}[2]{(\href{#1}{#2})}

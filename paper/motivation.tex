@@ -42,7 +42,7 @@ We describe our findings informally in \Cref{sec:designdims} and formally in \Cr
 
 \begin{figure}[t]
   \begin{subfigure}{0.30\linewidth}
-  \begin{lstlisting}
+\begin{lstlisting}[language=Js]
 function timeout<T>(
   duration: number,
   f: () => Promise<T>
@@ -56,7 +56,7 @@ function timeout<T>(
   \end{subfigure}
   \hfill  
   \begin{subfigure}{0.30\linewidth}
-  \begin{lstlisting}[language=Python]
+  \begin{lstlisting}[language=Py]
 async def timeout(
   duration: float,
   f: Callable[[],Awaitable[T]]

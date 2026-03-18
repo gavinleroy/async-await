@@ -1,0 +1,48 @@
+\NeedsTeXFormat{LaTeX2e}
+% Updated to match your filename
+\ProvidesPackage{listings-racket}[2026/03/17 Custom listings language definition for Racket]
+
+\RequirePackage{listings}
+\RequirePackage{xcolor}
+
+\definecolor{RacketKeyword}{RGB}{44, 44, 204}      
+\definecolor{RacketBuiltin}{RGB}{100, 44, 144}     
+\definecolor{RacketComment}{RGB}{120, 120, 120}    
+\definecolor{RacketString}{RGB}{180, 30, 30}       
+
+% No blank lines are allowed inside this block!
+\lstdefinelanguage{Racket}{
+  alsoletter={-, ?, !, >, <, =, +, *, /, :},
+  morekeywords=[1]{
+    define, define-struct, define-syntax, define-macro, let, let*, letrec, 
+    let-values, let*-values, and, or, not, if, cond, else, when, unless, 
+    begin, case, lambda, match, struct, require, provide, module, module+
+    local, public, private, override, class
+  },
+  morekeywords=[2]{
+    cons, car, cdr, empty, map, filter, foldl, foldr, null?, list, list?, 
+    eq?, equal?, string?, number?, symbol?, boolean?, procedure?, 
+    empty?, cons?, first, rest, second, true, false, \#t, \#f
+  },
+  morecomment=[l]{;},
+  morecomment=[s]{\#|}{|\#},   
+  morestring=[b]",
+  sensitive=true,
+  extendedchars=true,
+  title=\textbf{\lstname},
+  literate={σ}{{$\sigma$}}1 {λ}{{$\lambda$}}1 {π}{{$\pi$}}1 {∈}{{$\in$}}1,
+}
+
+\lstdefinestyle{RacketStyle}{
+  language=Racket,
+  basicstyle=\ttfamily\small,
+  keywordstyle=[1]\color{RacketKeyword}\bfseries,
+  keywordstyle=[2]\color{RacketBuiltin},
+  commentstyle=\color{RacketComment}\itshape,
+  stringstyle=\color{RacketString},
+  showstringspaces=false,
+  breaklines=true,
+  tabsize=2
+}
+
+\endinput
