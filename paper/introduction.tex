@@ -71,7 +71,7 @@ async fn ex3():
 
 As a concrete example, consider the pseudocode in \Cref{fig:motivating-example}, showing two ways to run a background task that writes information to a log.  Languages differ with respect to what happens with tasks at the end of their spawning scope. Languages also differ in terms of when and how running tasks are stopped in the event of cancellation. As shown in \Cref{fig:motivating-example-outcomes}, when comparing seven modern approaches to async/await, \emph{no} two of them exhibit the same behavior on three straightforward calling contexts!
 
-Observing this conceptual chaos, we set out to perform a \emph{design space exploration} of async/await in modern languages. The contribution of this paper is the results of that exploration, articulated in three parts:
+Observing this conceptual chaos, we set out to perform a \emph{design space exploration} of async/await in modern languages. The contribution of this paper is the result of that exploration, articulated in three parts:
 \begin{enumerate}
   \item \textbf{We start by situating the work with a high-level overview of asynchronous programming} (\Cref{sec:motivation}). We contrast asynchrony against concurrency and parallelism, and introduce common asynchrony mechanisms such as racing and cancellation. 
 
