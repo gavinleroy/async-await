@@ -3,9 +3,9 @@
 Async/await are just keywords --- what is the underlying concept being expressed across these languages? The obvious answer is \emph{asynchronous programming} or, more simply, \emph{asynchrony}.
 Like the words concurrency and parallelism, asynchrony does not have a definitive meaning. Rather, its meaning is socially constructed out of the types of programs people want to write. Fifteen years ago, asynchronous programming was ``characterized by many simultaneously pending reactions to internal or external events''~\cite{spl:fsharp-async}. Today, we might add to that list: running \abbr{i/o}-bound computations in parallel, or having fine-grained control over the execution of computations. The scope of asynchronous programming has expanded.
 
-Moreover, async/await is only one form of asynchrony. The job of async/await is to avoid the inversion of control associated with callbacks and event loops. The goal, as the \CSharp documentation says, is ``to enable code that reads like a sequence of statements, but executes in a more complicated order''~\cite{wagner_asynchronous_2025}. Async/await is about leaning on the language to simplify control-flow patterns, as opposed to implementing asynchrony abstractions entirely in userspace.
+Moreover, async/await is only one form of asynchrony. The job of async/await is to avoid the inversion of control associated with callbacks and event loops. The goal, as the \CSharp documentation says, is ``to enable code that reads like a sequence of statements, but executes in a more complicated order''~\cite{wagner_asynchronous_2025}. Async/await is about leaning on the language to simplify control-flow patterns, as opposed to implementing asynchrony abstractions entirely in user-space.
 
-We concretize these points to provide some context on how asynchrony generally, and async/await specifically, fit into the broader picture of language design and implementation.
+We concretize these points to provide some context on how asynchrony generally, and async/await specifically, fits into the broader picture of language design and implementation.
 
 \subsection{Asynchrony vs.\ Concurrency vs.\ Parallelism}
 \label{s:sync-quotes-from-langs}
@@ -99,7 +99,7 @@ Consider implementing a \code|timeout| function, which takes as input an asynchr
 % \wcnote{Would like to talk about coroutines vs. tasks here because e.g. timeout doesn't actually work for compute-bound futures in Rust.}
 % A subtle difference between these implementations depends on each language's representation of async work. In \Js, a \code|Promise| 
 
-An enhanced semantics for \code|timeout| should take into account \emph{cancellation}. Cancellation is another core concept for asynchrony, which did not feature prominently in earlier designs such as \Js and \CSharp, but is more consciously part of later designs such as Swift and Python. For \code|timeout|, we desire two properties. First, if a computation exceeds the duration, the computation is cancelled. Seconds, if the \code|timeout| is cancelled, then its child async computations are also cancelled. The cancellation should happen such that the child computation can execute cleanup code before terminating.
+An enhanced semantics for \code|timeout| should take into account \emph{cancellation}. Cancellation is another core concept for asynchrony, which did not feature prominently in earlier designs such as \Js and \CSharp, but is more consciously part of later designs such as Swift and Python. For \code|timeout|, we desire two properties. First, if a computation exceeds the duration, the computation is cancelled. Second, if the \code|timeout| is cancelled, then its child async computations are also cancelled. The cancellation should happen such that the child computation can execute cleanup code before terminating.
 
 \begin{figure}[t]
 \begin{subfigure}{0.53\linewidth}
