@@ -16,12 +16,12 @@
 % }
 % \end{tabular*}
 
-\vspace{1em}
-\noindent
-\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
-  $\langle t_0, \sigma, Q, T, P \uplus \{ \langle \ell, E[\cdir{\mathsf{cancelled?}()}] \rangle \circ FS \} \rangle$ & [Swift-Cancelled?] \\
-$\longrightarrow \langle t_0, \sigma, Q, T, P \uplus \{ \langle \ell, E[\cawa{\mathsf{task\_cancelled}(\sigma, \ell)}] \rangle \circ FS \} \rangle$ & 
-\end{tabular*}
+% \vspace{1em}
+% \noindent
+% \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+%   $\langle t_0, \sigma, Q, T, P \uplus \{ \langle \ell, E[\cdir{\mathsf{cancelled?}()}] \rangle \circ FS \} \rangle$ & [Swift-Cancelled?] \\
+% $\longrightarrow \langle step(t_0), \sigma, Q, T, P \uplus \{ \langle \ell, E[\cawa{\mathsf{task\_cancelled}(\sigma, \ell)}] \rangle \circ FS \} \rangle$ & 
+% \end{tabular*}
 
 \vspace{1em}
 \noindent
@@ -67,7 +67,7 @@ $\longrightarrow \langle \mathsf{step}(t_0), \cper{\sigma,}\, Q_1, T, P \uplus \
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
   \where\ \mathsf{task\_cancelled}(\sigma, \ell_{\mathit{waiting}}) \\
-  \qquad e_{\mathit{fail}} = \cawa{\mathsf{task\_set\_failed}(\ell_{\mathit{waiting}}, ()) \mathbin{;} \mathsf{sys\_start\_soon}(\mathsf{task\_get\_waiters}(x_{\mathit{task}}))}
+  \qquad e_{\mathit{fail}} = \cawa{\mathsf{task\_set\_failed}(\ell_{\mathit{waiting}}, ()) \mathbin{;} \mathsf{sys\_start\_soon}(\mathsf{task\_get\_dependents}(x_{\mathit{task}}))}
   \end{array}$
 }
 \end{tabular*}

@@ -1,11 +1,11 @@
 $$
 \begin{array}{r@{\ }c@{\ }l}
-\mathsf{Number}\ n & & \mathsf{String}\ s \quad\; \mathsf{Boolean}\ b \\
-\mathsf{Const}\ c      & ::=  & b \mid n \mid s \\
+\mathsf{Number}\ n & & \mathsf{String}\ s \\
+\mathsf{Const}\ c      & ::=  & \mathsf{true} \mid\mathsf{false}\mid n \mid s \\
 \mathsf{Expr}\ e       & ::=  & x \mid v \mid \mathbfsf{fn}\ \many{x} \to e \mid e\ \many{e} \\
                        & \mid & \mathsf{let}\ x = e\ \mathsf{in}\ e \\
                        & \mid & \mathsf{if}\ e\ \mathsf{then}\ e\ \mathsf{else}\ e \\
-                       & \mid & \mathsf{fix}\ e \mid e \mathbin{;} \dots \mathbin{;} e \\
+                       & \mid & \mathsf{fix}\ e \mid e \mathbin{;} e \\
                        & \mid & \mathsf{reset}\ e \mid \mathsf{shift}\ x \to e \\
                        & \mid & \mathsf{ref}\ e \mid !e \mid e := e \\
 \\
@@ -20,7 +20,7 @@ $$
        & \mid & \mathsf{ref}\ E \mid !E \mid E := e \\
        & \mid & v := E
 \\
-\mathsf{Delim\ Ctx}\ M      & ::=\  & \dots\ \mathsf{(} E\ \mathsf{without}\ \mathsf{reset}\ M \mathsf{)}
+\mathsf{Delim\ Ctx}\ M      & ::=\  & \mathsf{(} E\ \mathsf{without}\ \mathsf{reset}\ M \mathsf{)}
 \\
 \mathsf{Heap}\ \sigma & ::=  & \cdot \mid \sigma, x \mapsto v
 \end{array}
