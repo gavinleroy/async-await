@@ -1,6 +1,7 @@
 $$
 \begin{array}{r@{\ }c@{\ }l}
-\mathsf{Const}\ c      & ::=  & \mathsf{true} \mid \mathsf{false} \mid \mathsf{number} \mid \mathsf{string} \\
+\mathsf{Number}\ n & & \mathsf{String}\ s \quad\; \mathsf{Boolean}\ b \\
+\mathsf{Const}\ c      & ::=  & b \mid n \mid s \\
 \mathsf{Expr}\ e       & ::=  & x \mid v \mid \mathbfsf{fn}\ \many{x} \to e \mid e\ \many{e} \\
                        & \mid & \mathsf{let}\ x = e\ \mathsf{in}\ e \\
                        & \mid & \mathsf{if}\ e\ \mathsf{then}\ e\ \mathsf{else}\ e \\
