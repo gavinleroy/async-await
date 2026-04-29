@@ -2,8 +2,6 @@ $$
 \begin{array}{r@{\ }c@{\ }l}
   e & ::=\ \dots  & \mid \mathsf{throw\_in}\ e \mid \mathsf{throw}\ e \\
     &     & \mid \mathsf{try}\ e\ \mathsf{catch}\ e_{\mathit{handler}} \\
-  % E & ::=  & \dots \mid \mathsf{throw}\ E \mid \mathsf{try}\ e\ \mathsf{catch}\ E \mid \mathsf{try}\ E\ \mathsf{catch}\ v \\
-  % M & ::=  & \dots \mid \mathsf{throw}\ M \mid \mathsf{try}\ e\ \mathsf{catch}\ M \mid \mathsf{try}\ M\ \mathsf{catch}\ v \\
-  \mathsf{Exn\ Ctx}\ G & ::=  & [\cdot] \mid \dots \mathsf{(} E\ \mathsf{without}\ \mathsf{try}\ e\ \mathsf{catch}\ e \mathsf{)}
+  \mathsf{Exn\ Ctx}\ G & ::=\  \mathsf{E} & \mid \mathsf{throw\_in}\ e \mid \mathsf{throw}\ e
 \end{array}
 $$
