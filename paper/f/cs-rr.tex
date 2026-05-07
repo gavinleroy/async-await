@@ -1,14 +1,14 @@
 \noindent
 \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
-$\langle t_0, \sigma_0, Q, T, P \uplus \{ \langle \ell, E[(\mathbf{async\ fn}\ \many{x} \to e_{\mathit{body}})\ \many{v}] \rangle \circ FS \} \rangle$ & [Async-App] \\
-$\longrightarrow \langle \mathrm{step}(t_0), \sigma_2, Q, T, P \uplus \{ \ceag{F_{\mathit{new}}} \circ \langle \ell, E[x_{\mathit{task}}] \rangle \circ FS \} \rangle$ & \\
+$\langle t, \sigma_0, Q, T, P \uplus \{ \langle \ell, E[(\mathbf{async\ fn}\ \many{x} \to e_{\mathit{body}})\ \many{v}] \rangle \circ FS \} \rangle$ & [Async-App] \\
+$\longrightarrow \langle \mathrm{step}(t), \sigma_2, Q, T, P \uplus \{ \ceag{F_{\mathit{new}}} \circ \langle \ell, E[x_{\mathit{task}}] \rangle \circ FS \} \rangle$ & \\
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
   \textbf{where}\\
-  \qquad (\sigma_1, v_{\mathit{task}}) = \mathrm{task\_alloc}(\sigma_0)\ \mathrm{and}\ x_{\mathit{task}} = \mathrm{gensym}()\ \mathrm{and}\ \many{x}_{\mathit{fresh}} = \many{\mathrm{gensym}()} \\
-  \qquad \sigma_2 = \sigma_1[x_{\mathit{task}} \mapsto v_{\mathit{task}}, \many{x}_{\mathit{fresh}} \mapsto \many{v}] \\
+  \qquad (\sigma_1, x_{\mathit{task}}) = \mathrm{task\_alloc}(\sigma_0)\ \mathrm{and}\ \many{x}_{\mathit{fresh}} = \many{\mathrm{gensym}()} \\
+  \qquad \sigma_2 = \sigma_1[\many{x}_{\mathit{fresh}} \mapsto \many{v}] \\
   \qquad e_{\mathit{subst}} = e_{\mathit{body}}[\many{x}_{\mathit{fresh}}/\many{x}] \\
-  \qquad e_{\mathit{try}} = \mathrm{try}\ \mathrm{task\_set\_done}(x_{\mathit{task}}, e_{\mathit{subst}})\ \mathrm{catch}\ v_{\mathit{err}} \to \mathrm{task\_set\_failed}(x_{\mathit{task}}, v_{\mathit{err}}) \\
+  \qquad e_{\mathit{try}} = \mathbfsf{try}\ \mathrm{task\_set\_done}(x_{\mathit{task}}, e_{\mathit{subst}})\ \mathbfsf{catch}\ v_{\mathit{err}} \to \mathrm{task\_set\_failed}(x_{\mathit{task}}, v_{\mathit{err}}) \\
   \qquad F_{\mathit{new}} = \langle x_{\mathit{task}}, \mathrm{reset}\ (e_{\mathit{try}} \mathbin{;} \cext{\mathrm{os\_start\_soon}(\mathrm{task\_get\_dependents}(x_{\mathit{task}}))}) \rangle
   \end{array}$
 }
@@ -18,8 +18,8 @@ $\longrightarrow \langle \mathrm{step}(t_0), \sigma_2, Q, T, P \uplus \{ \ceag{F
 
 \noindent
 \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
-$\langle t_0, \sigma, Q, T, P \uplus \{ \langle \ell, E[\mathbf{await}\ v_{\mathit{aw}}] \rangle \circ FS \} \rangle$ & [Await] \\
-$\longrightarrow \langle \mathrm{step}(t_0), \sigma, Q, T, P \uplus \{ \langle \ell, E[e_{\mathit{check}}] \rangle \circ FS \} \rangle$ & \\
+$\langle t, \sigma, Q, T, P \uplus \{ \langle \ell, E[\mathbf{await}\ v_{\mathit{aw}}] \rangle \circ FS \} \rangle$ & [Await] \\
+$\longrightarrow \langle \mathrm{step}(t), \sigma, Q, T, P \uplus \{ \langle \ell, E[e_{\mathit{check}}] \rangle \circ FS \} \rangle$ & \\
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
     \textbf{where}\\
@@ -33,8 +33,8 @@ $\longrightarrow \langle \mathrm{step}(t_0), \sigma, Q, T, P \uplus \{ \langle \
 
 \noindent
 \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
-$\langle t_0, \sigma, Q, T, P \uplus \{ \langle \mathrm{root}, E[\mathrm{os\_block}\ v_{\mathit{aw}}] \rangle \circ FS \} \rangle$ & [OS-Block-Done] \\
-$\longrightarrow \langle \mathrm{step}(t_0), \sigma, \cdes{\epsilon}, \cdes{\epsilon}, \{ \langle \mathrm{root}, E[\mathrm{task\_get\_result}(v_{\mathit{aw}})] \rangle \circ \cdes{\epsilon} \} \rangle$ & \\
+$\langle t, \sigma, Q, T, P \uplus \{ \langle \mathrm{root}, E[\mathrm{os\_block}\ v_{\mathit{aw}}] \rangle \circ FS \} \rangle$ & [OS-Block-Done] \\
+$\longrightarrow \langle \mathrm{step}(t), \sigma, \cdes{\epsilon}, \cdes{\epsilon}, \{ \langle \mathrm{root}, E[\mathrm{task\_get\_result}(v_{\mathit{aw}})] \rangle \circ \cdes{\epsilon} \} \rangle$ & \\
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
   \textbf{where}\ \mathrm{task\_settled}(\sigma, v_{\mathit{aw}}) \\

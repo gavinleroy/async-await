@@ -327,6 +327,13 @@
   }\xspace%
 }
 
+\makeatletter
+%Take the original environment definition and change the leftmargin to 1cm
+\renewenvironment*{displayquote}
+  {\begingroup\setlength{\leftmargini}{2\parindent}\csq@getcargs{\csq@bdquote{}{}}}
+  {\csq@edquote\endgroup}
+\makeatother
+
 %%%%
 %% Typesetting OP semantics
 
@@ -381,23 +388,64 @@
 %     {\colorbox{#1}{\(\scriptscriptstyle\color{#2}#3\)}}%
 % }
 
-\definecolor{P1C1}{HTML}{C8DCF0} % Steel blue
-\definecolor{P1C2}{HTML}{C8E6C6} % Sage green
-\definecolor{P1C3}{HTML}{FDEAA8} % Warm amber
-\definecolor{P1C4}{HTML}{F8CEDB} % Dusty rose
-\definecolor{P1C5}{HTML}{DDD5F5} % Lavender
-\definecolor{P1C6}{HTML}{FADEC0} % Peach
-\definecolor{P1C7}{HTML}{BCE8E4} % Pale teal
-\definecolor{P1C8}{HTML}{C4CDE0}
+%%% (The below color palettes were suggested by Claude)
+%%% COLOR PALETTE — ORIGINAL
+%%% Problems: inconsistent saturation across groups, C8 (gray-blue)
+%%% too close to C1 (steel blue), warm C6 clashes with cool neighbors
+%%% in Group 1.
+%%%
+%%% Mapping reminder:
+%%%   Group 1 (ceag,cext,cdes,cpro) = C1, C2, C6, C5
+%%%   Group 2 (csus)                = C7
+%%%   Group 3 (cawa,cdir,cper)      = C4, C3, C8
+%%%
 
-\definecolor{P1C1t}{HTML}{0D2D45} % Steel blue text
-\definecolor{P1C2t}{HTML}{0C2B1A} % Sage green text
+% \definecolor{P1C1}{HTML}{C8DCF0} % Steel blue
+% \definecolor{P1C2}{HTML}{C8E6C6} % Sage green
+% \definecolor{P1C3}{HTML}{FDEAA8} % Warm amber
+% \definecolor{P1C4}{HTML}{F4C8D0} % Soft rose (cawa)
+% \definecolor{P1C5}{HTML}{DDD5F5} % Lavender
+% \definecolor{P1C6}{HTML}{FADEC0} % Peach
+% \definecolor{P1C7}{HTML}{BCE8E4}
+% \definecolor{P1C8}{HTML}{B8DCE4} % Sky teal (cper)
+%
+% \definecolor{P1C1t}{HTML}{0D2D45} % Steel blue text
+% \definecolor{P1C2t}{HTML}{0C2B1A} % Sage green text
+% \definecolor{P1C3t}{HTML}{3D2400} % Warm amber text
+% \definecolor{P1C4t}{HTML}{400C18} % Rose text
+% \definecolor{P1C5t}{HTML}{1A0A3D} % Lavender text
+% \definecolor{P1C6t}{HTML}{3D1800} % Peach text
+% \definecolor{P1C7t}{HTML}{062422} % Pale teal text
+% \definecolor{P1C8t}{HTML}{0C2830} % Sky teal text
+
+%%%
+%%% ALTERNATIVE 1: "Prismatic" — Maximum hue separation within groups.
+%%% Group 1 uses four hues ~90 degrees apart (blue 215, green 145,
+%%% violet 285, coral 15) all at the same lightness/saturation so no
+%%% color dominates. Group 3 uses a warm triad (rose 350, gold 50,
+%%% teal 190) giving strong contrast between awareness/direction/
+%%% persistence. Every color is instantly identifiable next to its
+%%% group-mates.
+%%%
+\definecolor{P1C1}{HTML}{C4D8F4} % Cornflower blue (ceag)
+\definecolor{P1C2}{HTML}{C0E4CC} % Mint green (cext)
+% \definecolor{P1C3}{HTML}{EDE0A4} % Warm gold (cdir)
+\definecolor{P1C3}{HTML}{FDEAA8} % Warm amber
+\definecolor{P1C4}{HTML}{F4C8D0} % Soft rose (cawa)
+\definecolor{P1C5}{HTML}{DCC8F4} % Iris violet (cpro)
+\definecolor{P1C6}{HTML}{F4D4C4} % Soft coral (cdes)
+\definecolor{P1C7}{HTML}{D0E4B8} % Chartreuse (csus)
+\definecolor{P1C8}{HTML}{B8DCE4} % Sky teal (cper)
+
+\definecolor{P1C1t}{HTML}{0E2848} % Cornflower text
+\definecolor{P1C2t}{HTML}{0E2C16} % Mint text
+% \definecolor{P1C3t}{HTML}{342C06} % Gold text
 \definecolor{P1C3t}{HTML}{3D2400} % Warm amber text
-\definecolor{P1C4t}{HTML}{3D0A18} % Dusty rose text
-\definecolor{P1C5t}{HTML}{1A0A3D} % Lavender text
-\definecolor{P1C6t}{HTML}{3D1800} % Peach text
-\definecolor{P1C7t}{HTML}{062422} % Pale teal text
-\definecolor{P1C8t}{HTML}{18213A}
+\definecolor{P1C4t}{HTML}{400C18} % Rose text
+\definecolor{P1C5t}{HTML}{1C0C42} % Iris text
+\definecolor{P1C6t}{HTML}{3C1808} % Coral text
+\definecolor{P1C7t}{HTML}{1E3008} % Chartreuse text
+\definecolor{P1C8t}{HTML}{0C2830} % Sky teal text
 
 \definecolor{metafunction}{HTML}{A9A9A9}
 
@@ -405,10 +453,10 @@
 \newcommand{\cext}[1]{\ifmmode\highlightbox{P1C2}{P1C2t}{#1}\else\hltikz{P1C2}{P1C2t}{#1}\fi}
 \newcommand{\cdes}[1]{\ifmmode\highlightbox{P1C6}{P1C6t}{#1}\else\hltikz{P1C6}{P1C6t}{#1}\fi}
 \newcommand{\cpro}[1]{\ifmmode\highlightbox{P1C5}{P1C5t}{#1}\else\hltikz{P1C5}{P1C5t}{#1}\fi}
-\newcommand{\csus}[1]{\ifmmode\highlightbox{P1C7}{P1C7t}{#1}\else\hltikz{P1C7}{P1C7t}{#1}\fi}
 \newcommand{\cawa}[1]{\ifmmode\highlightbox{P1C4}{P1C4t}{#1}\else\hltikz{P1C4}{P1C4t}{#1}\fi}
 \newcommand{\cdir}[1]{\ifmmode\highlightbox{P1C3}{P1C3t}{#1}\else\hltikz{P1C3}{P1C3t}{#1}\fi}
-\newcommand{\cper}[1]{\ifmmode\highlightbox{P1C8}{P1C8t}{#1}\else\hltikz{P1C8}{P1C8t}{#1}\fi}
+\newcommand{\csus}[1]{\ifmmode\highlightbox{P1C8}{P1C8t}{#1}\else\hltikz{P1C8}{P1C8t}{#1}\fi}
+\newcommand{\cper}[1]{\ifmmode\highlightbox{P1C7}{P1C7t}{#1}\else\hltikz{P1C7}{P1C7t}{#1}\fi}
 
 \newcommand{\difff}[1]{{\color{metafunction}#1}}
 
@@ -422,11 +470,11 @@
 % \csdef{legenditem@ref}{\legendmark{P1C3}\small\References}
 \csdef{legenditem@des}{\legendmark{P1C6}\small\Destruction}
 \csdef{legenditem@pro}{\legendmark{P1C5}\small\Propagation}
-\csdef{legenditem@sus}{\legendmark{P1C7}\small\Suspension}
+\csdef{legenditem@sus}{\legendmark{P1C8}\small\Suspension}
 
 \csdef{legenditem@awa}{\legendmark{P1C4}\small Awareness}
 \csdef{legenditem@dir}{\legendmark{P1C3}\small Direction}
-\csdef{legenditem@per}{\legendmark{P1C8}\small Persistence}
+\csdef{legenditem@per}{\legendmark{P1C7}\small Persistence}
 
 \newcommand{\makelegend}[1]{%
   \begin{center} 
@@ -461,7 +509,8 @@
         \hskip -0.5\mylenA\rlap{\usebox\myboxA}{\hskip 0.5\mylenA\usebox\myboxB}%
     \fi}
 \makeatother
-\newcommand{\many}[1]{\xoverline{#1}}
+% \newcommand{\many}[1]{\xoverline{#1}}
+\newcommand{\many}[1]{#1}
 
 \newcommand\seqconcat{\mathbin{+\mkern-08mu+}}
 

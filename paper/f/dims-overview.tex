@@ -64,7 +64,7 @@
 \addlinespace[1ex]
 
 \DimRowTitle{Propagation}{What happens to exceptions in unawaited tasks.} &
-\DimCell{destruction}{Exceptions are reraised by the task parent.}{Trio} &
+\DimCell{destruction}{Exceptions are reraised by dependents.}{Trio} &
 \DimCell{never}{The exception is kept within the task.}{\Js, \CSharp, Tokio, Smol, Asyncio, Swift} & \\
 
 \DimSeparator
@@ -77,9 +77,9 @@
 \addlinespace[1ex]
 
 \DimRowTitle{Direction}{How cancellation is communicated through the task graph.} &
-\DimCell{top-down}{Starting from the root task, and down through the children.}{Rust} &
-\DimCell{bottom-up}{Starting from the leaf tasks, and up through the parents.}{Asyncio, Trio} &
-\DimCell{simultaneous}{To all nodes in the task graph at once.}{Swift} \\
+\DimCell{top-down}{Starting from the root task, and communicated from dependents to dependencies.}{Rust} &
+\DimCell{bottom-up}{Starting from the root's dependencies and communicated to dependents.}{Asyncio, Trio} &
+\DimCell{simultaneous}{To all transitive dependencies at once.}{Swift} \\
 \addlinespace[1ex]
 
 \DimRowTitle{Persistence}{[For aware cancellation] \newline How long a cancellation of a task lasts.} &

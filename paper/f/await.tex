@@ -1,7 +1,7 @@
 \noindent
 \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
-$\langle t_0, \sigma, Q, T, P \uplus \{ \langle \ell, E[\mathbfsf{await}\ v_{\mathit{aw}}] \rangle \circ FS \} \rangle$ & [\CSharp/Swift/Asycio/Trio/Smol-Await] \\
-$\longrightarrow \langle \mathsf{step}(t_0), \sigma, Q, T, P \uplus \{ \langle \ell, E[e_{\mathit{check}}] \rangle \circ FS \} \rangle$ & \\
+$\langle t, \sigma, Q, T, P \uplus \{ \langle \ell, E[\mathbfsf{await}\ v_{\mathit{aw}}] \rangle \circ FS \} \rangle$ & [\CSharp/Swift/Asycio/Trio/Smol-Await] \\
+$\longrightarrow \langle t + 1, \sigma, Q, T, P \uplus \{ \langle \ell, E[e_{\mathit{check}}] \rangle \circ FS \} \rangle$ & \\
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
   \where\ e_k = \mathsf{shift}\ k \to \mathsf{task\_add\_dependency}(v_{\mathit{aw}}, \ell, \mathsf{task\_continue\_with}(v_{\mathit{aw}}, k)) \\
@@ -13,8 +13,8 @@ $\longrightarrow \langle \mathsf{step}(t_0), \sigma, Q, T, P \uplus \{ \langle \
 \vspace{1em}
 \noindent
 \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
-$\langle t_0, \sigma, Q, T, P \uplus \{ \langle \ell, E[\mathbfsf{await}\ v_{\mathit{aw}}] \rangle \circ FS \} \rangle$ & [\Js-Await] \\
-$\longrightarrow \langle \mathsf{step}(t_0), \sigma, Q, T, P \uplus \{ \langle \ell, E[\csus{e_k}] \rangle \circ FS \} \rangle$ & \\
+$\langle t, \sigma, Q, T, P \uplus \{ \langle \ell, E[\mathbfsf{await}\ v_{\mathit{aw}}] \rangle \circ FS \} \rangle$ & [\Js-Await] \\
+$\longrightarrow \langle t + 1, \sigma, Q, T, P \uplus \{ \langle \ell, E[\csus{e_k}] \rangle \circ FS \} \rangle$ & \\
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
   \where\ e_k = \mathsf{shift}\ k \to \mathsf{task\_add\_dependency}(v_{\mathit{aw}}, \ell, \mathsf{task\_continue\_with}(v_{\mathit{aw}}, k)) \\

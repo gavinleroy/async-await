@@ -78,7 +78,15 @@ The expression \code|sys_start_soon|$(\ell,\kappa)$ appends the continuation $\k
 
 The grammar extensions for the remaining languages are shown in \Cref{fig:lang:exts}, and the order in which we layer the extensions in \Cref{fig:langs:lineage}. The reduction rules for all async capable languages, which base Python and Rust are not, are defined over the tuple $\langle t, \sigma, Q, T, P \rangle$.
 
-The goal of the operational semantics is to highlight the differences between languages. We will therefore present the same reduction rule from different languages together. We will also call attention to the portion relevant to each design dimension with a highlight in the following colors: \ceag{\eagerness}, \cext{\extent}, \cdes{\destruction}, \cpro{\propagation}, and \csus{\suspension}, and within cancellation: \cawa{awareness}, \cdir{direction}, and \cper{persistence}. For space reasons we do not present the rules relevant for \references, and we simplify the presentation with a liberal use of metafunctions; the full definitions of grammars, reductions, and metafunctions are provided in \Cref{app:semantics}.
+The goal of the operational semantics is to highlight the differences between languages. We will therefore present the same reduction rule from different languages together. We will also call attention to the portion relevant to each design dimension with a highlight in the following colors: \ceag{\eagerness}, \cext{\extent}, \cdes{\destruction}, \cpro{\propagation}, and \csus{\suspension}, and within cancellation: \cawa{awareness}, \cdir{direction}, and \cper{persistence}. For space reasons we do not present the rules relevant for \references, and we simplify the presentation with a liberal use of metafunctions, see \Cref{table:metafunctions} for a description of each metafunction used in the rules; the full definitions of grammars, reductions, and metafunctions are provided in \Cref{app:semantics}.
+
+
+\begin{table}[t]
+\small
+\input{./metafunctions.tex}
+\caption{Metafunctions used in the reduction rules.}
+\label{table:metafunctions}
+\end{table}
 
 \subsection{Start/End of Life}
 
@@ -134,4 +142,4 @@ The \semrule{Schedule-Cancelled} rule for Asyncio/Trio also provides awareness t
 
 A peculiarity of Asyncio is the \transient \persistence of cancellation: after a cancelled \task is resumed with a cancellation signal, it is no longer marked as cancelled. Further async work can be done and a second cancellation signal will not be raised. Trio and Swift both have persistent cancellation, so if further async work is done in an exception handler, it would be resumed with another cancellation exception.\footnote{To perform asynchronous cleanup work, runtimes like Trio and Swift will provide cancellation \emph{shields}, which temporarily protect a \task against cancellation so that async work can finish.}
 
-The Rust runtimes, Tokio and Smol, do not provide cancellation awareness. Cancelled \tasks are not rescheduled but deallocated. The two diverge in \abbr{api} because the \code{cancel}$(e)$ expression is itself asynchronous. This change is mostly cosmetic and changes neither the cancellation awareness nor direction.
+The Rust runtimes, Tokio and Smol, do not provide cancellation awareness. Cancelled \tasks are not rescheduled but deallocated. The two diverge in \abbr{api} because the \code{cancel}$(e)$ expression in Smol is itself asynchronous. This change is mostly cosmetic and changes neither the cancellation awareness nor direction.
