@@ -1,13 +1,15 @@
 \subsubsection{\Cooperation}
 \label{ssec:designdims:cooperation}
 
-\begin{figure}[t]
-  \includegraphics[width=0.85\linewidth]{f/cooperation.pdf}
-  \caption{Ane example program demonstrating the \Cooperation dimension.}
-  \label{fig:cooperation}
-\end{figure}
-
 Integrated cancellation approaches all center around triggering cancellations at await points. A key distinction is whether a cancelled task is aware that it is being cancelled, in order to handle or ignore the cancellation at a given await point. 
+
+\begin{wrapfigure}{r}{0.6\linewidth}
+% \begin{figure*}
+  \includegraphics[width=\linewidth]{f/cooperation.pdf}
+  \caption{An example program demonstrating the \Cooperation dimension.}
+  \label{fig:cooperation}
+% \end{figure*}
+\end{wrapfigure}
 
 The most straightforward approach is \emph{unaware} cancellation, where a task has no opportunity to react to being cancelled. This approach is taken by Rust in both Tokio and Smol. In Rust, cancellation essentially means never executing a coroutine again after it has yielded. With a direct handle on the coroutine, this simply means not polling the coroutine, or explicitly dropping it. If the coroutine is within a task, then the task must be marked as cancelled, and the runtime will similarly refuse to reschedule the task.
 

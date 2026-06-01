@@ -1,7 +1,7 @@
 \noindent
 \begin{alignat*}{4}
   &\{\sigma_0, Q, ~&&P \uplus \{ \langle \ell, E[\mathsf{spawn}\ v_{\mathit{coro}}] \rangle ~&&\circ FS \} \} & \hspace{30pt}\text{[Asyncio/Tokio/Smol-Spawn]} \\
-  \longrightarrow ~&\{\sigma_1, \ceag{Q \qpush (x_{\mathit{task}}, \kappa)}, ~&&P \uplus \{ \langle \ell, E[x_{\mathit{task}}] \rangle ~&&\circ FS \} \}
+  \longrightarrow ~&\{\sigma_1, \ceag{Q \qpush (x_{\mathit{task}}, \kappa)}, ~&&P \uplus \{ \langle \ell, E[x_{\mathit{task}}] \rangle ~&&\circ FS \} \}&
 \end{alignat*}
 \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
 \multicolumn{2}{@{}l@{}}{
@@ -19,7 +19,7 @@
 \noindent
 \begin{alignat*}{4}
   &\{\sigma_0, Q, ~&&P \uplus \{ \langle \ell, E[\mathsf{spawn}\ v_{\mathit{coro}}] \rangle ~&&\circ FS \} \} & \hspace{95pt}\text{[Trio-Spawn]} \\
-  \longrightarrow ~&\{\sigma_1, \ceag{Q \qpush (x_{\mathit{task}}, \kappa)}, ~&&P \uplus \{ \langle \ell, E[x_{\mathit{task}}] \rangle ~&&\circ FS \} \}
+  \longrightarrow ~&\{\sigma_1, \ceag{Q \qpush (x_{\mathit{task}}, \kappa)}, ~&&P \uplus \{ \langle \ell, E[x_{\mathit{task}}] \rangle ~&&\circ FS \} \}&
 \end{alignat*}
 \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
 % $\langle t, \sigma_0, Q, T, P \uplus \{ \langle \ell, E[\mathsf{spawn}\ v_{\mathit{coro}}] \rangle \circ FS \} \rangle$ & [Trio-Spawn] \\

@@ -25,9 +25,9 @@
 
 \vspace{1em}
 \noindent
-\begin{alignat*}{4}
+\begin{alignat*}{5}
 &\{\sigma, (\ell, \kappa) ~\circ ~&&Q, ~&&P \uplus \{ ~&&\epsilon \} \} & \hspace{20pt}\text{[Swift/Trio-Schedule-Cancelled]} \\
-\longrightarrow ~&\{\cper{\sigma,}\, ~&&Q, ~&&P \uplus \{ \cawa{\langle \ell,}\, \cdir{\mathsf{throw\_in}(\kappa, \textsf{``cancelled''})}\, \cawa{\rangle} \circ ~&&\epsilon \} \rangle
+\longrightarrow ~&\{\cper{\sigma,}\, ~&&Q, ~&&P \uplus \{ \cawa{\langle \ell,}\, \cdir{\mathsf{throw\_in}(\kappa, \textsf{``cancelled''})}\, \cawa{\rangle} \circ ~&&\epsilon \} \rangle&
 \end{alignat*}
 \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
 % $\langle t, \sigma, (\ell_{\mathit{waiting}}, \kappa) \circ Q_1, T, P \uplus \{ \epsilon \} \rangle$ & [Swift/Trio-Schedule-Cancelled] \\
@@ -41,9 +41,9 @@
 
 \vspace{1em}
 \noindent
-\begin{alignat*}{4}
+\begin{alignat*}{5}
 &\{\sigma_0, (\ell, \kappa) ~\circ ~&&Q, ~&&P \uplus \{ ~&&\epsilon \} \} & \hspace{20pt}\text{[Asyncio-Schedule-Cancelled]} \\
-\longrightarrow ~&\{\sigma_1, ~&&Q, ~&&P \uplus \{ \cawa{\langle \ell,}\, \cdir{\mathsf{throw\_in}(\kappa, \textsf{``cancelled''})}\, \cawa{\rangle} \circ ~&&\epsilon \} \rangle
+\longrightarrow ~&\{\sigma_1, ~&&Q, ~&&P \uplus \{ \cawa{\langle \ell,}\, \cdir{\mathsf{throw\_in}(\kappa, \textsf{``cancelled''})}\, \cawa{\rangle} \circ ~&&\epsilon \} \rangle&
 \end{alignat*}
 \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
 % $\langle t, \sigma_0, (\ell_{\mathit{waiting}}, \kappa) \circ Q_1, T, P \uplus \{ \epsilon \} \rangle$ & [Asyncio-Schedule-Cancelled] \\
@@ -58,9 +58,9 @@
 
 \vspace{1em}
 \noindent
-\begin{alignat*}{4}
+\begin{alignat*}{3}
 &\{ \sigma, (\ell, \kappa) ~\circ ~&&Q, P \} & \hspace{100pt}\text{[Tokio-Schedule-Cancelled]} \\
-\longrightarrow ~&\{ \cper{\sigma,}\, ~&&Q, \cawa{P} \}
+\longrightarrow ~&\{ \cper{\sigma,}\, ~&&Q, \cawa{P} \}&
 \end{alignat*}
 \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
   % $\langle t, \sigma, (\ell_{\mathit{waiting}}, \kappa) \circ Q_1, T, P \uplus \{ \epsilon \} \rangle \longrightarrow \langle t + 1, \cper{\sigma,}\, Q_1, T, P \uplus \{ \cawa{\epsilon} \} \rangle$ & [Tokio-Schedule-Cancelled] \\
@@ -75,7 +75,7 @@
 \noindent
 \begin{alignat*}{4}
 &\{\sigma, (\ell, \kappa) ~\circ ~&&Q, P \uplus \{ ~&&\epsilon \} \rangle & \hspace{30pt} \text{[Smol-Schedule-Cancelled]} \\
-\longrightarrow ~&\{ \cper{\sigma,}\, ~&&Q, P \uplus \{ \langle \ell, e_{\mathit{fail}} \rangle ~\circ ~&&\epsilon \} \}
+\longrightarrow ~&\{ \cper{\sigma,}\, ~&&Q, P \uplus \{ \langle \ell, e_{\mathit{fail}} \rangle ~\circ ~&&\epsilon \} \}&
 \end{alignat*}
 \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
 % $\langle t, \sigma, (\ell_{\mathit{waiting}}, \kappa) \circ Q_1, T, P \uplus \{ \epsilon \} \rangle$ & [Smol-Schedule-Cancelled] \\
