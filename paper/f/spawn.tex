@@ -1,7 +1,9 @@
 \noindent
+\begin{alignat*}{4}
+  &\{\sigma_0, Q, ~&&P \uplus \{ \langle \ell, E[\mathsf{spawn}\ v_{\mathit{coro}}] \rangle ~&&\circ FS \} \} & \hspace{30pt}\text{[Asyncio/Tokio/Smol-Spawn]} \\
+  \longrightarrow ~&\{\sigma_1, \ceag{Q \qpush (x_{\mathit{task}}, \kappa)}, ~&&P \uplus \{ \langle \ell, E[x_{\mathit{task}}] \rangle ~&&\circ FS \} \}
+\end{alignat*}
 \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
-$\langle t, \sigma_0, Q_0, T, P \uplus \{ \langle \ell, E[\mathsf{spawn}\ v_{\mathit{coro}}] \rangle \circ FS \} \rangle$ & [Asyncio/Tokio/Smol-Spawn] \\
-$\longrightarrow \langle t + 1, \sigma_1, \ceag{Q_0 \qpush (x_{\mathit{task}}, \kappa)}, T, P \uplus \{ \langle \ell, E[x_{\mathit{task}}] \rangle \circ FS \} \rangle$ & \\
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
   \where\ (\sigma_1, x_{\mathit{task}}) = \mathsf{task\_alloc}(\sigma_0) \\
@@ -15,9 +17,13 @@ $\longrightarrow \langle t + 1, \sigma_1, \ceag{Q_0 \qpush (x_{\mathit{task}}, \
 
 \vspace{1em}
 \noindent
+\begin{alignat*}{4}
+  &\{\sigma_0, Q, ~&&P \uplus \{ \langle \ell, E[\mathsf{spawn}\ v_{\mathit{coro}}] \rangle ~&&\circ FS \} \} & \hspace{95pt}\text{[Trio-Spawn]} \\
+  \longrightarrow ~&\{\sigma_1, \ceag{Q \qpush (x_{\mathit{task}}, \kappa)}, ~&&P \uplus \{ \langle \ell, E[x_{\mathit{task}}] \rangle ~&&\circ FS \} \}
+\end{alignat*}
 \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
-$\langle t, \sigma_0, Q_0, T, P \uplus \{ \langle \ell, E[\mathsf{spawn}\ v_{\mathit{coro}}] \rangle \circ FS \} \rangle$ & [Trio-Spawn] \\
-$\longrightarrow \langle t + 1, \sigma_1, \ceag{Q_0 \qpush (x_{\mathit{task}}, \kappa)}, T, P \uplus \{ \langle \ell, E[x_{\mathit{task}}] \rangle \circ FS \} \rangle$ & \\
+% $\langle t, \sigma_0, Q, T, P \uplus \{ \langle \ell, E[\mathsf{spawn}\ v_{\mathit{coro}}] \rangle \circ FS \} \rangle$ & [Trio-Spawn] \\
+% $\longrightarrow \langle t + 1, \sigma_1, \ceag{Q \qpush (x_{\mathit{task}}, \kappa)}, T, P \uplus \{ \langle \ell, E[x_{\mathit{task}}] \rangle \circ FS \} \rangle$ & \\
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
   \where\ (\sigma_1, x_{\mathit{task}}) = \cext{\mathsf{task\_alloc\_dependency}(\sigma_0, \ell)} \\
