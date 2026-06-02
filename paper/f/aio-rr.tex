@@ -5,7 +5,7 @@ $\longrightarrow \langle \mathrm{step}(t), \sigma_1, Q_1, T, P \uplus \{ \langle
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
   \textbf{where}\ (\sigma_1, x_{\mathit{task}}) = \mathrm{task\_alloc}(\sigma_0) \\
-  \qquad \kappa = \mathbf{fn}\ x_{\mathit{unit}} \to x_{\mathit{unit}} \mathbin{;} \mathrm{reset}\ ( \\
+  \qquad \kappa = \mathbf{fn}\ x_{\mathit{unit}} \to x_{\mathit{unit}} \mathbin{;} \mathbfsf{reset}\ ( \\
   \qquad \qquad \mathbfsf{try}\ \mathrm{task\_set\_done}(x_{\mathit{task}}, \mathbf{await}\ v_{\mathit{coro}})\ \mathbfsf{catch}\ v_{\mathit{err}} \to \mathrm{task\_set\_failed}(x_{\mathit{task}}, v_{\mathit{err}}) \mathbin{;} \\
   \qquad \qquad \cext{\mathrm{os\_start\_soon}(\mathrm{task\_get\_dependents}(x_{\mathit{task}}))} \\
   \qquad ) \\
@@ -22,8 +22,8 @@ $\longrightarrow \langle \mathrm{step}(t), \sigma_1, Q_1, T, P \uplus \{ \langle
 % \multicolumn{2}{@{}l@{}}{
 %   $\begin{array}{l}
 %   \textbf{where}\ \mathrm{task\_is\_task}(v_{\mathit{aw}}) \\
-%   \qquad e_k = \mathrm{shift}\ k \to \mathrm{task\_add\_self\_as\_dependent}(v_{\mathit{aw}}, \ell, \mathrm{task\_continue\_with}(v_{\mathit{aw}}, k)) \\
-%   \qquad e_{\mathit{check}} = \csus{\mathrm{if}\ \mathrm{task\_is\_completed}(v_{\mathit{aw}})\ \mathrm{then}\ \mathrm{task\_get\_result}(v_{\mathit{aw}})\ \mathrm{else}\ e_k}
+%   \qquad e_k = \mathbfsf{shift}\ k \to \mathrm{task\_add\_self\_as\_dependent}(v_{\mathit{aw}}, \ell, \mathrm{task\_continue\_with}(v_{\mathit{aw}}, k)) \\
+%   \qquad e_{\mathit{check}} = \csus{\mathbfsf{if}\ \mathrm{task\_is\_completed}(v_{\mathit{aw}})\ \mathbfsf{then}\ \mathrm{task\_get\_result}(v_{\mathit{aw}})\ \mathbfsf{else}\ e_k}
 %   % \mathrm{task\_set\_awaited}(v_{\mathit{aw}}) \mathbin{;} \\
 %   \end{array}$
 % }
@@ -45,7 +45,7 @@ $\longrightarrow \langle \mathrm{step}(t), \sigma, Q_1, T, P \uplus \{ \langle \
 \noindent
 \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
 $\langle t, \sigma, (\ell_{\mathit{waiting}}, \kappa) \circ Q_1, T, P \uplus \{ \epsilon \} \rangle$ & [Schedule-Cancelled] \\
-$\longrightarrow \langle \mathrm{step}(t), \sigma, Q_1, T, P \uplus \{ \langle \ell_{\mathit{waiting}}, \ccan{\mathrm{throw\_in}(\kappa, \text{``cancelled''})} \rangle \circ \epsilon \} \rangle$ & \\
+$\longrightarrow \langle \mathrm{step}(t), \sigma, Q_1, T, P \uplus \{ \langle \ell_{\mathit{waiting}}, \ccan{\mathbfsf{throw\_in}(\kappa, \text{``cancelled''})} \rangle \circ \epsilon \} \rangle$ & \\
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
   \textbf{where}\ \mathrm{task\_cancelled}(\sigma, \ell_{\mathit{waiting}})

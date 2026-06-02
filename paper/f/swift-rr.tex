@@ -7,7 +7,7 @@ $\longrightarrow \langle \mathrm{step}(t), \sigma_2, Q_1, T, P \uplus \{ \langle
   \textbf{where}\ (\sigma_1, x_{\mathit{task}}) = \cext{\mathrm{task\_alloc\_dependency}(\sigma_0,\ell)}\ \mathrm{and}\ \many{x}_{\mathit{fresh}} = \many{\mathrm{gensym}()} \\
   \qquad \sigma_2 = \sigma_1[\many{x}_{\mathit{fresh}} \mapsto \many{v}] \\
   \qquad e_{\mathit{subst}} = e_{\mathit{body}}[\many{x}_{\mathit{fresh}}/\many{x}] \\
-  \qquad \kappa = \mathbf{fn}\ x_\mathit{unit} \to x_\mathit{unit}\mathbin{;}\ \mathrm{reset}\ ( \\
+  \qquad \kappa = \mathbf{fn}\ x_\mathit{unit} \to x_\mathit{unit}\mathbin{;}\ \mathbfsf{reset}\ ( \\
   % \qquad \qquad \mathrm{task\_add\_parent}(x_{\mathit{task}}, \ell) \mathbin{;} \\
   \qquad \qquad \mathbfsf{try}\ \mathrm{task\_set\_done}(x_{\mathit{task}}, e_{\mathit{subst}})\ \mathbfsf{catch}\ v_{\mathit{err}} \to \mathrm{task\_set\_failed}(x_{\mathit{task}}, v_{\mathit{err}}) \mathbin{;} \\
   \qquad \qquad \cdes{\mathrm{task\_cancel\_dependencies}(x_{\mathit{task}}) \mathbin{;}} \\
@@ -26,8 +26,8 @@ $\longrightarrow \langle \mathrm{step}(t), \sigma_2, Q_1, T, P \uplus \{ \langle
 % $\longrightarrow \langle \mathrm{step}(t), \sigma, Q, T, P \uplus \{ \langle \ell, E[e_{\mathit{check}}] \rangle \circ FS \} \rangle$ & \\
 % \multicolumn{2}{@{}l@{}}{
 %   $\begin{array}{l}
-%   \textbf{where}\ e_k = \mathrm{shift}\ k \to \mathrm{task\_add\_waiter}(v_{\mathit{aw}}, \ell, \mathrm{task\_continue\_with}(v_{\mathit{aw}}, k)) \\
-%   \qquad e_{\mathit{check}} = \csus{\mathrm{if}\ \mathrm{task\_is\_completed}(v_{\mathit{aw}})\ \mathrm{then}\ \mathrm{task\_get\_result}(v_{\mathit{aw}})\ \mathrm{else}\ e_k}
+%   \textbf{where}\ e_k = \mathbfsf{shift}\ k \to \mathrm{task\_add\_waiter}(v_{\mathit{aw}}, \ell, \mathrm{task\_continue\_with}(v_{\mathit{aw}}, k)) \\
+%   \qquad e_{\mathit{check}} = \csus{\mathbfsf{if}\ \mathrm{task\_is\_completed}(v_{\mathit{aw}})\ \mathbfsf{then}\ \mathrm{task\_get\_result}(v_{\mathit{aw}})\ \mathbfsf{else}\ e_k}
 %   \end{array}$
 % }
 % \end{tabular*}

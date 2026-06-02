@@ -1,0 +1,30 @@
+
+\newcommand{\cmark}{\textcolor{black!85}{\ding{51}}} % heavy check
+\newcommand{\rot}[1]{\rotatebox{90}{#1}}
+
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.25}
+
+\begin{table}[htbp]
+  \centering
+\resizebox{\textwidth}{!}{%
+  \begin{tabular}{@{}lccc|cc|cc|cc|ccc|cc|cc|ccc|cc@{}}
+  \toprule
+  & \multicolumn{5}{c}{\bfseries Start of Life} & \multicolumn{9}{c}{\bfseries End of Life} & \multicolumn{7}{c}{\bfseries Cancellation} \\
+  \cmidrule(lr){2-6}\cmidrule(lr){7-15}\cmidrule(lr){16-22}
+  & \multicolumn{3}{c}{\itshape Eagerness} & \multicolumn{2}{c}{\itshape Suspension} & \multicolumn{2}{c}{\itshape Extent} & \multicolumn{2}{c}{\itshape Ref.\ Strength} & \multicolumn{3}{c}{\itshape Destruction} & \multicolumn{2}{c}{\itshape Propagation} & \multicolumn{2}{c}{\itshape Awareness} & \multicolumn{3}{c}{\itshape Direction} & \multicolumn{2}{c}{\itshape Persistence} \\
+  \cmidrule(lr){2-4}\cmidrule(lr){5-6}\cmidrule(lr){7-8}\cmidrule(lr){9-10}\cmidrule(lr){11-13}\cmidrule(lr){14-15}\cmidrule(lr){16-17}\cmidrule(lr){18-20}\cmidrule(lr){21-22}
+  & \rot{\textsc{lazy}} & \rot{\textsc{eager}} & \rot{\textsc{semi-eager}} & \rot{\textsc{static}} & \rot{\textsc{dynamic}} & \rot{\textsc{indefinite}} & \rot{\textsc{dynamic}} & \rot{\textsc{strong}} & \rot{\textsc{weak}} & \rot{\textsc{awaited}} & \rot{\textsc{cancelled}} & \rot{\textsc{terminated}} & \rot{\textsc{destruction}} & \rot{\textsc{never}} & \rot{\textsc{unaware}} & \rot{\textsc{aware}} & \rot{\textsc{top-down}} & \rot{\textsc{bottom-up}} & \rot{\textsc{simultaneous}} & \rot{\textsc{transient}} & \rot{\textsc{persistent}} \\
+  \midrule
+  \CSharp{} &  & \cmark &  &  & \cmark & \cmark &  & \cmark &  &  &  & \cmark &  & \cmark &  &  &  &  &  &  &  \\
+  \Js{} &  & \cmark &  & \cmark &  & \cmark &  & \cmark &  & \cmark &  &  &  & \cmark &  &  &  &  &  &  &  \\
+  Swift &  &  & \cmark &  & \cmark &  & \cmark &  &  &  & \cmark &  &  & \cmark &  & \cmark &  &  & \cmark &  & \cmark \\
+  Tokio (Rust) & \cmark &  &  &  & \cmark & \cmark &  & \cmark &  &  & \cmark &  &  & \cmark & \cmark &  & \cmark &  &  &  &  \\
+  Smol (Rust) & \cmark &  &  &  & \cmark & \cmark &  &  & \cmark &  & \cmark &  &  & \cmark & \cmark &  & \cmark &  &  &  &  \\
+  Asyncio (Python) & \cmark &  &  &  & \cmark & \cmark &  &  & \cmark &  & \cmark &  &  & \cmark &  & \cmark &  & \cmark &  & \cmark &  \\
+  Trio (Python) & \cmark &  &  &  & \cmark &  & \cmark &  &  & \cmark &  &  & \cmark &  &  & \cmark &  & \cmark &  &  & \cmark \\
+  \bottomrule
+  \end{tabular}
+}
+\caption{Async/await \`{a} la carte \todo{Other languages, and a real caption.}}
+\end{table}

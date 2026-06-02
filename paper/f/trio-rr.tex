@@ -5,7 +5,7 @@ $\longrightarrow \langle \mathrm{step}(t), \sigma_1, Q_1, T, P \uplus \{ \langle
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
   \textbf{where}\ (\sigma_1, x_{\mathit{task}}) = \cext{\mathrm{task\_alloc\_dependency}(\sigma_0, \ell)} \\
-  \qquad \kappa = \mathbf{fn}\ () \to \mathrm{reset}\ ( \\
+  \qquad \kappa = \mathbf{fn}\ () \to \mathbfsf{reset}\ ( \\
   \qquad \qquad \mathbfsf{try}\ \mathrm{task\_set\_done}(x_{\mathit{task}}, \mathrm{await}\ v_{\mathit{coro}}) \mathbin{;} \cpro{\mathrm{task\_await\_dependencies}}\cext{(x_{\mathit{task}})} \\
   \qquad \qquad \mathbfsf{catch}\ v_{\mathit{err}} \to \mathrm{task\_set\_failed}(x_{\mathit{task}}, v_{\mathit{err}}) \mathbin{;} \\
   \qquad \qquad \mathrm{os\_start\_soon}(\mathrm{task\_get\_dependents}(x_{\mathit{task}})) \\

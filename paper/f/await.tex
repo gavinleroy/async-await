@@ -8,8 +8,8 @@
 % $\longrightarrow \langle t + 1, \sigma, Q, T, P \uplus \{ \langle \ell, E[e_{\mathit{check}}] \rangle \circ FS \} \rangle$ & \\
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
-  \where\ e_k = \mathsf{shift}\ k \to \mathsf{task\_add\_dependency}(v_{\mathit{aw}}, \ell, \mathsf{task\_continue\_with}(v_{\mathit{aw}}, k)) \\
-  \qquad e_{\mathit{check}} = \csus{\mathsf{if}\ \mathsf{task\_is\_completed}(v_{\mathit{aw}})\ \mathsf{then}\ \mathsf{task\_get\_result}(v_{\mathit{aw}})\ \mathsf{else}\ e_k}
+  \where\ e_k = \mathbfsf{shift}\ k \to \mathsf{task\_add\_dependency}(v_{\mathit{aw}}, \ell, \mathsf{task\_continue\_with}(v_{\mathit{aw}}, k)) \\
+  \qquad e_{\mathit{check}} = \csus{\mathbfsf{if}\ \mathsf{task\_is\_completed}(v_{\mathit{aw}})\ \mathbfsf{then}\ \mathsf{task\_get\_result}(v_{\mathit{aw}})\ \mathbfsf{else}\ e_k}
   \end{array}$
 }
 \end{tabular*}
@@ -25,7 +25,7 @@
 % $\longrightarrow \langle t + 1, \sigma, Q, T, P \uplus \{ \langle \ell, E[\csus{e_k}] \rangle \circ FS \} \rangle$ & \\
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
-  \where\ e_k = \mathsf{shift}\ k \to \mathsf{task\_add\_dependency}(v_{\mathit{aw}}, \ell, \mathsf{task\_continue\_with}(v_{\mathit{aw}}, k)) \\
+  \where\ e_k = \mathbfsf{shift}\ k \to \mathsf{task\_add\_dependency}(v_{\mathit{aw}}, \ell, \mathsf{task\_continue\_with}(v_{\mathit{aw}}, k)) \\
   \end{array}$
 }
 \end{tabular*}

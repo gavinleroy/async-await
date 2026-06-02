@@ -1,6 +1,6 @@
 \noindent
 \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
-$\langle \sigma_0, E[(\mathbf{async\ fn}\ \many{x} \to e_{\mathit{body}})\ \many{v}] \rangle \longrightarrow \langle \sigma_1, E[\ceag{\mathrm{reset}\ (\mathrm{shift}\ k \to k \mathbin{;} e_{\mathit{subst}})}] \rangle$ & [Async-App] \\
+$\langle \sigma_0, E[(\mathbf{async\ fn}\ \many{x} \to e_{\mathit{body}})\ \many{v}] \rangle \longrightarrow \langle \sigma_1, E[\ceag{\mathbfsf{reset}\ (\mathbfsf{shift}\ k \to k \mathbin{;} e_{\mathit{subst}})}] \rangle$ & [Async-App] \\
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
   \textbf{where}\\ 
@@ -14,5 +14,5 @@ $\langle \sigma_0, E[(\mathbf{async\ fn}\ \many{x} \to e_{\mathit{body}})\ \many
 
 \noindent
 \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
-$\langle \sigma, E[\mathbf{await}\ (\mathrm{fun}\ x \to \mathrm{reset}\ (x \mathbin{;} e))] \rangle \longrightarrow \langle \sigma, E[e] \rangle$ & [Await-Coroutine]
+$\langle \sigma, E[\mathbf{await}\ (\mathrm{fun}\ x \to \mathbfsf{reset}\ (x \mathbin{;} e))] \rangle \longrightarrow \langle \sigma, E[e] \rangle$ & [Await-Coroutine]
 \end{tabular*}

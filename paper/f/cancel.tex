@@ -30,8 +30,13 @@
 \longrightarrow ~&\{\cper{\sigma,}\, ~&&Q, ~&&P \uplus \{ \cawa{\langle \ell,}\, \cdir{\mathsf{throw\_in}(\kappa, \textsf{``cancelled''})}\, \cawa{\rangle} \circ ~&&\epsilon \} \rangle&
 \end{alignat*}
 \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+% <<<<<<< Updated upstream
 % $\langle t, \sigma, (\ell_{\mathit{waiting}}, \kappa) \circ Q_1, T, P \uplus \{ \epsilon \} \rangle$ & [Swift/Trio-Schedule-Cancelled] \\
 % \multicolumn{2}{@{}l@{}}{$\longrightarrow \langle t + 1, \cper{\sigma,}\, Q_1, T, P \uplus \{ \cawa{\langle \ell_{\mathit{waiting}},}\, \cdir{\mathsf{throw\_in}(\kappa, \textsf{``cancelled''})}\, \cawa{\rangle} \circ \epsilon \} \rangle$} \\
+% =======
+% $\langle t, \sigma, (\ell_{\mathit{waiting}}, \kappa) \circ Q_1, T, P \uplus \{ \epsilon \} \rangle$ & [Swift/Trio-Schedule-Cancelled] \\
+% \multicolumn{2}{@{}l@{}}{$\longrightarrow \langle t + 1, \cper{\sigma,}\, Q_1, T, P \uplus \{ \cawa{\langle \ell_{\mathit{waiting}},}\, \cdir{\mathbfsf{throw\_in}(\kappa, \textsf{``cancelled''})}\, \cawa{\rangle} \circ \epsilon \} \rangle$} \\
+% >>>>>>> Stashed changes
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
     \where\ \mathsf{task\_cancelled}(\sigma, \ell)
@@ -46,8 +51,13 @@
 \longrightarrow ~&\{\sigma_1, ~&&Q, ~&&P \uplus \{ \cawa{\langle \ell,}\, \cdir{\mathsf{throw\_in}(\kappa, \textsf{``cancelled''})}\, \cawa{\rangle} \circ ~&&\epsilon \} \rangle&
 \end{alignat*}
 \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+% <<<<<<< Updated upstream
 % $\langle t, \sigma_0, (\ell_{\mathit{waiting}}, \kappa) \circ Q_1, T, P \uplus \{ \epsilon \} \rangle$ & [Asyncio-Schedule-Cancelled] \\
 % \multicolumn{2}{@{}l@{}}{$\longrightarrow \langle t + 1, \sigma_1, Q_1, T, P \uplus \{ \cawa{\langle \ell_{\mathit{waiting}},}\, \cdir{\mathsf{throw\_in}(\kappa, \textsf{``cancelled''})}\, \cawa{\rangle} \circ \epsilon \} \rangle$} \\
+% =======
+% $\langle t, \sigma_0, (\ell_{\mathit{waiting}}, \kappa) \circ Q_1, T, P \uplus \{ \epsilon \} \rangle$ & [Asyncio-Schedule-Cancelled] \\
+% \multicolumn{2}{@{}l@{}}{$\longrightarrow \langle t + 1, \sigma_1, Q_1, T, P \uplus \{ \cawa{\langle \ell_{\mathit{waiting}},}\, \cdir{\mathbfsf{throw\_in}(\kappa, \textsf{``cancelled''})}\, \cawa{\rangle} \circ \epsilon \} \rangle$} \\
+% >>>>>>> Stashed changes
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
   \where\ \mathsf{task\_cancelled}(\sigma_0, \ell),~ 
@@ -82,35 +92,13 @@
 % $\longrightarrow \langle t + 1, \cper{\sigma,}\, Q_1, T, P \uplus \{ \langle \ell_{\mathit{waiting}}, e_{\mathit{fail}} \rangle \circ \epsilon \} \rangle$ & \\
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
+% <<<<<<< Updated upstream
   \where\ \mathsf{task\_cancelled}(\sigma, \ell) \\
   \qquad e_{\mathit{fail}} = \cawa{\mathsf{task\_set\_failed}(\ell, ()) \mathbin{;} \mathsf{sys\_start\_soon}(\mathsf{task\_get\_dependents}(x_{\mathit{task}}))}
+% =======
+%   \where\ \mathsf{task\_cancelled}(\sigma, \ell_{\mathit{waiting}}) \\
+%   \qquad e_{\mathit{fail}} = \cawa{\mathsf{task\_set\_failed}(\ell_{\mathit{waiting}}, ()) \mathbin{;} \mathbfsf{sys\_start\_soon}(\mathsf{task\_get\_dependents}(x_{\mathit{task}}))}
+% >>>>>>> Stashed changes
   \end{array}$
 }
 \end{tabular*}
-
-% \vspace{1em}
-% \noindent
-% \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
-% $\langle t, \sigma, Q_0, T_{\mathit{pre}} \seqconcat (t, \ell, \kappa) \circ T_{\mathit{post}}, P \rangle \\
-% \longrightarrow \langle t + 1, \sigma, Q_0 \qpush (\ell, \kappa), T_{\mathit{pre}} \seqconcat T_{\mathit{post}}, P \rangle$ & [*-Cancel-Pending-IO] \\
-% \multicolumn{2}{@{}l@{}}{
-%   $\begin{array}{l}
-%   \where\ \mathsf{task\_cancelled}(\sigma, \ell)
-%   \end{array}$
-% }
-% \end{tabular*}
-
-% \vspace{1em}
-% \noindent
-% \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
-% $\mathsf{task\_cancelled}(\sigma, x) = \mathit{self\_cancelled} \lor \mathit{dependent\_cancelled}$ & \\
-% \multicolumn{2}{@{}l@{}}{
-%   $\begin{array}{l}
-%   \where\\
-%   \qquad \mathit{self\_cancelled} =\; !\sigma(x).\mathsf{cancelled} \\
-%   \qquad \many{x}_{\mathit{parents}} = \sigma(v_{\mathit{task}}.\mathsf{parents}) \\
-%   \qquad \mathit{dependent\_cancelled} = \bigvee_{x_p \in \many{x}_{\mathit{parents}}} \mathsf{task\_cancelled}(\sigma, x_p)
-%   \end{array}$
-% }
-% \end{tabular*}
-

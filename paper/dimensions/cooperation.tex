@@ -1,6 +1,14 @@
 \subsubsection{\Cooperation}
 \label{ssec:designdims:cooperation}
 
+% <<<<<<< Updated upstream
+% =======
+% \begin{figure}[t]
+%   \includegraphics[width=0.85\linewidth]{f/cooperation.pdf}
+%   \caption{An example program demonstrating the \Cooperation dimension. Each diagram shows the state, broken or intact, of a global invariant as the \code{work} task runs. Unaware cancellation does not communicate to the task that its being cancelled, leaving the invariant broken in this example. Aware cancellation provides a cancelled task the opportunity to handle cancellation, here the cancelled task reinstates the broken invariant before cancelling.}
+%   \label{fig:cooperation}
+% \end{figure}
+% >>>>>>> Stashed changes
 Integrated cancellation approaches all center around triggering cancellations at await points. A key distinction is whether a cancelled task is aware that it is being cancelled, in order to handle or ignore the cancellation at a given await point. 
 
 \begin{wrapfigure}{r}{0.6\linewidth}

@@ -3,24 +3,24 @@ $$
 \mathsf{Number}\ n & & \mathsf{String}\ s \\
 \mathsf{Const}\ c      & ::=  & \mathsf{true} \mid\mathsf{false}\mid n \mid s \\
 \mathsf{Expr}\ e       & ::=  & x \mid v \mid \mathbfsf{fn}\ \many{x} \to e \mid e\ \many{e} \\
-                       & \mid & \mathsf{let}\ x = e\ \mathsf{in}\ e \\
-                       & \mid & \mathsf{if}\ e\ \mathsf{then}\ e\ \mathsf{else}\ e \\
-                       & \mid & \mathsf{fix}\ e \mid e \mathbin{;} e \\
-                       & \mid & \mathsf{reset}\ e \mid \mathsf{shift}\ x \to e \\
-                       & \mid & \mathsf{ref}\ e \mid !e \mid e := e \\
+                       & \mid & \mathbfsf{let}\ x = e\ \mathbfsf{in}\ e \\
+                       & \mid & \mathbfsf{if}\ e\ \mathbfsf{then}\ e\ \mathbfsf{else}\ e \\
+                       & \mid & \mathbfsf{fix}\ e \mid e \mathbin{;} e \\
+                       & \mid & \mathbfsf{reset}\ e \mid \mathbfsf{shift}\ x \to e \\
+                       & \mid & \mathbfsf{ref}\ e \mid !e \mid e := e \\
 \\
 \mathsf{Value}\ v      & ::=  & c \mid () \mid \mathsf{ptr}(x) \\
-       & \mid & \mathbfsf{fn}\ \many{x} \to e \mid \mathsf{fix}\ v \\
+       & \mid & \mathbfsf{fn}\ \many{x} \to e \mid \mathbfsf{fix}\ v \\
 \\
-\mathsf{Eval\ Ctx}\ E      & ::=  & [\cdot] \mid \many{v}\ E\ \many{e} \mid \mathsf{fix}\ E \\
-       & \mid & \mathsf{let}\ x = E\ \mathsf{in}\ e \\
-       & \mid & \mathsf{let}\ x = v\ \mathsf{in}\ E \\
-       & \mid & \mathsf{if}\ E\ \mathsf{then}\ e\ \mathsf{else}\ e \\
-       & \mid & \many{v} \mathbin{;} E \mathbin{;} \many{e} \mid \mathsf{reset}\ E \\
-       & \mid & \mathsf{ref}\ E \mid !E \mid E := e \\
+\mathsf{Eval\ Ctx}\ E      & ::=  & [\cdot] \mid \many{v}\ E\ \many{e} \mid \mathbfsf{fix}\ E \\
+       & \mid & \mathbfsf{let}\ x = E\ \mathbfsf{in}\ e \\
+       & \mid & \mathbfsf{let}\ x = v\ \mathbfsf{in}\ E \\
+       & \mid & \mathbfsf{if}\ E\ \mathbfsf{then}\ e\ \mathbfsf{else}\ e \\
+       & \mid & \many{v} \mathbin{;} E \mathbin{;} \many{e} \mid \mathbfsf{reset}\ E \\
+       & \mid & \mathbfsf{ref}\ E \mid !E \mid E := e \\
        & \mid & v := E
 \\
-\mathsf{Delim\ Ctx}\ M      & ::=\  & \mathsf{(} E\ \mathsf{without}\ \mathsf{reset}\ M \mathsf{)}
+\mathsf{Delim\ Ctx}\ M      & ::=\  & \mathsf{(} E\ \mathsf{without}\ \mathbfsf{reset}\ M \mathsf{)}
 \\
 \mathsf{Heap}\ \sigma & ::=  & \cdot \mid \sigma, x \mapsto v
 \end{array}
