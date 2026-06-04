@@ -27,11 +27,12 @@
 \end{figure}
 
 The preceding section provides a detailed but informal characterization of our view of the straight-line asynchrony design space. Now, we will put it on a formal footing.
+%
+We present the design dimensions as variants on a formal operational semantics for a core asynchronous language. We start with a small \lc language that captures the computational core of Python, Rust, etc., while eliminating many language-specific details. For example, we unify the languages' implementation of asynchrony using delimited continuations rather than faithfully modeling each implementation using state machines and other such mechanisms. 
 
-We present the design dimensions as variants on a formal operational semantics for a core asynchronous language. We start with a small \lc language that captures the computational core of Python, Rust, etc., while eliminating many language-specific details. For example, we unify the languages' implementation of asynchrony using delimited continuations rather than faithfully modeling each implementation using state machines and other such mechanisms. Atop this, we layer semantic rules that capture the essence of the design dimensions in \Cref{sec:designdims}.
+Atop this foundation, we layer semantic rules that capture the essence of the design dimensions in \Cref{sec:designdims}. The goal of these rules is to concisely and precisely describe the exact meaning of each point along each design dimension.
 % A key contribution of this paper is a precise and neutral description of the operational behavior of several contemporary async systems. To reduce the cosmetic noise we provide the operational semantics as extensions to a base $\lambda$-calculus variant, henceforth refered to as \lc.
-
-Perhaps unsurprisingly, the full semantics is too large to include in its entirety. The elided rules are provided in the appendix, and a complete executable model via Redex is available in the supplementary materials.
+The full semantics is too large to include in its entirety. The elided rules are provided in the appendix, and a complete executable model via Redex is available in the supplementary materials.
 
 % By providing the semantics in layers we highlight the control features necessary for a given language's implementation and can more easily compare the operational behavior between two languages that have seemingly incomparable semantics. We additionally provide all the semantics in this section as a runnable Redex model, available in the supplementary materials.~\missingcite
 

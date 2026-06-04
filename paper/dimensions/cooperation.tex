@@ -11,10 +11,10 @@
 % >>>>>>> Stashed changes
 Integrated cancellation approaches all center around triggering cancellations at await points. A key distinction is whether a cancelled task is aware that it is being cancelled, in order to handle or ignore the cancellation at a given await point. 
 
-\begin{wrapfigure}{r}{0.6\linewidth}
+\begin{wrapfigure}{r}{0.54\linewidth}
 % \begin{figure*}
   \includegraphics[width=\linewidth]{f/cooperation.pdf}
-  \caption{An example program demonstrating the \Cooperation dimension.}
+  \caption{An example program demonstrating the \Cooperation dimension. A branching execution trace is paired with an indicator of whether an invariant is satisfied. An aware approach allows the canceled task to restore the invariant before proceeding with cancellation, while an unaware approach remains cancelled with the invariant broken.}
   \label{fig:cooperation}
 % \end{figure*}
 \end{wrapfigure}

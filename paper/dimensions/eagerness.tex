@@ -1,21 +1,24 @@
 \subsubsection{\Eagerness}
 \label{ssec:designdims:eagerness}
 
-\begin{figure}[t]
-  \includegraphics[width=\linewidth]{f/eagerness.pdf}
-  \cprotect\caption{An example program demonstrating the \Eagerness dimension, executed with Rust (\lazy), \CSharp (\eager), and Swift (\seager). Each column shows the line of execution, the text printed to stdout, and changes to the values of the variables \code|a| and \code|b|. Coroutines are represented as a state machine, with the active state colored in green. Tasks are represented as a boxed state machine.}
-  \label{fig:eagerness}
-\end{figure}
 
 Consider the program in \Cref{fig:eagerness}, where an async function \code|work| is called twice, and later awaited. Based on each language's approach to async function calls, three outcomes can occur: \emph{\lazy}, where no work occurs until being awaited, \emph{\eager}, where work occurs immediately in the main thread of execution, and \emph{\seager}, where no work occurs but is immediately registered in the runtime to start soon, potentially on a different thread, resulting in non-deterministic output. To understand this variation, we first need to discuss two foundational concepts for straight-line asynchrony: coroutines and tasks.
 
 An asynchronous function either implicitly (in the runtime implementation) or explicitly (in a user-visible way) desugars into an object that behaves like a coroutine. Upon entering the function, code runs until reaching an \code|await| point, when the function may yield to its caller (depending on its \Suspension, \Cref{ssec:designdims:suspension}). Specifically, these objects behave like asymmetric stackless coroutines, to use the taxonomy provided by \citet{moura_revisiting_2009}. General coroutines can yield values on suspension and accept values on resumption. For straight-line asynchrony, a coroutine does not need to yield values on suspension, but needs only to accept values on resumption (or access them at a shared location).
 
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.8\linewidth]{f/eagerness.pdf}
+  \cprotect\caption{An example program demonstrating the \Eagerness dimension, executed with Rust (\lazy), \CSharp (\eager), and Swift (\seager). Each column shows the line of execution, the text printed to stdout, and changes to the values of the variables \code|a| and \code|b|. Coroutines are represented as a state machine, with the active state colored in green. Tasks are represented as a boxed state machine. The dotted vertical lines represent nondeterminism, or an event that could happen anywhere within the indicated range.}
+  \label{fig:eagerness}
+\end{figure}
+
 When a coroutine representing an asynchronous computation is constructed via a function call, the \Eagerness axis defines what happens next to the coroutine. In languages with first-class coroutines\footnotemark{} such as Python~\cite{selivanov_pep_2015} and Rust~\cite{withoutboats_2394_2018}, we describe their behavior as \emph{\lazy}: the coroutine is returned and no work occurs. In \Cref{fig:eagerness}, this means that \code|a = work("A")| constructs a coroutine in a starting state, but the coroutine is only executed at \lstinline[language=Pseudo]|await a| on line 4. In lazy languages, to execute an async computation concurrently with its caller, one must use an explicit \lstinline[language=Pseudo]|spawn| operation to convert the coroutine into a \emph{task} (e.g., as used in \Cref{fig:motivating-example}).
 %
 \footnotetext{As of v1.92.0, Rust has first-class \emph{futures} but not first-class coroutines. That is, calling an async function returns a value representing the computation, but that value does not offer a full coroutine interface. By contrast, Python has a stabilized coroutine interface implemented by its async functions. The Rust compiler does internally track async functions as coroutines, but this interface has not been stabilized.}
 
-A task is a handle on an async computation shared between its creator and an \emph{async runtime}. The async runtime usually consists of a thread pool and some facilities for reacting to \abbr{os}-level events by waking up waiting tasks. In languages without first-class coroutines, async function calls returns tasks directly. However, languages differ with respect to scheduling of these tasks.
+A task is a handle on an async computation shared between its creator and an \emph{async runtime}. The async runtime usually consists of a thread pool and some facilities for reacting to \abbr{os}-level events by waking up waiting tasks. In languages without first-class coroutines, a call to an async function will return a task directly. However, languages differ with respect to scheduling of these tasks.
+
 
 For \emph{\eager} languages such as \CSharp~\cite[\textsection 15.14.3]{ecma_c_standard_committee_c_nodate} and \Js~\cite[\textsection 27.7.5.1]{ecma_ecmascript_nodate}, on evaluating an async function application, the current thread transfers execution to the body of the async function. When reaching an await point, the function application evaluates to a \task value, and control returns to the caller. In \Cref{fig:eagerness}, \eager execution causes \code|work("A")| to behave like a normal function call, resulting in deterministic/single-threaded execution. 
 
@@ -48,6 +51,7 @@ For \emph{\seager} languages such as Swift~\cite{mccall_swift_2021-1}, an async 
 
 % \CSharp adopts eager function application~\missingcite. In \Cref{fig:designdims:eagerness:eager}, the execution of the main thread will transfer to the body of \code{Work} and continue executing until a suspension point is hit. As a result of the eager evaluation the program always prints ``ABC.''
 
+
 \paragraph{Design rationale.} The choices in the \eagerness dimension offer a tradeoff in predictability, maximizing \abbr{cpu} multi-core utilization, and reducing \task allocation.
 %
 \Lazy asynchrony has two main benefits. First, \lazy asynchrony can provide predictable memory allocation. Asynchronous function applications evaluate directly to a \coro value that can be stack allocated. The developer must opt-in to either boxing or spawning a \coro. Predictable memory allocation is a key motivation for Rust's async/await design~\cite{withoutboats_why_2023}. 
@@ -57,6 +61,12 @@ Second, by separating coroutines from tasks, the language can enable users to pr
 % Executor and Reactor as user-space libraries, instead of shipping them bundled in the language runtime. Communities can then provide their own asynchronous runtime that is tailored towards a specific need when a preexisting runtime is insufficient.
 
 The downsides of the \lazy approach include: by offering an extensible runtime, async-related libraries in the ecosystem tend to have reduced interoperability. For example, in Rust, \lstinline[language=Pseudo]|spawn| is a runtime-specific primitive, so libraries using it must be coupled to a choice of runtime such as Tokio or \smol. Users must also deal with the complexity of understanding both coroutines and tasks. Users often find \lazy behavior surprising --- to call a function and have nothing happen runs against a programmer's intuition transferred from synchronous function calls~\cite{d_why_2025,gebra_how_2023,mapeper_starting_2023}.
+
+\begin{wrapfigure}{r}{0.5\linewidth}
+  \includegraphics[width=\linewidth]{f/suspension.pdf}
+  \caption{An example program demonstrating the \Suspension dimension, executed with \Js (\static) and \CSharp (\dynamic). Each column shows an execution trace of the program under an eager semantics with each kind of \suspension, and the order of prints to stdout. The execution traces are nested according to their level in the call stack.}
+  \label{fig:suspension}
+\end{wrapfigure}
 
 Non-\lazy approaches avoid these downsides by starting asynchronous work as soon as a function is called, either on the current thread (\eager) or any thread (\seager). The \eager approach reduces the overhead of control flow and context switches within the asynchrony runtime. The \seager approach leans more on the runtime, but in exchange provides a higher degree concurrency by dispatching work to other threads. The increased concurrency can be particularly valuable for programs that want to avoid blocking a main thread, such as in UI applications~\cite{bartlett_why_2023,inc_embracing_nodate,winney_using_2021}.
 

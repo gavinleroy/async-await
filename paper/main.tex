@@ -1,4 +1,4 @@
-\documentclass[acmsmall,screen,review]{acmart}
+\documentclass[acmsmall,screen]{acmart}\settopmatter{}
 
 %%
 %% \BibTeX command to typeset BibTeX logo in the docs
@@ -6,7 +6,18 @@
 
 \bibliographystyle{ACM-Reference-Format}
 
-\setcopyright{none}
+\setcopyright{rightsretained}
+\acmDOI{10.1145/3649812}
+\acmYear{2024}
+\copyrightyear{2024}
+\acmSubmissionID{oopslaa24main-p10-p}
+\acmJournal{PACMPL}
+\acmVolume{8}
+\acmNumber{OOPSLA1}
+\acmArticle{95}
+\acmMonth{4}
+\received{2023-10-19}
+\received[accepted]{2024-02-24}
 
 %%%%
 %% TODO: CCSXML goes here
@@ -45,8 +56,20 @@
   This paper therefore presents a \emph{design space exploration} of straight-line asychrony. We dissect several existing languages, and show how no two of them agree as a whole on designs decisions which affect the presence and ordering of execution. We articulate a design space with nine dimensions covering the full lifecycle of an asynchronous computation, covering questions such as: What precise guarantees does a language give upon calling an asynchronous function? What happens at the end of a task's life? How can a task handle being cancelled? We explore these questions through concrete examples, informal design discussion, and a formal semantics. Our ultimate goal is to help programmers, language designers, and language theorists all better understand the emerging landscape of straight-line asynchrony.
 \end{abstract}
 
-%%%%
-%% \keywords{}
+
+\begin{CCSXML}
+<ccs2012>
+<concept>
+<concept_id>10003752.10003753.10003761</concept_id>
+<concept_desc>Theory of computation~Concurrency</concept_desc>
+<concept_significance>500</concept_significance>
+</concept>
+</ccs2012>
+\end{CCSXML}
+
+\ccsdesc[500]{Theory of computation~Concurrency}
+
+\keywords{asynchronous programming, async/await, structured concurrency}
 
 \maketitle
 

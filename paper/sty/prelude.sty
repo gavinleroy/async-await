@@ -528,6 +528,11 @@
 \newcommand{\StartOfLife}{Start of Life\xspace}
 \newcommand{\EndOfLife}{End of Life\xspace}
 
+% Tweak margins on quote environment
+\renewenvironment{quote}
+  {\list{}{\leftmargin=1em\rightmargin=1em}\item\relax}
+  {\endlist}
+
 \newif\ifcameraready
 %\camerareadytrue
 \camerareadyfalse
