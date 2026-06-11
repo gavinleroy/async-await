@@ -102,7 +102,7 @@ tokio::select! {
   }
 }
 \end{lstlisting}
-\cprotect\caption{An example usage of the \code{checkout} function. The execution of checkout is raced against a cancellation signal, raised by the user cancelling the checkout, for eample. The Rust macro \code{select!} runs both state machines until one finishes. When one finishes, the memory associated with the others is \textit{deallocated.}}
+\cprotect\caption{An example usage of the \code{checkout} function. The execution of checkout is raced against a cancellation signal, raised by the user cancelling the checkout, for example. The Rust macro \code{select!} runs both state machines until one finishes. When one finishes, the memory associated with the others is \textit{deallocated.}}
     \label{fig:cooperation:rust:client}
   \end{subfigure}
 
@@ -338,7 +338,7 @@ Given the ability to perform cleanup, it may seem like an obvious win to choose 
 \subsubsection{Propagation direction}
 \label{ssec:designdims:direction}
 
-The Propagation Direction axis defines how a cancellation signal propagates through the graph of dependent \tasks. The possible values are \textit{top-down,} \textit{bottom-up,} and \textit{simultaneous.} For languages with cooperative cancellation, if the propagation direction is not simultaneous then it is possible to supress cancellation for dependents or dependees, depending on the chosen direction.
+The Propagation Direction axis defines how a cancellation signal propagates through the graph of dependent \tasks. The possible values are \textit{top-down,} \textit{bottom-up,} and \textit{simultaneous.} For languages with cooperative cancellation, if the propagation direction is not simultaneous then it is possible to suppress cancellation for dependents or dependees, depending on the chosen direction.
 
 Rust employs top-down cancellation propagation. Consider again the Tokio (Rust) code in \Cref{fig:cooperation:rust}. When the \coro value --- in the unexecuted state \circled{C} --- is deallocated, the standard destructor procedure is run. Destructors run recursively, that is, they run top-down in the dependency graph. Rust developers cannot customize the destructor behavior for compiler-generated \coros, however, the logic bug highlighted in \Cref{fig:cooperation:rust:swimlane} could be avoided by creating a custom struct that mimicks the \coro interface.
 
@@ -385,6 +385,6 @@ async def process_payment(user_id):
   \label{fig:cancellation:dir:py}
 \end{wrapfigure}
 
-Python's cooperative cancellation policy allows for developers to react to cancellation and perform necessary clean up, but it also leaves the door open for cancellation signals to be suppressed. \Cref{fig:cancellation:dir:py} shows an example implementation of the \code{process_payment} function that uses a bare exception handler. This handler supresses the cancellation exception raised by the runtime, which results in the same bug as demonstrated by Rust's non-cooperative cancellation.
+Python's cooperative cancellation policy allows for developers to react to cancellation and perform necessary clean up, but it also leaves the door open for cancellation signals to be suppressed. \Cref{fig:cancellation:dir:py} shows an example implementation of the \code{process_payment} function that uses a bare exception handler. This handler suppresses the cancellation exception raised by the runtime, which results in the same bug as demonstrated by Rust's non-cooperative cancellation.
 
 Swift provides \textit{simultaneous} cancellation, which alerts all tasks in the dependency graph at the same time. Although it is idiomatic to raise an exception when cancelled, \tasks can check the property \code{Task.isCancelled} to learn if they've been marked for cancellation. Swift cancellation is cooperative, allowing \tasks to perform cleanup code, but the simultaneous cancellation signal to all nodes in the dependency graph ensures communication of the cancellation.

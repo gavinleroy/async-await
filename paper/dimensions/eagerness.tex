@@ -68,7 +68,7 @@ The downsides of the \lazy approach include: by offering an extensible runtime, 
   \label{fig:suspension}
 \end{wrapfigure}
 
-Non-\lazy approaches avoid these downsides by starting asynchronous work as soon as a function is called, either on the current thread (\eager) or any thread (\seager). The \eager approach reduces the overhead of control flow and context switches within the asynchrony runtime. The \seager approach leans more on the runtime, but in exchange provides a higher degree concurrency by dispatching work to other threads. The increased concurrency can be particularly valuable for programs that want to avoid blocking a main thread, such as in UI applications~\cite{bartlett_why_2023,inc_embracing_nodate,winney_using_2021}.
+Non-\lazy approaches avoid these downsides by starting asynchronous work as soon as a function is called, either on the current thread (\eager) or any thread (\seager). The \eager approach reduces the overhead of control flow and context switches within the asynchrony runtime. The \seager approach leans more on the runtime, but in exchange provides a higher degree of concurrency by dispatching work to other threads. The increased concurrency can be particularly valuable for programs that want to avoid blocking a main thread, such as in UI applications~\cite{bartlett_why_2023,inc_embracing_nodate,winney_using_2021}.
 
 % \Seager evaluation maximizes \abbr{cpu} utilization while protecting the calling thread. Protecting the current thread is important for responsiveness in App/UI development, such as in the SwiftUI framework~\missingcite.
 
