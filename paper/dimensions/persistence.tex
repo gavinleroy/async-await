@@ -27,7 +27,7 @@ Rust and Python+Asyncio use \instantaneous cancellation. In Rust's case, because
 
 \begin{wrapfigure}{r}{0.55\linewidth}
   \includegraphics[width=\linewidth]{f/persistence.pdf}
-  \cprotect\caption{An example program demonstrating the \Persistence dimension. After the \code|work| task is cancelled, then the first await raises a cancellation exception. Then under Transient semantics (Python+Asyncio), subsequent awaits proceed as normal. Under Persistent semantics (Python+Trio), subsequent awaits still raise a cancellation exception, preventing further execution.}
+  \cprotect\caption{An example program demonstrating the \Persistence dimension. After the \code|work| task is cancelled, then the first await raises a cancellation exception. Then under \Transient semantics (Python+Asyncio), subsequent awaits proceed as normal. Under \Persistent semantics (Python+Trio), subsequent awaits still raise a cancellation exception, preventing further execution.}
   \label{fig:persistence:shield}
 \end{wrapfigure}
 

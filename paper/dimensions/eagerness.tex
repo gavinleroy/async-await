@@ -13,7 +13,7 @@ An asynchronous function either implicitly (in the runtime implementation) or ex
   \label{fig:eagerness}
 \end{figure}
 
-When a coroutine representing an asynchronous computation is constructed via a function call, the \Eagerness axis defines what happens next to the coroutine. In languages with first-class coroutines\footnotemark{} such as Python~\cite{selivanov_pep_2015} and Rust~\cite{withoutboats_2394_2018}, we describe their behavior as \emph{\lazy}: the coroutine is returned and no work occurs. In \Cref{fig:eagerness}, this means that \code|a = work("A")| constructs a coroutine in a starting state, but the coroutine is only executed at \lstinline[language=Pseudo]|await a| on line 4. In lazy languages, to execute an async computation concurrently with its caller, one must use an explicit \lstinline[language=Pseudo]|spawn| operation to convert the coroutine into a \emph{task} (e.g., as used in \Cref{fig:motivating-example}).
+When a coroutine representing an asynchronous computation is constructed via a function call, the \Eagerness axis defines what happens next to the coroutine. In languages with first-class coroutines\footnotemark{} such as Python~\cite{selivanov_pep_2015} and Rust~\cite{withoutboats_2394_2018}, we describe their behavior as \emph{\lazy}: the coroutine is returned and no work occurs. In \Cref{fig:eagerness}, this means that \code|a = work("A")| constructs a coroutine in a starting state, but the coroutine is only executed at \lstinline[language=Pseudo]|await a| on line 4. In \lazy languages, to execute an async computation concurrently with its caller, one must use an explicit \lstinline[language=Pseudo]|spawn| operation to convert the coroutine into a \emph{task} (e.g., as used in \Cref{fig:motivating-example}).
 %
 \footnotetext{As of v1.92.0, Rust has first-class \emph{futures} but not first-class coroutines. That is, calling an async function returns a value representing the computation, but that value does not offer a full coroutine interface. By contrast, Python has a stabilized coroutine interface implemented by its async functions. The Rust compiler does internally track async functions as coroutines, but this interface has not been stabilized.}
 
@@ -64,7 +64,7 @@ The downsides of the \lazy approach include: by offering an extensible runtime, 
 
 \begin{wrapfigure}{r}{0.5\linewidth}
   \includegraphics[width=\linewidth]{f/suspension.pdf}
-  \caption{An example program demonstrating the \Suspension dimension, executed with \Js (\static) and \CSharp (\dynamic). Each column shows an execution trace of the program under an eager semantics with each kind of \suspension, and the order of prints to stdout. The execution traces are nested according to their level in the call stack.}
+  \caption{An example program demonstrating the \Suspension dimension, executed with \Js (\static) and \CSharp (\dynamic). Each column shows an execution trace of the program under an \eager semantics with each kind of \suspension, and the order of prints to stdout. The execution traces are nested according to their level in the call stack.}
   \label{fig:suspension}
 \end{wrapfigure}
 
