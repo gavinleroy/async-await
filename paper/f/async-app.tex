@@ -1,32 +1,33 @@
 \noindent
-\begin{alignat*}{4}
+\begin{flalign*}
 &\{\sigma_0, 
     P \uplus \{ &&\langle \ell, E[(\mathbfsf{async\ fn}\ \many{x} \to e_{\mathit{body}})\ \many{v}] \rangle 
                ~&&\circ FS \} 
   \} & \hspace{10pt}\text{[\CSharp/\Js-Async-App]} \\
 \longrightarrow~ 
 &\{\sigma_2, 
-    P \uplus \{ \ceag{\langle x_{\mathit{task}}, e_{\mathit{task}} \rangle} \circ 
-               ~&& \langle \ell, E[x_{\mathit{task}}] \rangle
+    P \uplus \{ \ceag{\langle x_{\mathit{task}}, e_{\mathit{task}} \rangle}
+               &\circ~& \langle \ell, E[x_{\mathit{task}}] \rangle
                ~&&\circ FS \} 
   \}&
-\end{alignat*}
+\end{flalign*}
+\vspace*{-1.5em}
 \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
 % <<<<<<< Updated upstream
   \where\ \many{x}_{\mathit{fresh}} = \many{\mathsf{gensym}(),~ \sigma_1 = \sigma_2[\many{x}_{\mathit{fresh}} \mapsto \many{v}],~ e_{\mathit{subst}} = e_{\mathit{body}}[\many{x}_{\mathit{fresh}}/\many{x}]} \\
-  \qquad (\sigma_2, x_{\mathit{task}}) = \mathsf{task\_alloc}(\sigma_1) \\
-  \qquad e_{\mathit{task}} = \mathsf{reset}\ ( \\
+  \qquad (\sigma_2, x_{\mathit{task}}) = \mathsf{task\_alloc}(\sigma_1)\,\cext{\vphantom{o}} \\
+  \qquad e_{\mathit{task}} = \mathbfsf{reset}\ ( \\
 % =======
 %   \where\ (\sigma_1, x_{\mathit{task}}) = \mathsf{task\_alloc}(\sigma_0)\ \mathsf{and}\ \many{x}_{\mathit{fresh}} = \many{\mathsf{gensym}()} \\
 %   \qquad \sigma_2 = \sigma_1[\many{x}_{\mathit{fresh}} \mapsto \many{v}] \\
 %   \qquad e_{\mathit{subst}} = e_{\mathit{body}}[\many{x}_{\mathit{fresh}}/\many{x}] \\
 %   \qquad e_{\mathit{task}} = \mathbfsf{reset}\ ( \\
 % >>>>>>> Stashed changes
-  \qquad \qquad \mathbfsf{try}\ \mathsf{task\_set\_done}(x_{\mathit{task}}, e_{\mathit{subst}})\ \mathbfsf{catch}\ v_{\mathit{err}} \to \mathsf{task\_set\_failed}(x_{\mathit{task}}, v_{\mathit{err}}) \\
+  \qquad \qquad \mathbfsf{try}\ \semmacro{task\_set\_done}(x_{\mathit{task}}, e_{\mathit{subst}})\ \mathbfsf{catch}\ v_{\mathit{err}} \to \semmacro{task\_set\_failed}(x_{\mathit{task}}, v_{\mathit{err}}) \\
   \quad\;\; \cdes{\vphantom{o}}\,\cext{\vphantom{o}}\,\cpro{\vphantom{o}}\, 
-  \mathbfsf{sys\_start\_soon}(\mathsf{task\_get\_dependents}(x_{\mathit{task}})))
+  \mathbfsf{sys\_start\_soon}(\semmacro{task\_get\_dependents}(x_{\mathit{task}})))
   \end{array}$
 }
 \end{tabular*}
@@ -34,17 +35,20 @@
 \vspace{1em}
 \noindent
 
-\begin{alignat*}{4}
+\begin{flalign*}
 &\{\sigma_0, Q, ~&&P \uplus \{ \langle \ell, E[(\mathbfsf{async\ fn}\ \many{x} \to e_{\mathit{body}})\ \many{v}] \rangle ~&&\circ FS \} \} &\hspace{3em}\text{[Swift-Async-App]} \\
-\longrightarrow ~&\{\sigma_2, \ceag{Q \qpush (x_{\mathit{task}}, \kappa)}, ~&&P \uplus \{ \langle \ell, E[x_{\mathit{task}}] \rangle ~&&\circ FS \} \}&
-\end{alignat*}
+\longrightarrow ~&\{\sigma_3, \ceag{Q \qpush (x_{\mathit{task}}, \kappa)}, ~&&P \uplus \{ \langle \ell, E[x_{\mathit{task}}] \rangle ~&&\circ FS \} \}&
+\end{flalign*}
+\vspace*{-1.5em}
 \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
 % <<<<<<< Updated upstream
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
   \where\ \many{x}_{\mathit{fresh}} = \many{\mathsf{gensym}(),~ \sigma_1 = \sigma_0[\many{x}_{\mathit{fresh}} \mapsto \many{v}],~ e_{\mathit{subst}} = e_{\mathit{body}}[\many{x}_{\mathit{fresh}}/\many{x}]} \\
-  \qquad (\sigma_2, x_{\mathit{task}}) = \cext{\mathsf{task\_alloc\_dependency}(\sigma_1,\ell)} \\
-  \qquad \kappa = \mathbfsf{fn}\ x_\mathit{unit} \to x_\mathit{unit}\mathbin{;}\ \mathsf{reset}\ ( \\
+  \qquad (\sigma_2, x_{\mathit{task}}) = \mathsf{task\_alloc}(\sigma_0) \\
+  \qquad \cext{\sigma_3 = \mathsf{task\_add\_dependency}(\sigma_2, \ell, x_{\mathit{task}})} \\
+  % \qquad (\sigma_2, x_{\mathit{task}}) = \cext{\mathsf{task\_alloc\_dependency}(\sigma_1,\ell)} \\
+  \qquad e_{\mathit{task}} = \mathbfsf{reset}\ ( \\
 % =======
 % $\langle t, \sigma_0, Q_0, T, P \uplus \{ \langle \ell, E[(\mathbfsf{async\ fn}\ \many{x} \to e_{\mathit{body}})\ \many{v}] \rangle \circ FS \} \rangle$ & [Swift-Async-App] \\
 % $\longrightarrow \langle t + 1, \sigma_3, \ceag{Q_0 \qpush (x_{\mathit{task}}, \kappa)}, T, P \uplus \{ \langle \ell, E[x_{\mathit{task}}] \rangle \circ FS \} \rangle$ & \\
@@ -58,19 +62,21 @@
 %   \qquad \kappa = \mathbfsf{fn}\ x_\mathit{unit} \to x_\mathit{unit}\mathbin{;}\ \mathbfsf{reset}\ ( \\
 % >>>>>>> Stashed changes
   % \qquad \qquad \mathsf{task\_add\_parent}(x_{\mathit{task}}, \ell) \mathbin{;} \\
-  \qquad \qquad \mathbfsf{try}\ \mathsf{task\_set\_done}(x_{\mathit{task}}, e_{\mathit{subst}})\ \mathbfsf{catch}\ v_{\mathit{err}} \to \mathsf{task\_set\_failed}(x_{\mathit{task}}, v_{\mathit{err}}) \mathbin{;} \\
-  \qquad \qquad \cdes{\mathsf{task\_cancel\_dependencies}(x_{\mathit{task}}) \mathbin{;}} \\
-  \qquad \qquad \cext{\mathsf{task\_wait\_on\_dependencies}(x_{\mathit{task}}) \mathbin{;}}\,\cpro{\vphantom{dp}}\\
-  \qquad \qquad \mathbfsf{sys\_start\_soon}(\mathsf{task\_get\_dependents}(x_{\mathit{task}})))
+  \qquad \qquad \mathbfsf{try}\ \semmacro{task\_set\_done}(x_{\mathit{task}}, e_{\mathit{subst}})\ \mathbfsf{catch}\ v_{\mathit{err}} \to \semmacro{task\_set\_failed}(x_{\mathit{task}}, v_{\mathit{err}}) \mathbin{;} \\
+  \qquad \qquad \cdes{\semmacro{task\_cancel\_dependencies}(x_{\mathit{task}}) \mathbin{;}} \\
+  \qquad \qquad \cext{\semmacro{task\_wait\_on\_dependencies}(x_{\mathit{task}}) \mathbin{;}}\,\cpro{\vphantom{dp}}\\
+  \qquad \qquad \mathbfsf{sys\_start\_soon}(\semmacro{task\_get\_dependents}(x_{\mathit{task}}))) \\
+  \qquad \kappa = \mathbfsf{fn}\ x_\mathit{unit} \to x_\mathit{unit}\mathbin{;}\ e_{\mathit{task}}
   \end{array}$
 }
 \end{tabular*}
 
 \vspace{1em}
-\begin{alignat*}{2}
+\begin{flalign*}
 &\{ \sigma_0, E[(\mathbfsf{async\ fn}\ \many{x} \to e_{\mathit{body}})\ \many{v}] \} & \hspace{110pt}\text{[Rust/Python-Async-App]} \\
-\longrightarrow ~&\{ \sigma_1, E[\ceag{\mathsf{reset}\ (\mathsf{shift}\ k \to k \mathbin{;} e_{\mathit{subst}})}] \}&
-\end{alignat*}
+\longrightarrow ~&\{ \sigma_1, E[\ceag{\mathbfsf{reset}\ (\mathbfsf{shift}\ k \to k \mathbin{;} e_{\mathit{subst}})}] \}&
+\end{flalign*}
+\vspace*{-1.5em}
 \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
 % <<<<<<< Updated upstream
 % =======

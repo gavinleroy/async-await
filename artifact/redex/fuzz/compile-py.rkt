@@ -1,0 +1,443 @@
+#lang racket/base
+
+(require racket/match
+         racket/string
+         racket/format
+         (only-in racket/list last drop-right))
+
+(provide compile-asyncio compile-trio)
+
+;; ---------------------------------------------------------------------------
+;; Preambles
+;; ---------------------------------------------------------------------------
+
+(define preamble-common #<<EOF
+
+import inspect
+
+class Box:
+    def __init__(self, v): self.value = v
+
+def __truthy(v):
+    if isinstance(v, bool): return v
+    return v is not False
+
+def __throw(e):
+    raise Exception(str(e))
+
+async def __try_catch(body, handler):
+    try:
+        r = body()
+        return (await r) if inspect.isawaitable(r) else r
+    except Exception as e:
+        r = handler(str(e))
+        return (await r) if inspect.isawaitable(r) else r
+
+def __cons(h, t):
+    return [h] + list(t)
+
+EOF
+)
+
+(define preamble-asyncio
+  (string-append
+   "import asyncio\n"
+   preamble-common
+   #<<EOF
+
+async def __io(delay, val):
+    await asyncio.sleep(delay)
+    return val
+
+EOF
+))
+
+(define preamble-trio
+  (string-append
+   "import trio\nimport contextvars\n"
+   preamble-common
+   #<<EOF
+
+class _TrioTask:
+    def __init__(self):
+        self._event = trio.Event()
+        self._result = self._error = None
+        self._scope = None
+
+    async def _run(self, coro):
+        with trio.CancelScope() as scope:
+            self._scope = scope
+            try: self._result = await coro
+            except BaseException as e: self._error = e
+            self._event.set()
+
+    async def wait(self):
+        await self._event.wait()
+        if self._error: raise self._error
+        return self._result
+
+    def cancel(self):
+        if self._scope: self._scope.cancel()
+
+_current_nursery = contextvars.ContextVar('_current_nursery')
+
+async def __spawn(coro):
+    nursery = _current_nursery.get()
+    task = _TrioTask()
+    nursery.start_soon(task._run, coro)
+    await trio.sleep(0)
+    return task
+
+async def __await_task(t):
+    if isinstance(t, _TrioTask): return await t.wait()
+    return await t
+
+async def __io(delay, val):
+    await trio.sleep(delay)
+    return val
+
+EOF
+))
+
+;; ---------------------------------------------------------------------------
+;; State: hoisted function definitions
+;; ---------------------------------------------------------------------------
+
+(define hoisted '())
+(define counter 0)
+
+(define (fresh-name prefix)
+  (set! counter (add1 counter))
+  (format "__~a_~a" prefix counter))
+
+;; kind is 'sync, 'async, or 'async-nursery
+;; ret is #f (untyped) or a string like "int" (typed)
+(define (hoist! kind name params ret body-stmts)
+  (set! hoisted (append hoisted (list (list kind name params ret body-stmts)))))
+
+(define (reset-state!)
+  (set! hoisted '())
+  (set! counter 0))
+
+;; ---------------------------------------------------------------------------
+;; Python keywords
+;; ---------------------------------------------------------------------------
+
+(define py-keywords
+  '("False" "None" "True" "and" "as" "assert" "async" "await" "break"
+    "class" "continue" "def" "del" "elif" "else" "except" "finally"
+    "for" "from" "global" "if" "import" "in" "is" "lambda" "nonlocal"
+    "not" "or" "pass" "raise" "return" "try" "while" "with" "yield"))
+
+(define (sanitize-var x)
+  (define s (symbol->string x))
+  (define cleaned (regexp-replace* #rx"[^a-zA-Z0-9_]" s "_"))
+  (if (member cleaned py-keywords)
+      (string-append cleaned "_")
+      cleaned))
+
+;; ---------------------------------------------------------------------------
+;; Type rendering (Python)
+;; ---------------------------------------------------------------------------
+
+(define (type->py t)
+  (match t
+    ['Int "int"]
+    ['String "str"]
+    ['Bool "bool"]
+    ['Unit "None"]
+    [`(-> ,args ,ret)
+     (format "Callable[[~a], ~a]"
+             (string-join (map type->py args) ", ")
+             (type->py ret))]
+    [`(async-> ,args ,ret)
+     (format "Callable[[~a], Coroutine[Any, Any, ~a]]"
+             (string-join (map type->py args) ", ")
+             (type->py ret))]
+    [`(List ,t) (format "list[~a]" (type->py t))]
+    [`(Box ,t) "Box"]
+    [`(Task ,t)
+     (case (runtime)
+       [(trio) "_TrioTask"]
+       [else (format "asyncio.Task[~a]" (type->py t))])]
+    [`(Struct ,fields) "dict"]
+    [_ "Any"]))
+
+;; ---------------------------------------------------------------------------
+;; Emit
+;; ---------------------------------------------------------------------------
+
+(define runtime (make-parameter 'asyncio))
+
+(define (emit e)
+  (match e
+    ;; --- Literals ---
+    [(? number? n) (~a n)]
+    [(? string? s) (~v s)]
+    [#true "True"]
+    [#false "False"]
+    [(? symbol? x) (sanitize-var x)]
+
+    ;; --- Core forms ---
+    [`(void) "None"]
+    [`(ptr ,x) (sanitize-var x)]
+
+    [`(: ,inner ,_) (emit inner)]
+
+    ;; --- Functions (typed) ---
+    [`(typed-lambda (-> ,arg-types ,ret-type) ,xs ,body)
+     (define name (fresh-name "fn"))
+     (define params
+       (string-join (map (λ (x t) (format "~a: ~a" (sanitize-var x) (type->py t)))
+                         xs arg-types) ", "))
+     (hoist! 'sync name params (type->py ret-type) (format "return ~a" (emit body)))
+     name]
+
+    [`(typed-async-lambda (async-> ,arg-types ,ret-type) ,xs ,body)
+     (define name (fresh-name "fn"))
+     (define params
+       (string-join (map (λ (x t) (format "~a: ~a" (sanitize-var x) (type->py t)))
+                         xs arg-types) ", "))
+     (hoist! 'async-nursery name params (type->py ret-type) (format "return ~a" (emit body)))
+     name]
+
+    ;; --- Functions (untyped fallback) ---
+    [`(lambda (,xs ...) ,body)
+     (define name (fresh-name "fn"))
+     (define params (string-join (map sanitize-var xs) ", "))
+     (hoist! 'sync name params #f (format "return ~a" (emit body)))
+     name]
+
+    [`(async/lambda (,xs ...) ,body)
+     (define name (fresh-name "fn"))
+     (define params (string-join (map sanitize-var xs) ", "))
+     (hoist! 'async-nursery name params #f (format "return ~a" (emit body)))
+     name]
+
+    [`(letrec (,clauses ...) ,body)
+     (define non-fn-assigns '())
+     (for ([c (in-list clauses)])
+       (match c
+         [`(,x (typed-lambda (-> ,arg-types ,ret-type) ,xs ,lbody))
+          (define params
+            (string-join (map (λ (xi t) (format "~a: ~a" (sanitize-var xi) (type->py t)))
+                              xs arg-types) ", "))
+          (hoist! 'sync (sanitize-var x) params (type->py ret-type)
+                  (format "return ~a" (emit lbody)))]
+         [`(,x (typed-async-lambda (async-> ,arg-types ,ret-type) ,xs ,lbody))
+          (define params
+            (string-join (map (λ (xi t) (format "~a: ~a" (sanitize-var xi) (type->py t)))
+                              xs arg-types) ", "))
+          (hoist! 'async-nursery (sanitize-var x) params (type->py ret-type)
+                  (format "return ~a" (emit lbody)))]
+         [`(,x ,rhs)
+          (set! non-fn-assigns
+                (append non-fn-assigns
+                        (list (format "(~a := ~a)" (sanitize-var x) (emit rhs)))))]))
+     (if (null? non-fn-assigns)
+         (emit body)
+         (format "(~a, ~a)[-1]"
+                 (string-join non-fn-assigns ", ")
+                 (emit body)))]
+
+    ;; --- Binding (walrus operator) ---
+    [`(let (,clauses ...) ,body)
+     (define assigns
+       (for/list ([c (in-list clauses)])
+         (match c
+           [`(,x ,rhs) (format "(~a := ~a)" (sanitize-var x) (emit rhs))]
+           [_ "None"])))
+     (format "(~a, ~a)[-1]"
+             (string-join assigns ", ")
+             (emit body))]
+
+    ;; --- Control flow ---
+    [`(if ,c ,t ,f)
+     (format "(~a if __truthy(~a) else ~a)" (emit t) (emit c) (emit f))]
+
+    [`(begin ,es ...)
+     (match es
+       ['() "None"]
+       [(list e) (emit e)]
+       [_ (format "(~a)[-1]" (string-join (map emit es) ", "))])]
+
+    [`(set! ,x ,rhs)
+     (format "(~a := ~a)" (sanitize-var x) (emit rhs))]
+
+    ;; --- Async ---
+    [`(await ,e)
+     (case (runtime)
+       [(trio) (format "(await __await_task(~a))" (emit e))]
+       [else (format "(await ~a)" (emit e))])]
+
+    [`(os/block ,e)
+     (format "(await ~a)" (emit e))]
+
+    [`(os/io ,delay ,val)
+     (format "__io(~a, ~a)" (emit delay) (emit val))]
+
+    [`(os/time)
+     "int(__import__('time').time() * 1000)"]
+
+    [`(os/start-soon ,e)
+     (emit e)]
+
+    [`(os/start-later ,_time ,_label ,e)
+     (emit e)]
+
+    ;; --- Spawn / Cancel ---
+    [`(spawn ,e)
+     (case (runtime)
+       [(asyncio) (format "asyncio.create_task(~a)" (emit e))]
+       [(trio) (format "(await __spawn(~a))" (emit e))])]
+
+    [`(cancel ,e)
+     (format "(~a).cancel()" (emit e))]
+
+    ;; --- Exceptions ---
+    [`(throw ,e)
+     (format "__throw(~a)" (emit e))]
+
+    [`(catch ,handler ,body)
+     (define body-name (fresh-name "catch_body"))
+     (hoist! 'async body-name "" #f (format "return ~a" (emit body)))
+     (format "(await __try_catch(~a, ~a))" body-name (emit handler))]
+
+    [`(throw-in ,_coro ,exn)
+     (format "__throw(~a)" (emit exn))]
+
+    ;; --- Results ---
+    [`(ok ,e) (emit e)]
+    [`(err ,e) (format "__throw(~a)" (emit e))]
+
+    ;; --- Arithmetic ---
+    [`(+ ,es ...)
+     (match es
+       ['() "0"]
+       [(list a) (emit a)]
+       [_ (format "(~a)" (string-join (map emit es) " + "))])]
+
+    [`(- ,es ...)
+     (match es
+       ['() "0"]
+       [(list a) (format "(-~a)" (emit a))]
+       [_ (format "(~a)" (string-join (map emit es) " - "))])]
+
+    [`(number->string ,e)
+     (format "str(~a)" (emit e))]
+
+    ;; --- Comparison ---
+    [`(= ,a ,b) (format "(~a == ~a)" (emit a) (emit b))]
+    [`(< ,a ,b) (format "(~a < ~a)" (emit a) (emit b))]
+    [`(> ,a ,b) (format "(~a > ~a)" (emit a) (emit b))]
+    [`(<= ,a ,b) (format "(~a <= ~a)" (emit a) (emit b))]
+    [`(>= ,a ,b) (format "(~a >= ~a)" (emit a) (emit b))]
+
+    ;; --- Strings ---
+    [`(equal? ,es ...)
+     (match es
+       ['() "True"]
+       [(list _) "True"]
+       [(list a b) (format "(~a == ~a)" (emit a) (emit b))]
+       [(list a b _ ...) (format "(~a == ~a)" (emit a) (emit b))])]
+
+    [`(string-append ,es ...)
+     (match es
+       ['() "\"\""]
+       [_ (format "(~a)" (string-join (map (lambda (x) (format "str(~a)" (emit x))) es) " + "))])]
+
+    ;; --- Lists ---
+    [`(list ,es ...)
+     (format "[~a]" (string-join (map emit es) ", "))]
+
+    [`(cons ,h ,t)
+     (format "__cons(~a, ~a)" (emit h) (emit t))]
+
+    [`(car ,e) (format "(~a)[0]" (emit e))]
+    [`(cdr ,e) (format "(~a)[1:]" (emit e))]
+    [`(empty? ,e) (format "(len(~a) == 0)" (emit e))]
+
+    ;; --- Boxes ---
+    [`(box ,e) (format "Box(~a)" (emit e))]
+    [`(unbox ,e) (format "(~a).value" (emit e))]
+
+    [`(set-box! ,a ,b)
+     (define va (emit a))
+     (format "(setattr(~a, 'value', ~a) or ~a.value)" va (emit b) va)]
+
+    ;; --- Structs ---
+    [`(struct ,fields ...)
+     (define pairs
+       (for/list ([f (in-list fields)])
+         (match f
+           [`(,name ,val) (format "~s: ~a" (symbol->string name) (emit val))]
+           [_ ""])))
+     (format "{~a}" (string-join pairs ", "))]
+
+    [`(field ,name ,e)
+     (format "(~a)[~s]" (emit e) (symbol->string name))]
+
+    ;; --- Application (no auto-await: caller decides via await/spawn) ---
+    [`(,f ,args ...)
+     (format "~a(~a)" (emit f) (string-join (map emit args) ", "))]
+
+    [_ (format "None  # unhandled: ~s" e)]))
+
+;; ---------------------------------------------------------------------------
+;; Assemble
+;; ---------------------------------------------------------------------------
+
+(define (render-hoisted)
+  (define (ret-ann ret) (if ret (format " -> ~a" ret) ""))
+  (string-join
+   (for/list ([h (in-list hoisted)])
+     (match h
+       [(list 'async-nursery name params ret body)
+        (define sig (if (string=? params "")
+                        (format "async def ~a()~a:" name (ret-ann ret))
+                        (format "async def ~a(~a)~a:" name params (ret-ann ret))))
+        (case (runtime)
+          [(trio)
+           (string-append
+            sig "\n"
+            "    async with trio.open_nursery() as __nursery:\n"
+            "        _current_nursery.set(__nursery)\n"
+            (format "        ~a\n" body))]
+          [else
+           (string-append sig "\n" (format "    ~a\n" body))])]
+       [(list 'async name params ret body)
+        (define ra (ret-ann ret))
+        (if (string=? params "")
+            (format "async def ~a()~a:\n    ~a\n" name ra body)
+            (format "async def ~a(~a)~a:\n    ~a\n" name params ra body))]
+       [(list 'sync name params ret body)
+        (define ra (ret-ann ret))
+        (if (string=? params "")
+            (format "def ~a()~a:\n    ~a\n" name ra body)
+            (format "def ~a(~a)~a:\n    ~a\n" name params ra body))]))
+   "\n"))
+
+(define (compile-with-runtime rt preamble e)
+  (reset-state!)
+  (parameterize ([runtime rt])
+    (define main-expr (emit e))
+    (define hoisted-str (render-hoisted))
+    (string-append
+     preamble "\n"
+     hoisted-str "\n"
+     (format "async def __main():\n    return ~a\n\n" main-expr)
+     (case rt
+       [(asyncio) "print(asyncio.run(__main()))\n"]
+       [(trio)
+        (string-append
+         "async def __trio_entry():\n"
+         "    async with trio.open_nursery() as __nursery:\n"
+         "        _current_nursery.set(__nursery)\n"
+         (format "        return ~a\n\n" main-expr)
+         "print(trio.run(__trio_entry))\n")]))))
+
+(define (compile-asyncio e)
+  (compile-with-runtime 'asyncio preamble-asyncio e))
+
+(define (compile-trio e)
+  (compile-with-runtime 'trio preamble-trio e))

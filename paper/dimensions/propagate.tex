@@ -18,13 +18,13 @@ async def main():
   \label{fig:propagation:trio}
 \end{wrapfigure}
 
-Most languages \emph{\never} propagate, meaning the exception generates no behavior outside its containing task, apart from perhaps printing to the console. Python+Asyncio and \Js will print a stack trace for an uncaught asynchronous exception. Node.js specifically will exit with a non-zero error code, although this latter behavior is not part of the ECMAScript specification so we still categorize it as a \never approach to \propagation.
+Most languages \emph{\never} propagate, meaning the exception generates no behavior outside its containing task, apart from perhaps printing to the console. Python+Asyncio and \Js will print a stack trace for an uncaught asynchronous exception. Node.js\ specifically will exit with a non-zero error code, although this latter behavior is not part of the ECMAScript specification so we still categorize it as a \never approach to \propagation.
 
 Python+Trio is the only system which offers a different semantics, in part because tasks cannot be awaited, so the library must offer another mechanism for observing asynchronous exceptions. The example in \Cref{fig:propagation:trio} (shown in Python, not pseudocode) will print ``A'' but not ``B'' because the nursery will re-raise the exception originating in the \code|fail| function. We describe this as a \emph{\destruction} approach to \propagation. A similar program in any other system will print ``A'' then ``B'', possibly with a stack trace printed in-between.
 
 \paragraph{Design rationale.} The upside to the \destruction approach is that an application is less likely to ignore problematic exceptions. With the \never approach, if a developer does not carefully monitor their logs, a task can fail and cause confusing bugs where expected operations never occur. 
 
-The downside is that the \destruction approach may run counter to either a developer's intuitions or their desired software architecture. Concurrency APIs often seek to encapsulate errors at thread or task boundaries, so errors in one thread cannot crash the whole system. For example, in a backend web server with many concurrent connections, it is likely undesirable that one exceptional connection should crash the entire server. Either way, it seems sensible that that a straight-line asynchrony API should offer \emph{some} way of accessing information about unawaited exceptions, rather than only printing to stderr.
+The downside is that the \destruction approach may run counter to either a developer's intuitions or their desired software architecture. Concurrency \abbr{api}s often seek to encapsulate errors at thread or task boundaries, so errors in one thread cannot crash the whole system. For example, in a backend web server with many concurrent connections, it is likely undesirable that one exceptional connection should crash the entire server. Either way, it seems sensible that that a straight-line asynchrony \abbr{api} should offer \emph{some} way of accessing information about unawaited exceptions, rather than only printing to stderr.
 
 % \begin{figure}[H]
 %   \begin{minipage}[t]{0.49\textwidth}

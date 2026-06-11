@@ -151,69 +151,74 @@
 \newcommand{\Reactor}{Reactor\xspace}
 \newcommand{\reactor}{reactor\xspace}
 
+%% Global formatting for design dimension, and design point names
+\newcommand{\dimension}[1]{\textsc{#1}}
+\newcommand{\designpoint}[1]{\textit{#1}}
 
-\newcommand{\Eagerness}{Eagerness\xspace}
-\newcommand{\eagerness}{eagerness\xspace}
-\newcommand{\Eager}{Eager\xspace}
-\newcommand{\eager}{eager\xspace}
-\newcommand{\seager}{semi-eager\xspace}
-\newcommand{\Seager}{Semi-eager\xspace}
-\newcommand{\Lazy}{Lazy\xspace}
-\newcommand{\lazy}{lazy\xspace}
+\newcommand{\Eagerness}{\dimension{Eagerness}\xspace}
+\newcommand{\eagerness}{\dimension{eagerness}\xspace}
+\newcommand{\Eager}{\designpoint{Eager}\xspace}
+\newcommand{\eager}{\designpoint{eager}\xspace}
+\newcommand{\seager}{\designpoint{semi-eager}\xspace}
+\newcommand{\Seager}{\designpoint{Semi-eager}\xspace}
+\newcommand{\Lazy}{\designpoint{Lazy}\xspace}
+\newcommand{\lazy}{\designpoint{lazy}\xspace}
 
-\newcommand{\Extent}{Extent\xspace}
-\newcommand{\extent}{extent\xspace}
-\newcommand{\Indef}{Indefinite\xspace}
-\newcommand{\indef}{indefinite\xspace}
-\newcommand{\Dyn}{Dynamic\xspace}
-\newcommand{\dyn}{dynamic\xspace}
+\newcommand{\Extent}{\dimension{Extent}\xspace}
+\newcommand{\extent}{\dimension{extent}\xspace}
+\newcommand{\Indef}{\designpoint{Indefinite}\xspace}
+\newcommand{\indef}{\designpoint{indefinite}\xspace}
+\newcommand{\Dyn}{\designpoint{Dynamic}\xspace}
+\newcommand{\dyn}{\designpoint{dynamic}\xspace}
 
-\newcommand{\References}{\Task References\xspace}
-\newcommand{\references}{\task references\xspace}
-\newcommand{\strong}{strong\xspace}
-\newcommand{\weak}{weak\xspace}
+\newcommand{\References}{\dimension{\Task References}\xspace}
+\newcommand{\references}{\dimension{\task references}\xspace}
+\newcommand{\strong}{\designpoint{strong}\xspace}
+\newcommand{\weak}{\designpoint{weak}\xspace}
 
-\newcommand{\Destruction}{Destruction\xspace}
-\newcommand{\destruction}{destruction\xspace}
-\newcommand{\terminated}{terminated\xspace}
-\newcommand{\awaited}{awaited\xspace}
-\newcommand{\cancelled}{cancelled\xspace}
+\newcommand{\Destruction}{\dimension{Destruction}\xspace}
+\newcommand{\destruction}{\dimension{destruction}\xspace}
+\newcommand{\terminated}{\designpoint{terminated}\xspace}
+\newcommand{\awaited}{\designpoint{awaited}\xspace}
+\newcommand{\cancelled}{\designpoint{cancelled}\xspace}
 
-\newcommand{\Propagation}{Propagation\xspace}
-\newcommand{\propagation}{propagation\xspace}
-\newcommand{\never}{never\xspace}
-\newcommand{\destruct}{destruction\xspace}
+\newcommand{\Propagation}{\dimension{Propagation}\xspace}
+\newcommand{\propagation}{\dimension{propagation}\xspace}
+\newcommand{\never}{\designpoint{never}\xspace}
+\newcommand{\destruct}{\designpoint{destruction}\xspace}
 
-\newcommand{\Direction}{Direction\xspace}
-
-\newcommand{\Suspension}{Suspension\xspace}
-\newcommand{\suspension}{suspension\xspace}
-\newcommand{\Static}{Static\xspace}
-\newcommand{\Dynamic}{Dynamic\xspace}
-\newcommand{\static}{static\xspace}
-\newcommand{\dynamic}{dynamic\xspace}
+\newcommand{\Suspension}{\dimension{Suspension}\xspace}
+\newcommand{\suspension}{\dimension{suspension}\xspace}
+\newcommand{\Static}{\designpoint{Static}\xspace}
+\newcommand{\Dynamic}{\designpoint{Dynamic}\xspace}
+\newcommand{\static}{\designpoint{static}\xspace}
+\newcommand{\dynamic}{\designpoint{dynamic}\xspace}
 
 \newcommand{\Cancellation}{Cancellation\xspace}
 \newcommand{\cancellation}{cancellation\xspace}
 
-\newcommand{\Cooperation}{Awareness\xspace}
-\newcommand{\cooperation}{awareness\xspace}
-\newcommand{\aware}{aware\xspace}
-\newcommand{\unaware}{unaware\xspace}
-\newcommand{\coop}{cooperative\xspace}
-\newcommand{\noncoop}{non-cooperative\xspace}
+\newcommand{\Cooperation}{\dimension{Awareness}\xspace}
+\newcommand{\cooperation}{\dimension{awareness}\xspace}
+\newcommand{\Awareness}{\dimension{Awareness}\xspace}
+\newcommand{\awareness}{\dimension{awareness}\xspace}
+\newcommand{\aware}{\designpoint{aware}\xspace}
+\newcommand{\unaware}{\designpoint{unaware}\xspace}
+\newcommand{\coop}{\designpoint{cooperative}\xspace}
+\newcommand{\noncoop}{\designpoint{non-cooperative}\xspace}
 
-\newcommand{\tdown}{top-down\xspace}
-\newcommand{\bup}{bottom-up\xspace}
-\newcommand{\simultaneous}{simultaneous\xspace}
+\newcommand{\Direction}{\dimension{Direction}\xspace}
+\newcommand{\direction}{\dimension{direction}\xspace}
+\newcommand{\tdown}{\designpoint{top-down}\xspace}
+\newcommand{\bup}{\designpoint{bottom-up}\xspace}
+\newcommand{\simultaneous}{\designpoint{simultaneous}\xspace}
 
-\newcommand{\Persistence}{Persistence\xspace}
-\newcommand{\persistence}{persistence\xspace}
-\newcommand{\instantaneous}{transient\xspace}
-\newcommand{\persistent}{persistent\xspace}
-\newcommand{\Persistent}{Persistent\xspace}
-\newcommand{\transient}{transient\xspace}
-\newcommand{\Transient}{Transient\xspace}
+\newcommand{\Persistence}{\dimension{Persistence}\xspace}
+\newcommand{\persistence}{\dimension{persistence}\xspace}
+\newcommand{\instantaneous}{\designpoint{transient}\xspace}
+\newcommand{\persistent}{\designpoint{persistent}\xspace}
+\newcommand{\Persistent}{\designpoint{Persistent}\xspace}
+\newcommand{\transient}{\designpoint{transient}\xspace}
+\newcommand{\Transient}{\designpoint{Transient}\xspace}
 
 \newcommand{\coro}{coroutine\xspace}
 \newcommand{\coros}{coroutines\xspace}
@@ -341,6 +346,7 @@
 \newcommand{\onthread}[1]{\llparenthesis#1\rrparenthesis}
 \newcommand{\mathbfsf}[1]{\bm{\mathsf{#1}}}
 \newcommand{\where}{\mathrm{where}\xspace}
+\newcommand{\semmacro}[1]{\textsf{\textit{#1}}}
 
 \newcommand*\lc{$\lambda_v$\xspace}
 \newcommand*\exn{$\lambda_{\mathit{exn}}$\xspace}
