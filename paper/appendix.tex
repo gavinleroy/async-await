@@ -337,7 +337,19 @@ async Task Main() {
 
 \subsection{Semantics}\label{app:semantics}
 
-See the provided supplemental for the Redex model. A fully typeset version of the rules can be provided at a later time.
+The full grammar for \lc is provided in \Cref{fig:app:lc-grammar}, and the complete reduction rules for \exn in \Cref{fig:app:exn-rules}. For the standard reduction rules of \lc, see the executable Redex model in the supplementary material.
+
+\begin{figure}[h]
+  \input{./f/lc-gr-full.tex}
+  \cprotect\caption{The full grammar for \lc.}
+  \label{fig:app:lc-grammar}
+\end{figure}
+
+\begin{figure}[h]
+  \input{./f/exn-rr-full.tex}
+  \cprotect\caption{The complete reduction rules for \exn.}
+  \label{fig:app:exn-rules}
+\end{figure}
 
 % \lstinputlisting[language=Racket]{./models/core.rkt}
 % \lstinputlisting[language=Racket]{./models/lc.rkt}

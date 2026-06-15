@@ -4,7 +4,7 @@
   \begin{subfigure}[t]{0.4\textwidth}
     \vspace{0cm}
     \input{./f/lc-gr.tex}
-    \cprotect\caption{The grammar for \lc.
+    \cprotect\caption{The grammar for \lc. We elide standard forms (e.g., \code{let}, \code{ref}, \code{fix}) for brevity, the full grammar is available in \Cref{app:semantics}.
     \label{fig:lang:lc}}
   \end{subfigure}\hfill%
   \begin{minipage}[t]{0.55\textwidth}
@@ -12,18 +12,18 @@
     \begin{subfigure}{\textwidth}
       \vspace{0cm}
       \input{./f/exn-gr.tex}
-      \cprotect\subcaption{The grammar for \exn, which extends \lc with \code|try|/\code|catch|, and \code|throw| forms.}
+      \cprotect\subcaption{The extension grammar for \exn, which extends \lc with exception handling forms, including \code|throw_in|, which we model after CPython's \code|.throw()| coroutine method.}
       \label{fig:lang:exn}
     \end{subfigure}
     \begin{subfigure}{\textwidth}
       \vspace{1em}
       \input{./f/exn-rr.tex}
-      \cprotect\subcaption{The operational semantics for the \exn.}
+      \cprotect\subcaption{The reduction rules for \exn. We elide rules for the standard \code{try}/\code{catch} and \code{throw} forms for brevity. The full set of reduction rules is available in \Cref{app:semantics}.}
       \label{fig:lang:exn:red}
     \end{subfigure}
   \end{minipage}
   \caption{The grammar and reduction rules for the core calculi \lc and \exn.}
-  \label{fig:lang:exts}
+  \label{fig:lang:core}
 \end{figure}
 
 The preceding section provides a detailed but informal characterization of our view of the straight-line asynchrony design space. Now, we will put it on a formal footing.
@@ -35,9 +35,11 @@ Atop this foundation, we layer semantic rules that capture the essence of the de
 We provide an executable version of the model in Redex\cite{racket:redex}, including a full test suite that covers all the examples from \Cref{sec:motivation,sec:designdims} for all runtimes. The model includes a fuzzer that generates random programs, compiles the random programs into the respective languages, and checks that the output from the real program and model program match. Specifically, due to non-determinism, we run each program $N=50$ times and check that the program outputs are a subset of model outputs. This gives us high confidence that our model matches the behavior of the corresponding runtimes.
 
 
-\Cref{fig:lang:lc,fig:lang:exn} provide the grammar and semantics of the core calculi that comprise our base for the async extensions. The core language \lc contains mutable references and delimited continuations via the \code|shift| and \code|reset| operators described by \citet{danvy_functional_nodate}. The grammar for \lc is provided in \Cref{fig:lang:lc}. The reduction rule is defined over a mutable heap $\sigma$ and an expression $e$, $\langle\sigma\,e\rangle$. For space reasons, the standard reduction rules and full grammar for \lc are available in \Cref{app:semantics}.
+\subsection{Base Language}
 
-For languages with exceptions, we extend \lc with \code|try|/\code|catch| and \code|throw| forms and refer to this language as \exn. The grammar and reduction rules for \exn are provided in \Cref{fig:lang:exn,fig:lang:exn:red}. The \exn grammar provides the evaluation context $G$, which is the exception context delimited by a \code|try| form and discarded by the \code|throw| operator. We also provide a \code|throw_in| expression that raises an exception within a suspended computation, modeled after Python's \code{.throw()} coroutine method, which resumes a suspended computation with an exception instead of a value.
+\Cref{fig:lang:lc,fig:lang:exn} provide the grammar and semantics of the core calculi that comprise our base for the async extensions. The core language \lc contains mutable references and delimited continuations via the \code|shift| and \code|reset| operators described by \citet{danvy_functional_nodate}. The grammar for \lc is provided in \Cref{fig:lang:lc}. The reduction rule is defined over a mutable heap $\sigma$ and an expression $e$, $\langle\sigma,e\rangle$. For space reasons, the standard reduction rules and full grammar for \lc are available in \Cref{app:semantics}.
+
+For languages with exceptions, we extend \lc with \code|try|/\code|catch| and \code|throw| forms and refer to this language as \exn. The grammar for \exn is provided in \Cref{fig:lang:exn}, and the reduction rule for the non-standard \code|throw_in| form in \Cref{fig:lang:exn:red}; the remaining rules are standard and provided in \Cref{app:semantics}. The \exn grammar provides the evaluation context $G$, which is the exception context delimited by a \code|try| form and discarded by the \code|throw| operator. We also provide a \code|throw_in| expression that raises an exception within a suspended computation, modeled after Python's \code{.throw()} coroutine method, which resumes a suspended computation with an exception instead of a value.
 
 \begin{figure}[t]
   \begin{subfigure}[t]{\textwidth}
@@ -66,6 +68,8 @@ For languages with exceptions, we extend \lc with \code|try|/\code|catch| and \c
   \label{fig:platform}
 \end{figure}
 
+\subsection{The Async Platform}
+
 We now describe the configuration of the shared async grammar, which can extend any base language. \Cref{fig:lasync:grammar} defines the shared grammar constructs that encode the async runtime building blocks discussed in \Cref{sec:designdims}. We will refer to this extension as the async platform, \lasync.
 
 A \textit{frame}, $F$, is written $\langle \ell,\,e\rangle$ and consists of an expression $e$, along with a frame label, $\ell$. A \textit{frame label}, $\ell$, is either the name of the \task this frame corresponds to, or \textit{sync} to denote a synchronous frame. A \textit{frame stack}, $FS$, is a list of frames --- essentially a thread. An empty frame stack is written $\epsilon$, and we write $F \circ FS$ to denote a frame stack whose head is $F$ and tail is $FS$. A \textit{process}, $P$, is a collection of frame stacks. We will use the syntax $P \uplus FS$ to select one frame stack in $P$ to run. A \textit{task queue}, $Q$, stores the async work waiting to be run; $Q$ comprises tuples that have a label and a continuation, $(\ell,\kappa)$. A \textit{signals queue}, $T$, stores async work that is waiting on \abbr{i/o} operations, the work will be rescheduled in the future at timestamp $t$, at the earliest. $T$ comprises tuples that have a time, a label, and a continuation, $(t,\ell,\kappa)$. We will use the same stack notation for $Q$ and $T$ as we do for $FS$. We will additonally write $Q \qpush (\ell,\,\kappa)$ to append to the end of the queue, and $Q_0 \seqconcat Q_1$ to concatenate two sequences (applicable to both $Q$ and $T$).
@@ -76,7 +80,7 @@ The expression \code|sys_io|$(e_t,e)$ is the \abbr{i/o} operation provided by th
 
 The expression \code|sys_start_soon|$(\ell,\kappa)$ appends the continuation $\kappa$ to $Q$, set to run in a frame with the specified label $\ell$. The expression \code|sys_start_later|$(t,\ell,\kappa)$ appends the continuation to the signal queue, $T$, which will be scheduled after timestep $t$. The expression \code|sys_time|$()$ simply evaluates to the current timestep.
 
-The grammar extensions for the remaining languages are shown in \Cref{fig:lang:exts}, and the order in which we layer the extensions in \Cref{fig:langs:lineage}. The reduction rules for all async capable languages, which base Python and Rust are not, are defined over the tuple $\langle t, \sigma, Q, T, P \rangle$.
+The grammar extensions for the remaining languages are shown in \Cref{fig:langs:exts}, and the order in which we layer the extensions in \Cref{fig:langs:lineage}. The reduction rules for all async capable languages, which base Python and Rust are not, are defined over the tuple $\langle t, \sigma, Q, T, P \rangle$.
 
 The goal of the operational semantics is to highlight the differences between languages. We will therefore present the same reduction rule from different languages together. We will also call attention to the portion relevant to each design dimension with a highlight in the following colors: \ceag{\eagerness}, \cext{\extent}, \cdes{\destruction}, \cpro{\propagation}, and \csus{\suspension}, and within cancellation: \cawa{\awareness}, \cdir{\direction}, and \cper{\persistence}. For space reasons we do not present the rules relevant for \references, and we simplify the presentation with a liberal use of metafunctions and macros, see \Cref{table:metafunctions} for a description of those used; the full definitions of grammars, reductions, and metafunctions are provided in \Cref{app:semantics}.
 

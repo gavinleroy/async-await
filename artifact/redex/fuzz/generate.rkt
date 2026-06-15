@@ -17,12 +17,16 @@
 
 ;; ---------------------------------------------------------------------------
 
-(define (has-shift/reset? t)
-  (match t
-    [`(shift ,_ ,_) #t]
-    [`(reset ,_) #t]
-    [(? list?) (ormap has-shift/reset? t)]
-    [_ #f]))
+;; Forms a generated program may not use. `shift`/`reset` are
+;; model-internal; bare `lambda`s are synchronous code that the async
+;; runtimes cannot faithfully express (e.g. `await` inside a sync
+;; function is illegal in Python/JS/C#). Extend as needed.
+(define disallowed-heads '(lambda shift reset))
+
+(define (uses-disallowed-form? t)
+  (and (pair? t)
+       (or (memq (car t) disallowed-heads)
+           (ormap uses-disallowed-form? t))))
 
 (define (wrap-program e threads)
   `(0 () () () ((thread (root ,e)) ,@(make-list threads '(thread)))))
@@ -31,9 +35,9 @@
   (lambda (size attempts)
     (let loop ([n attempts])
       (when (zero? n)
-        (error 'generate "could not generate shift/reset-free term after ~a attempts" attempts))
+        (error 'generate "could not generate allowed term after ~a attempts" attempts))
       (define t (generate-term Lang e size))
-      (if (has-shift/reset? t)
+      (if (uses-disallowed-form? t)
           (loop (sub1 n))
           t))))
 
@@ -70,6 +74,10 @@
                         (lambda () (error 'generate "unknown language: ~a" lang))))
   (gen size attempts))
 
+;; Generate until the term type-checks: only well-typed programs are
+;; worth running, since they are the ones expected to run to completion.
+;; Returns the raw term (for the model), its annotated form (for the
+;; compilers), and its type.
 (define (generate-typed-expr lang
                              #:size [size 5]
                              #:attempts [attempts 500])
@@ -81,7 +89,7 @@
     (define e (gen size 100))
     (define-values (ann type) (type-check e))
     (if ann
-        (values ann type)
+        (values e ann type)
         (loop (sub1 n)))))
 
 (define (generate lang

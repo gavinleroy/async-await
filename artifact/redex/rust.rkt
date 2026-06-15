@@ -1,6 +1,6 @@
 #lang racket/base
 
-(require redex
+(require redex/reduction-semantics
          "core.rkt"
          (only-in "lc.rkt" LC -->lc))
 
@@ -56,16 +56,12 @@
            (submod "lc.rkt" test/helpers))
 
   (define-syntax-rule (rs-->>= e v)
-    (test-->> -->rs #:equiv prog/equiv (term (() e)) v))
-
-  (define-metafunction Rust
-    resume! : e e -> e
-    [(resume! e_coro e_val)
-     (e_coro e_val)]))
+    (test-->> -->rs #:equiv prog/equiv (term (() e)) v)))
 
 (module+ test
+  ;; applying a coroutine resumes it with the given value
   (rs-->>=
-   (resume! ((async/lambda (x) 42) 0) (void))
+   (((async/lambda (x) 42) 0) (void))
    42)
 
   (rs-->>=
@@ -75,7 +71,7 @@
                     (begin (await (suspend))
                            (print msg)))]
             [c (work "A")])
-       (resume! c (void))))
+       (c (void))))
    "A")
 
   (rs-->>=
@@ -89,7 +85,7 @@
                            (await (suspend))
                            (print msg)))]
             [c (work "A")])
-       (resume! c (void))))
+       (c (void))))
    "AAA")
 
   (rs-->>=
@@ -98,6 +94,5 @@
             [transparent (async/lambda ()
                            (let ([ret (append-it)])
                              (begin (print "B") ret)))])
-       (resume! (resume! (transparent) (void))
-                (void))))
+       (((transparent) (void)) (void))))
    "BA"))

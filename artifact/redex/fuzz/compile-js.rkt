@@ -15,6 +15,7 @@ function __isEmpty(l) { return l.length === 0; }
 function __box(v) { return { value: v }; }
 function __unbox(b) { return b.value; }
 function __setBox(b, v) { return (b.value = v); }
+function __print(s) { process.stdout.write(String(s)); }
 EOF
 )
 
@@ -80,19 +81,12 @@ EOF
 
     [`(: ,inner ,_) (emit inner)]
 
-    [`(typed-lambda (-> ,arg-types ,ret-type) ,xs ,body)
-     (define params
-       (string-join (map (λ (x t) (format "~a: ~a" (sanitize-var x) (type->ts t)))
-                         xs arg-types) ", "))
-     (format "(function(~a): ~a { return ~a; })"
-             params (type->ts ret-type) (emit body))]
+    ;; Type annotations are dropped: the output runs under plain node.
+    [`(typed-lambda ,_ ,xs ,body)
+     (emit `(lambda ,xs ,body))]
 
-    [`(typed-async-lambda (async-> ,arg-types ,ret-type) ,xs ,body)
-     (define params
-       (string-join (map (λ (x t) (format "~a: ~a" (sanitize-var x) (type->ts t)))
-                         xs arg-types) ", "))
-     (format "(async function(~a): Promise<~a> { return ~a; })"
-             params (type->ts ret-type) (emit body))]
+    [`(typed-async-lambda ,_ ,xs ,body)
+     (emit `(async/lambda ,xs ,body))]
 
     [`(lambda (,xs ...) ,body)
      (format "(function(~a) { return ~a; })"
@@ -104,35 +98,40 @@ EOF
              (string-join (map sanitize-var xs) ", ")
              (emit body))]
 
+    ;; Binding/sequencing forms use async IIFEs: their bodies may contain
+    ;; `await`, which is illegal inside a synchronous arrow.
     [`(letrec (,clauses ...) ,body)
      (define decls
        (for/list ([c (in-list clauses)])
          (match c
            [`(,x ,rhs) (format "let ~a = ~a;" (sanitize-var x) (emit rhs))]
            [_ ""])))
-     (format "(() => { ~a return ~a; })()"
+     (format "(await (async () => { ~a return ~a; })())"
              (string-join decls " ")
              (emit body))]
 
     ;; --- Binding ---
-    [`(let ((,binds ...) ...) ,body)
-     (define clauses
-       (for/list ([b (in-list binds)])
-         (match b
-           [`(,x ,rhs) (format "let ~a = ~a;" (sanitize-var x) (emit rhs))])))
-     (format "(() => { ~a return ~a; })()"
-             (string-join clauses " ")
-             (emit body))]
-
     [`(let (,clauses ...) ,body)
      (define decls
        (for/list ([c (in-list clauses)])
          (match c
            [`(,x ,rhs) (format "let ~a = ~a;" (sanitize-var x) (emit rhs))]
            [_ ""])))
-     (format "(() => { ~a return ~a; })()"
+     (format "(await (async () => { ~a return ~a; })())"
              (string-join decls " ")
              (emit body))]
+
+    ;; let declarations are evaluated in order, so let* = let
+    [`(let* (,clauses ...) ,body)
+     (emit `(let ,clauses ,body))]
+
+    ;; --- When ---
+    [`(when ,c ,es ...)
+     (emit `(if ,c (begin ,@es (void)) (void)))]
+
+    ;; --- Print (no newline) ---
+    [`(print ,e)
+     (format "__print(~a)" (emit e))]
 
     ;; --- Control flow ---
     [`(if ,c ,t ,f)
@@ -145,7 +144,7 @@ EOF
        [_
         (define stmts (map emit (drop-right es 1)))
         (define last-e (emit (last es)))
-        (format "(() => { ~a return ~a; })()"
+        (format "(await (async () => { ~a return ~a; })())"
                 (string-join (map (lambda (s) (string-append s ";")) stmts) " ")
                 last-e)])]
 
@@ -177,7 +176,7 @@ EOF
      (format "(() => { throw ~a; })()" (emit e))]
 
     [`(catch ,handler ,body)
-     (format "(() => { try { return ~a; } catch(__e) { return (~a)(__e); } })()"
+     (format "(await (async () => { try { return ~a; } catch(__e) { return (~a)(__e); } })())"
              (emit body) (emit handler))]
 
     [`(throw-in ,coro ,exn)

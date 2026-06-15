@@ -1,5 +1,28 @@
 #lang racket/base
 
+;; -----------------------------------------------------------------------------
+;; C# backend.
+;;
+;; Input is a fully type-annotated program (every node is `(: e τ)`, lambdas
+;; carry their function type). Emission is type-directed: each node is rendered
+;; at its exact C# type, so the output contains NO `dynamic`. The only
+;; existential is the exception payload (`object` + a safe `is` pattern),
+;; mirroring C#'s own exception channel, used only at throw/catch boundaries.
+;;
+;; Semantic mapping (C# is "eager": invoking an async lambda starts it):
+;;   async/lambda            -> Func<A..., Task<R>>  (async lambda)
+;;   (f a...)  : (Task R)    -> f(a...)              (hot Task<R>)
+;;   (await t) / (os/block t): await t
+;;   (os/io d v): (Task τ)   -> (async () => { await Task.Delay(d); v })()
+;; All functions compile to `Func<..., Task<R>>` (a sync `lambda` body may
+;; still `await`, e.g. a recursive loop), so sync applications are awaited
+;; inline and async applications keep the hot Task. The model `Unit` maps to a
+;; real `Unit` struct (C# `void` is not a usable generic argument).
+;;
+;; `await` is placed exactly where a task is awaited (see `fx`), and await-free
+;; function bodies use `Task.FromResult`, so the output compiles warning-free.
+;; -----------------------------------------------------------------------------
+
 (require racket/match
          racket/string
          racket/format
@@ -13,44 +36,39 @@ using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.Linq;
 
-class Box {
-    public dynamic Value;
-    public Box(dynamic v) { Value = v; }
+public readonly struct Unit {
+    public static readonly Unit U = default;
+    public override string ToString() => "()";
 }
 
+sealed class Box<T> { public T Value; public Box(T v) { Value = v; } }
+
+sealed class Err : Exception { public readonly object Value; public Err(object v) { Value = v; } }
+
 class Program {
-    static bool __truthy(dynamic v) { return !Object.Equals(v, false); }
-
-    static dynamic __throw(dynamic e) {
-        throw new Exception(e?.ToString() ?? "error");
-    }
-
-    static dynamic __tryCatch(Func<dynamic> body, dynamic handler) {
-        try { return body(); }
-        catch (Exception e) { return ((dynamic)handler)((dynamic)e.Message); }
-    }
-
-    static List<dynamic> __cons(dynamic h, dynamic t) {
-        var l = new List<dynamic> { h };
-        l.AddRange((List<dynamic>)t);
-        return l;
-    }
+    static Unit Print(string s) { Console.Write(s); return Unit.U; }
+    static T Throw<T>(object v) => throw new Err(v);
 
 EOF
 )
 
-(define (compile-cs e)
+(define (compile-cs ann)
+  (define ty (ann-type ann))
   (string-append
    preamble
    "    static async Task Main() {\n"
    "        try {\n"
-   "            dynamic result = " (emit e) ";\n"
-   "            Console.WriteLine(result);\n"
-   "        } catch (Exception e) {\n"
-   "            Console.Error.WriteLine(e.Message);\n"
+   (format "            ~a __result = ~a;\n" (type->cs ty) (emit ann))
+   "            Console.Write(__result);\n"
+   "        } catch (Exception __ex) {\n"
+   "            Console.Write(__ex is Err __e ? __e.Value : (object)__ex);\n"
    "        }\n"
    "    }\n"
    "}\n"))
+
+;; ---------------------------------------------------------------------------
+;; Identifiers
+;; ---------------------------------------------------------------------------
 
 (define cs-keywords
   '("abstract" "as" "base" "bool" "break" "byte" "case" "catch" "char"
@@ -65,28 +83,12 @@ EOF
     "unsafe" "ushort" "using" "virtual" "void" "volatile" "while"
     "async" "await" "dynamic" "var"))
 
-(define (sanitize-var x)
-  (define s (symbol->string x))
-  (define cleaned (regexp-replace* #rx"[^a-zA-Z0-9_]" s "_"))
-  (if (member cleaned cs-keywords)
-      (string-append "@" cleaned)
-      cleaned))
-
-(define (func-type arity)
-  (define params (make-list (add1 arity) "dynamic"))
-  (format "Func<~a>" (string-join params ", ")))
-
-(define (async-func-type arity)
-  (if (zero? arity)
-      "Func<Task<dynamic>>"
-      (let ([params (make-list arity "dynamic")])
-        (format "Func<~a, Task<dynamic>>" (string-join params ", ")))))
-
-(define (make-list n v)
-  (if (zero? n) '() (cons v (make-list (sub1 n) v))))
+(define (cs-id x)
+  (define cleaned (regexp-replace* #rx"[^a-zA-Z0-9_]" (symbol->string x) "_"))
+  (if (member cleaned cs-keywords) (string-append "@" cleaned) cleaned))
 
 ;; ---------------------------------------------------------------------------
-;; Type rendering (C#)
+;; Types
 ;; ---------------------------------------------------------------------------
 
 (define (type->cs t)
@@ -94,218 +96,280 @@ EOF
     ['Int "int"]
     ['String "string"]
     ['Bool "bool"]
-    ['Unit "object"]
-    [`(-> ,args ,ret)
-     (define all (append (map type->cs args) (list (type->cs ret))))
-     (format "Func<~a>" (string-join all ", "))]
-    [`(async-> ,args ,ret)
-     (define all (append (map type->cs args) (list (format "Task<~a>" (type->cs ret)))))
-     (format "Func<~a>" (string-join all ", "))]
-    [`(List ,t) (format "List<~a>" (type->cs t))]
-    [`(Box ,_) "Box"]
+    ['Unit "Unit"]
+    [`(-> ,args ,ret)      (func-type args ret)]
+    [`(async-> ,args ,ret) (func-type args ret)]
     [`(Task ,t) (format "Task<~a>" (type->cs t))]
-    [`(Struct ,_) "Dictionary<string, dynamic>"]
-    [_ "dynamic"]))
+    [`(List ,t) (format "List<~a>" (type->cs t))]
+    [`(Box ,t) (format "Box<~a>" (type->cs t))]
+    [_ (error 'compile-cs "no C# type for: ~s" t)]))
 
-(define (emit e)
-  (match e
-    ;; --- Literals ---
-    [(? number? n) (format "(dynamic)~a" n)]
+;; All functions are async: Func<A..., Task<R>>  (Func<Task<R>> for 0 args)
+(define (func-type args ret)
+  (format "Func<~a>"
+          (string-join (append (map type->cs args) (list (format "Task<~a>" (type->cs ret))))
+                       ", ")))
+
+(define (default-cs t)
+  (format "default(~a)" (type->cs t)))
+
+;; ---------------------------------------------------------------------------
+;; Annotation helpers
+;; ---------------------------------------------------------------------------
+
+(define (ann-type a)
+  (match a
+    [`(: ,_ ,ty) ty]
+    [`(typed-lambda ,ft ,_ ,_) ft]
+    [`(typed-async-lambda ,ft ,_ ,_) ft]
+    [_ (error 'compile-cs "unannotated node: ~s" a)]))
+
+(define (lambda-rhs? rhs)
+  (match rhs
+    [(or `(typed-lambda ,_ ,_ ,_) `(typed-async-lambda ,_ ,_ ,_)) #t]
+    [_ #f]))
+
+;; ---------------------------------------------------------------------------
+;; Effects: does a node await? (does not cross lambda or task-creation bodies)
+;; Used to mark lambdas/IIFEs `async` only when they actually await (else C#
+;; warns CS1998), and to place `await` at the awaiting site.
+;; ---------------------------------------------------------------------------
+
+(define (fx a)
+  (match a
+    [(or `(typed-lambda ,_ ,_ ,_) `(typed-async-lambda ,_ ,_ ,_)) #f]
+    [`(: ,form ,ty) (fx-form form ty)]
+    [_ (error 'compile-cs "unannotated node: ~s" a)]))
+
+(define (fx-any . as) (ormap fx as))
+(define (fx-any* as) (ormap fx as))
+
+(define (fx-form form ty)
+  (match form
+    [(? number?) #f] [(? string?) #f] [(? boolean?) #f] [(? symbol?) #f]
+    [`(void) #f] [`(ptr ,_) #f] [`(os/time) #f]
+    [`(os/io ,_ ,_) #f]                    ; invoking the async lambda is not an await
+    [(or `(await ,_) `(os/block ,_)) #t]
+    [`(throw ,_) #f]
+    [`(throw-in ,_ ,_) #f]
+    [`(err ,_) #f]
+    [`(catch ,_ ,_) #t]
+    [`(ok ,e) (fx e)]
+    [`(if ,c ,t ,f) (fx-any c t f)]
+    [`(when ,c ,es ...) (fx-any* (cons c es))]
+    [`(begin ,es ...) (fx-any* es)]
+    [`(set! ,_ ,rhs) (fx rhs)]
+    [`(let (,cs ...) ,body) (or (ormap (lambda (c) (fx (cadr c))) cs) (fx body))]
+    [`(let* (,cs ...) ,body) (or (ormap (lambda (c) (fx (cadr c))) cs) (fx body))]
+    [`(letrec (,cs ...) ,body)
+     (or (fx body)
+         (ormap (lambda (c) (if (lambda-rhs? (cadr c)) #f (fx (cadr c)))) cs))]
+    [(or `(+ ,es ...) `(- ,es ...) `(list ,es ...) `(equal? ,es ...)
+         `(string-append ,es ...))
+     (fx-any* es)]
+    [(or `(= ,a ,b) `(< ,a ,b) `(> ,a ,b) `(<= ,a ,b) `(>= ,a ,b) `(cons ,a ,b)
+         `(set-box! ,a ,b))
+     (fx-any a b)]
+    [(or `(number->string ,e) `(car ,e) `(cdr ,e) `(empty? ,e)
+         `(box ,e) `(unbox ,e) `(print ,e) `(field ,_ ,e))
+     (fx e)]
+    [`(,f ,args ...)
+     (match (ann-type f)
+       [`(async-> ,_ ,_) (fx-any* args)]   ; hot Task, no await here
+       [`(-> ,_ ,_) #t])]                  ; awaited inline
+    [_ (error 'compile-cs "fx: unsupported form: ~s" form)]))
+
+;; ---------------------------------------------------------------------------
+;; Emit (self-contained: each result carries its own `await`)
+;; ---------------------------------------------------------------------------
+
+(define (emit a)
+  (match a
+    [(or `(typed-lambda ,ft ,xs ,body) `(typed-async-lambda ,ft ,xs ,body))
+     (emit-fn ft xs body)]
+    [`(: ,form ,ty) (emit-form form ty)]
+    [_ (error 'compile-cs "unannotated node: ~s" a)]))
+
+;; A function value: Func<A..., Task<R>>. Async only if its body awaits;
+;; otherwise it returns a completed Task so callers can still await it.
+(define (emit-fn ft xs body)
+  (match-define (or `(-> ,atys ,rty) `(async-> ,atys ,rty)) ft)
+  (define ftc (func-type atys rty))
+  (define rc (type->cs rty))
+  (define params
+    (string-join (map (lambda (x t) (format "~a ~a" (type->cs t) (cs-id x))) xs atys) ", "))
+  (if (fx body)
+      (format "((~a)(async (~a) => { return ~a; }))" ftc params (emit body))
+      (format "((~a)((~a) => { return Task.FromResult<~a>(~a); }))" ftc params rc (emit body))))
+
+(define (emit-form form ty)
+  (match form
+    ;; --- Literals / atoms ---
+    [(? number? n) (~a n)]
     [(? string? s) (~v s)]
-    [#true "(dynamic)true"]
-    [#false "(dynamic)false"]
-    [(? symbol? x) (sanitize-var x)]
-
-    ;; --- Core forms ---
-    [`(void) "(dynamic)null"]
-    [`(ptr ,x) (sanitize-var x)]
-
-    [`(: ,inner ,_) (emit inner)]
-
-    ;; --- Functions (typed) ---
-    [`(typed-lambda (-> ,arg-types ,ret-type) ,xs ,body)
-     (define params
-       (string-join (map (λ (x t) (format "~a ~a" (type->cs t) (sanitize-var x)))
-                         xs arg-types) ", "))
-     (define ft (append (map type->cs arg-types) (list (type->cs ret-type))))
-     (format "((Func<~a>)((~a) => ~a))"
-             (string-join ft ", ") params (emit body))]
-
-    [`(typed-async-lambda (async-> ,arg-types ,ret-type) ,xs ,body)
-     (define params
-       (string-join (map (λ (x t) (format "~a ~a" (type->cs t) (sanitize-var x)))
-                         xs arg-types) ", "))
-     (define ft (append (map type->cs arg-types) (list (format "Task<~a>" (type->cs ret-type)))))
-     (format "((Func<~a>)(async (~a) => ~a))"
-             (string-join ft ", ") params (emit body))]
-
-    ;; --- Functions (untyped fallback) ---
-    [`(lambda (,xs ...) ,body)
-     (define params
-       (string-join (map (lambda (x) (format "dynamic ~a" (sanitize-var x))) xs) ", "))
-     (format "((~a)((~a) => ~a))"
-             (func-type (length xs)) params (emit body))]
-
-    [`(async/lambda (,xs ...) ,body)
-     (define params
-       (string-join (map (lambda (x) (format "dynamic ~a" (sanitize-var x))) xs) ", "))
-     (format "((~a)(async (~a) => ~a))"
-             (async-func-type (length xs)) params (emit body))]
-
-    [`(letrec (,clauses ...) ,body)
-     (define decls
-       (for/list ([c (in-list clauses)])
-         (match c
-           [`(,x ,rhs) (format "dynamic ~a = ~a;" (sanitize-var x) (emit rhs))]
-           [_ ""])))
-     (format "((Func<dynamic>)(() => { ~a return ~a; }))()"
-             (string-join decls " ")
-             (emit body))]
+    [#true "true"]
+    [#false "false"]
+    [`(void) "Unit.U"]
+    [(? symbol? x) (cs-id x)]
+    [`(ptr ,x) (cs-id x)]
 
     ;; --- Binding ---
-    [`(let (,clauses ...) ,body)
-     (define decls
-       (for/list ([c (in-list clauses)])
-         (match c
-           [`(,x ,rhs) (format "dynamic ~a = ~a;" (sanitize-var x) (emit rhs))]
-           [_ ""])))
-     (format "((Func<dynamic>)(() => { ~a return ~a; }))()"
-             (string-join decls " ")
-             (emit body))]
+    [`(let (,cs ...) ,body)  (emit-let cs body ty)]
+    [`(let* (,cs ...) ,body) (emit-let cs body ty)]   ; sequential locals (see note)
+    [`(letrec (,cs ...) ,body) (emit-letrec cs body ty)]
 
-    ;; --- Control flow ---
+    ;; --- Sequencing / control ---
+    [`(begin ,es ...) (emit-begin es ty)]
     [`(if ,c ,t ,f)
-     (format "(__truthy(~a) ? ~a : ~a)" (emit c) (emit t) (emit f))]
-
-    [`(begin ,es ...)
-     (match es
-       ['() "(dynamic)null"]
-       [(list e) (emit e)]
-       [_
-        (define stmts (map emit (drop-right es 1)))
-        (define last-e (emit (last es)))
-        (format "((Func<dynamic>)(() => { ~a return ~a; }))()"
-                (string-join (map (lambda (s) (string-append s ";")) stmts) " ")
-                last-e)])]
-
+     (iife ty (fx-any c t f)
+           (format "if (~a) { return ~a; } else { return ~a; }" (emit c) (emit t) (emit f)))]
+    [`(when ,c ,es ...)
+     (iife ty (fx-any* (cons c es))
+           (format "if (~a) { ~a } return Unit.U;"
+                   (emit c)
+                   (string-join (for/list ([e (in-list es)]) (format "_ = ~a;" (emit e))) " ")))]
     [`(set! ,x ,rhs)
-     (format "(~a = ~a)" (sanitize-var x) (emit rhs))]
+     (iife ty (fx rhs) (format "~a = ~a; return ~a;" (cs-id x) (emit rhs) (cs-id x)))]
+
+    ;; --- Print ---
+    [`(print ,e) (format "Print(~a)" (emit e))]
 
     ;; --- Async ---
-    [`(await ,e)
-     (format "(await (dynamic)~a)" (emit e))]
-
-    [`(os/block ,e)
-     (format "(await (dynamic)~a)" (emit e))]
-
-    [`(os/io ,delay ,val)
-     (format "(await ((Func<Task<dynamic>>)(async () => { await Task.Delay((int)~a); return ~a; }))())"
-             (emit delay) (emit val))]
-
-    [`(os/time)
-     "(dynamic)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()"]
-
-    [`(os/start-soon ,e)
-     (format "((Func<dynamic>)(() => { Task.Run(() => ~a); return (dynamic)null; }))()"
-             (emit e))]
-
-    [`(os/start-later ,time ,_label ,e)
-     (format "((Func<dynamic>)(() => { Task.Delay((int)~a).ContinueWith(_ => ~a); return (dynamic)null; }))()"
-             (emit time) (emit e))]
+    [(or `(await ,t) `(os/block ,t)) (format "(await ~a)" (emit t))]
+    [`(os/io ,d ,v)
+     (match-define `(Task ,vt) ty)
+     (format "((Func<Task<~a>>)(async () => { await Task.Delay(~a * 100); return ~a; }))()"
+             (type->cs vt) (emit d) (emit v))]
+    [`(os/time) "(int)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()"]
 
     ;; --- Exceptions ---
-    [`(throw ,e)
-     (format "__throw(~a)" (emit e))]
-
-    [`(catch ,handler ,body)
-     (format "__tryCatch(() => ~a, ~a)"
-             (emit body) (emit handler))]
-
-    [`(throw-in ,_coro ,exn)
-     (format "__throw(~a)" (emit exn))]
+    [`(throw ,e)      (format "Throw<~a>(~a)" (type->cs ty) (emit e))]
+    [`(throw-in ,_ ,e) (format "Throw<~a>(~a)" (type->cs ty) (emit e))]
+    [`(catch ,handler ,body) (emit-catch handler body ty)]
 
     ;; --- Results ---
     [`(ok ,e) (emit e)]
-    [`(err ,e) (format "__throw(~a)" (emit e))]
+    [`(err ,e) (format "Throw<~a>(~a)" (type->cs ty) (emit e))]
 
-    ;; --- Arithmetic ---
-    [`(+ ,es ...)
-     (match es
-       ['() "(dynamic)0"]
-       [(list a) (emit a)]
-       [_ (format "(~a)" (string-join (map emit es) " + "))])]
-
+    ;; --- Arithmetic / comparison / strings ---
+    [`(+ ,es ...) (emit-binop "+" es "0")]
     [`(- ,es ...)
-     (match es
-       ['() "(dynamic)0"]
-       [(list a) (format "(-(dynamic)~a)" (emit a))]
+     (match es ['() "0"] [(list a) (format "(-~a)" (emit a))]
        [_ (format "(~a)" (string-join (map emit es) " - "))])]
-
-    [`(number->string ,e)
-     (format "((dynamic)~a).ToString()" (emit e))]
-
-    ;; --- Comparison ---
-    [`(= ,a ,b) (format "(dynamic)(~a == ~a)" (emit a) (emit b))]
-    [`(< ,a ,b) (format "(dynamic)(~a < ~a)" (emit a) (emit b))]
-    [`(> ,a ,b) (format "(dynamic)(~a > ~a)" (emit a) (emit b))]
-    [`(<= ,a ,b) (format "(dynamic)(~a <= ~a)" (emit a) (emit b))]
-    [`(>= ,a ,b) (format "(dynamic)(~a >= ~a)" (emit a) (emit b))]
-
-    ;; --- Strings ---
+    [`(= ,a ,b)  (format "(~a == ~a)" (emit a) (emit b))]
+    [`(< ,a ,b)  (format "(~a < ~a)"  (emit a) (emit b))]
+    [`(> ,a ,b)  (format "(~a > ~a)"  (emit a) (emit b))]
+    [`(<= ,a ,b) (format "(~a <= ~a)" (emit a) (emit b))]
+    [`(>= ,a ,b) (format "(~a >= ~a)" (emit a) (emit b))]
+    [`(number->string ,e) (format "(~a).ToString()" (emit e))]
     [`(equal? ,es ...)
-     (match es
-       ['() "(dynamic)true"]
-       [(list _) "(dynamic)true"]
-       [(list a b) (format "(dynamic)Object.Equals(~a, ~a)" (emit a) (emit b))]
-       [(list a b _ ...) (format "(dynamic)Object.Equals(~a, ~a)" (emit a) (emit b))])]
-
+     (match es [(or '() (list _)) "true"]
+       [(list a b _ ...) (format "(~a == ~a)" (emit a) (emit b))])]
     [`(string-append ,es ...)
-     (match es
-       ['() "(dynamic)\"\""]
-       [_ (format "(~a)"
-                   (string-join (map (lambda (x) (format "(~a)?.ToString() ?? \"\"" (emit x))) es)
-                                " + "))])]
+     (match es ['() "\"\""] [_ (format "(~a)" (string-join (map emit es) " + "))])]
 
-    ;; --- Lists ---
+    ;; --- Lists / boxes ---
     [`(list ,es ...)
-     (format "new List<dynamic> { ~a }" (string-join (map emit es) ", "))]
-
+     (match-define `(List ,et) ty)
+     (format "new List<~a> { ~a }" (type->cs et) (string-join (map emit es) ", "))]
     [`(cons ,h ,t)
-     (format "__cons(~a, ~a)" (emit h) (emit t))]
-
-    [`(car ,e)
-     (format "((List<dynamic>)~a)[0]" (emit e))]
-
-    [`(cdr ,e)
-     (format "(dynamic)((List<dynamic>)~a).Skip(1).ToList()" (emit e))]
-
-    [`(empty? ,e)
-     (format "(dynamic)(((List<dynamic>)~a).Count == 0)" (emit e))]
-
-    ;; --- Boxes ---
+     (match-define `(List ,et) ty)
+     (format "new List<~a> { ~a }.Concat(~a).ToList()" (type->cs et) (emit h) (emit t))]
+    [`(car ,e) (format "(~a)[0]" (emit e))]
+    [`(cdr ,e) (format "(~a).GetRange(1, (~a).Count - 1)" (emit e) (emit e))]
+    [`(empty? ,e) (format "((~a).Count == 0)" (emit e))]
     [`(box ,e)
-     (format "new Box(~a)" (emit e))]
-
-    [`(unbox ,e)
-     (format "((Box)~a).Value" (emit e))]
-
+     (match-define `(Box ,et) ty)
+     (format "new Box<~a>(~a)" (type->cs et) (emit e))]
+    [`(unbox ,e) (format "(~a).Value" (emit e))]
     [`(set-box! ,a ,b)
-     (format "(((Box)~a).Value = ~a)" (emit a) (emit b))]
+     (iife ty (fx-any a b)
+           (format "(~a).Value = ~a; return (~a).Value;" (emit a) (emit b) (emit a)))]
 
-    ;; --- Structs ---
-    [`(struct ,fields ...)
-     (define pairs
-       (for/list ([f (in-list fields)])
-         (match f
-           [`(,name ,val) (format "{ ~s, ~a }" (symbol->string name) (emit val))]
-           [_ ""])))
-     (format "new Dictionary<string, dynamic> { ~a }" (string-join pairs ", "))]
+    ;; --- Application (must be last) ---
+    [`(,f ,args ...) (emit-app f args ty)]
 
-    [`(field ,name ,e)
-     (format "((Dictionary<string, dynamic>)~a)[~s]" (emit e) (symbol->string name))]
+    [_ (error 'compile-cs "unsupported form: ~s" form)]))
 
-    ;; --- Application ---
-    [`(,f ,args ...)
-     (format "((dynamic)~a)(~a)" (emit f) (string-join (map emit args) ", "))]
+(define (emit-binop op es identity)
+  (match es ['() identity] [(list a) (emit a)]
+    [_ (format "(~a)" (string-join (map emit es) (format " ~a " op)))]))
 
-    [_ (format "/* unhandled: ~s */ (dynamic)null" e)]))
+;; An immediately-invoked lambda: async (awaited) when its body awaits, else a
+;; plain lambda returning the value directly.
+(define (iife ty awaits? stmts)
+  (if awaits?
+      (format "(await ((Func<Task<~a>>)(async () => { ~a }))())" (type->cs ty) stmts)
+      (format "((Func<~a>)(() => { ~a }))()" (type->cs ty) stmts)))
+
+;; `let`/`let*` compile to a sequence of typed C# locals. A type-checked `let`
+;; never has a clause referring to a sibling (rhss are typed in the outer
+;; scope), so sequential locals preserve its meaning. C# locals are mutable,
+;; so `set!` on a let-binding works.
+(define (emit-let cs body ty)
+  (define aw (or (ormap (lambda (c) (fx (cadr c))) cs) (fx body)))
+  (define binds
+    (string-join
+     (for/list ([c (in-list cs)])
+       (match-define (list x rhs) c)
+       (format "~a ~a = ~a;" (type->cs (ann-type rhs)) (cs-id x) (emit rhs)))
+     " "))
+  (iife ty aw (format "~a return ~a;" binds (emit body))))
+
+;; `letrec` binds (possibly mutually recursive) functions; emit them as C#
+;; local functions, which may reference themselves and each other.
+(define (emit-letrec cs body ty)
+  (define aw
+    (or (fx body)
+        (ormap (lambda (c) (if (lambda-rhs? (cadr c)) #f (fx (cadr c)))) cs)))
+  (define decls
+    (string-join
+     (for/list ([c (in-list cs)])
+       (match-define (list x rhs) c)
+       (match rhs
+         [(or `(typed-lambda (-> ,atys ,rty) ,xs ,b)
+              `(typed-async-lambda (async-> ,atys ,rty) ,xs ,b))
+          (define rc (type->cs rty))
+          (define params
+            (string-join (map (lambda (p t) (format "~a ~a" (type->cs t) (cs-id p))) xs atys) ", "))
+          (if (fx b)
+              (format "async Task<~a> ~a(~a) { return ~a; }" rc (cs-id x) params (emit b))
+              (format "Task<~a> ~a(~a) { return Task.FromResult<~a>(~a); }" rc (cs-id x) params rc (emit b)))]
+         [_ (format "~a ~a = ~a;" (type->cs (ann-type rhs)) (cs-id x) (emit rhs))]))
+     " "))
+  (iife ty aw (format "~a return ~a;" decls (emit body))))
+
+(define (emit-begin es ty)
+  (match es
+    ['() "Unit.U"]
+    [(list e) (emit e)]
+    [_
+     (define inits
+       (string-join (for/list ([e (in-list (drop-right es 1))]) (format "_ = ~a;" (emit e))) " "))
+     (iife ty (fx-any* es) (format "~a return ~a;" inits (emit (last es))))]))
+
+;; catch : Tb. handler : (Th) -> Tr (Tr coincides with Tb in well-formed
+;; programs). An explicit throw carries a typed payload recovered with a safe
+;; `is` pattern; cancellation/other errors give the handler a default Th — our
+;; handlers either ignore the argument or the thrown type already matches.
+(define (emit-catch handler body ty)
+  (match-define (or `(typed-lambda (-> (,th) ,tr) ,_ ,_)
+                    `(typed-async-lambda (async-> (,th) ,tr) ,_ ,_)) handler)
+  (define tbc (type->cs ty))
+  (define thc (type->cs th))
+  (define hft (func-type (list th) tr))
+  (format
+   (string-append
+    "(await ((Func<Task<~a>>)(async () => { "
+    "~a __h = ~a; "
+    "try { return ~a; } "
+    "catch (Err __e) { return await __h(__e.Value is ~a __v ? __v : ~a); } "
+    "catch { return await __h(~a); } }))())")
+   tbc hft (emit handler) (emit body) thc (default-cs th) (default-cs th)))
+
+(define (emit-app f args ty)
+  (define fcode (emit f))
+  (define argcode (string-join (map emit args) ", "))
+  (match (ann-type f)
+    [`(async-> ,_ ,_) (format "~a(~a)" fcode argcode)]          ; hot Task<R>
+    [`(-> ,_ ,_) (format "(await ~a(~a))" fcode argcode)]))     ; await -> R

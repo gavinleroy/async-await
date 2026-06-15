@@ -12,6 +12,14 @@
 
 (struct nondeterministic exn:fail:user (prog results))
 
+;; Extract the root thread's value from a final program state. Language
+;; modules also get a macro-generated copy; this generic one serves
+;; clients (e.g. fuzz/main.rkt) that work across languages.
+(define (program-output p)
+  (match p
+    [`(,_t ,_H ,_Q ,_T ((thread (root ,v)) ,_ ...)) v]
+    [_ p]))
+
 ;; Reduce the `term` using `rule`.
 ;;
 ;; If `max-steps` is provided the reduction will be capped at that many times, otherwise, it could loop forever
@@ -101,6 +109,7 @@
                      store:get-uncancelled-tasks
                      task:settled?
                      task:cancelled?
+                     task:uncancel
                      task:allocate
                      task:allocate-as
                      task:allocate-dependency
@@ -164,11 +173,21 @@
         ;; We want to use non-deterministic reductions with the threaded model. The goal is *not*
         ;; to model fine-grained memory access, so we take larger steps as a regular system would.
         ;; Decisions are then made when as async/lambda or await form is reached in one of the threads.
+        ;;
+        ;; The step cap must be > 1: synchronous code (and the system's scheduling
+        ;; chunk) runs atomically up to the next async decision point. A cap of 1
+        ;; interleaves at every micro-step, which splits `await`'s
+        ;; check-then-register across steps and loses wakeups (a completed task
+        ;; can fire its waiters between the `task:is-completed?` read and the
+        ;; `task:add-self-as-dependent!` registration). 50 is a coarse bound that
+        ;; lets a thread reach its next async point in one step for the programs
+        ;; we generate.
+        (define big-step-max-steps 50)
         (define (big-step red term #:deterministic? [det? #true])
           (with-handlers ([nondeterministic? (lambda (e) 'stuck)])
             (let* ([α-equiv? (lambda (a b) (alpha-equivalent? Lang a b))]
                    [reduced
-                    (reduce red term #:deterministic? det? #:max-steps 1 #:α-equiv? α-equiv?)])
+                    (reduce red term #:deterministic? det? #:max-steps big-step-max-steps #:α-equiv? α-equiv?)])
               (when (α-equiv? term reduced)
                 (raise 'big-step "form reduced to itself"))
               reduced)))
@@ -490,6 +509,18 @@
                            _ (... ...)) v)
             (where/error boolean (lookup σ x_cancelled))
             (where (list) (lookup σ x_parent))])
+
+        ;; Reset a task's own cancelled flag, e.g. after the cancellation has
+        ;; been delivered to the task as an exception.
+        (define-metafunction Lang
+          task:uncancel : σ label -> σ
+          [(task:uncancel σ x)
+            (ext1 σ (x_cancelled #false))
+            (where/error v (lookup σ x))
+            (where/error #true (task:is-task? v))
+            (where/error (struct _ (... ...)
+                           [cancelled (ptr x_cancelled)]
+                           _ (... ...)) v)])
 
         (define-metafunction Lang
          task:allocate-as : σ x -> (σ x v)

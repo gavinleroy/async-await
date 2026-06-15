@@ -1,6 +1,6 @@
 #lang racket
 
-(require redex
+(require redex/reduction-semantics
          "core.rkt"
          "exn.rkt"
          "platform.rkt")
@@ -90,7 +90,7 @@
    ;; REFERENCE STRENGTH: strong, the default GC rule keeps `Q` in the root set
    ;; PROPAGATION: await, no rule reraises unawaited exceptions
    ;; CANCELLATION: undefined
-   (make-big-step -->sys/exn)
+   (make-big-step -->sys/overrides)
    -->c#/core))
 
 ;; -----------------------------------------------------------------------------
@@ -118,6 +118,14 @@
   (c#-->>=
    (os/block ((async/lambda () 42)))
    42)
+
+  (c#-->>=
+   (let ([foo (async/lambda ()
+                (begin (await (os/io 4 (void)))
+                       42))])
+     (os/block (foo)))
+   42)
+
 
   (c#-->>=
    (os/block ((async/lambda (x) x) 42))

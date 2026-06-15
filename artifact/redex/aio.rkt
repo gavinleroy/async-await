@@ -1,6 +1,6 @@
 #lang racket/base
 
-(require redex
+(require redex/reduction-semantics
          (only-in racket/list flatten)
          "core.rkt"
          "py.rkt"
@@ -84,8 +84,8 @@
     (t_1 σ_1 Q_1 T ((thread F F_rs ...) ... (thread (label_waiting (throw-in v_thunk "cancelled"))) FS_1 ...))
 
     (where ((label_waiting v_thunk) Q_1) (Q:pop Q_0))
-    (where #true (task:cancelled? σ label_waiting))
-    ;(where/error σ_1 (task:uncancel σ_0 label_waiting))
+    (where #true (task:cancelled? σ_0 label_waiting))
+    (where/error σ_1 (task:uncancel σ_0 label_waiting))
     (where/error t_1 (step t_0))
     "sys/schedule-cancelled"]
 
@@ -157,14 +157,9 @@
                              #:extract-result program-output)))
       (check-runtime-in-set compile-and-run-asyncio 'e results))))
 
-  (define-metafunction AsyncIO
-    resume! : e e -> e
-    [(resume! e_coro e_val)
-     (e_coro e_val)]))
-
 (module+ test
   (aio-->>=
-   (resume! ((async/lambda (x) 42) 0) (void))
+   (os/block ((async/lambda (x) x) 42))
    42)
 
   (aio-->>=

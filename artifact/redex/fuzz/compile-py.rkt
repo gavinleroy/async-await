@@ -14,6 +14,10 @@
 (define preamble-common #<<EOF
 
 import inspect
+import sys
+
+def __print(s):
+    sys.stdout.write(str(s))
 
 class Box:
     def __init__(self, v): self.value = v
@@ -26,10 +30,12 @@ def __throw(e):
     raise Exception(str(e))
 
 async def __try_catch(body, handler):
+    # BaseException: cancellation (asyncio.CancelledError, trio.Cancelled)
+    # does not derive from Exception, but the models' `catch` intercepts it.
     try:
         r = body()
         return (await r) if inspect.isawaitable(r) else r
-    except Exception as e:
+    except BaseException as e:
         r = handler(str(e))
         return (await r) if inspect.isawaitable(r) else r
 
@@ -231,25 +237,37 @@ EOF
           (hoist! 'async-nursery (sanitize-var x) params (type->py ret-type)
                   (format "return ~a" (emit lbody)))]
          [`(,x ,rhs)
+          ;; Bind at module scope: hoisted function bodies resolve their free
+          ;; variables there, and a walrus binding would be local to __main.
           (set! non-fn-assigns
                 (append non-fn-assigns
-                        (list (format "(~a := ~a)" (sanitize-var x) (emit rhs)))))]))
+                        (list (format "globals().__setitem__('~a', ~a)"
+                                      (sanitize-var x) (emit rhs)))))]))
      (if (null? non-fn-assigns)
          (emit body)
          (format "(~a, ~a)[-1]"
                  (string-join non-fn-assigns ", ")
                  (emit body)))]
 
-    ;; --- Binding (walrus operator) ---
+    ;; --- Binding ---
+    ;; Both routes go through letrec: walrus assignments are already
+    ;; sequential (so let = let*), and letrec hoists function bindings as
+    ;; named top-level defs — a walrus-bound function would be invisible to
+    ;; other hoisted function bodies (Python resolves their free variables
+    ;; at module scope).
     [`(let (,clauses ...) ,body)
-     (define assigns
-       (for/list ([c (in-list clauses)])
-         (match c
-           [`(,x ,rhs) (format "(~a := ~a)" (sanitize-var x) (emit rhs))]
-           [_ "None"])))
-     (format "(~a, ~a)[-1]"
-             (string-join assigns ", ")
-             (emit body))]
+     (emit `(letrec ,clauses ,body))]
+
+    [`(let* (,clauses ...) ,body)
+     (emit `(letrec ,clauses ,body))]
+
+    ;; --- When ---
+    [`(when ,c ,es ...)
+     (emit `(if ,c (begin ,@es (void)) (void)))]
+
+    ;; --- Print (no newline) ---
+    [`(print ,e)
+     (format "__print(~a)" (emit e))]
 
     ;; --- Control flow ---
     [`(if ,c ,t ,f)

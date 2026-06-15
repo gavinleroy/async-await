@@ -8,8 +8,8 @@ $$
 \end{array} \\
 \\
 \begin{array}{rcl}
-e & ::= & \dots \mid \mathbfsf{sys\_block}\ e \mid \mathbfsf{sys\_time}() \mid \mathbfsf{sys\_io}(e, e) \\
-  &     & \mid \mathbfsf{sys\_start\_soon}(\many{\ell,e}) \mid \mathbfsf{sys\_start\_later}(e, \ell, e)
+e & ::= & \dots \mid \mathbfsf{sys\_io}(e, e) \mid \mathbfsf{sys\_start\_soon}(\many{\ell,e}) \mid \mathbfsf{sys\_start\_later}(e, \ell, e)
+% e & ::= & \dots \mid \mathbfsf{sys\_block}(e) \mid \mathbfsf{sys\_time}() \mid \mathbfsf{sys\_io}(e, e) \mid \mathbfsf{sys\_start\_soon}(\many{\ell,e}) \mid \mathbfsf{sys\_start\_later}(e, \ell, e)
 \end{array}
 \end{array}
 $$

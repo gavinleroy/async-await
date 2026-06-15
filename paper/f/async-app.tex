@@ -16,7 +16,7 @@
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
 % <<<<<<< Updated upstream
-  \where\ \many{x}_{\mathit{fresh}} = \many{\mathsf{gensym}(),~ \sigma_1 = \sigma_2[\many{x}_{\mathit{fresh}} \mapsto \many{v}],~ e_{\mathit{subst}} = e_{\mathit{body}}[\many{x}_{\mathit{fresh}}/\many{x}]} \\
+  \where\ \many{x}_{\mathit{fresh}} = \many{\mathsf{gensym}(),~ \sigma_1 = \sigma_0[\many{x}_{\mathit{fresh}} \mapsto \many{v}],~ e_{\mathit{subst}} = e_{\mathit{body}}[\many{x}_{\mathit{fresh}}/\many{x}]} \\
   \qquad (\sigma_2, x_{\mathit{task}}) = \mathsf{task\_alloc}(\sigma_1)\,\cext{\vphantom{o}} \\
   \qquad e_{\mathit{task}} = \mathbfsf{reset}\ ( \\
 % =======
@@ -45,7 +45,7 @@
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
   \where\ \many{x}_{\mathit{fresh}} = \many{\mathsf{gensym}(),~ \sigma_1 = \sigma_0[\many{x}_{\mathit{fresh}} \mapsto \many{v}],~ e_{\mathit{subst}} = e_{\mathit{body}}[\many{x}_{\mathit{fresh}}/\many{x}]} \\
-  \qquad (\sigma_2, x_{\mathit{task}}) = \mathsf{task\_alloc}(\sigma_0) \\
+  \qquad (\sigma_2, x_{\mathit{task}}) = \mathsf{task\_alloc}(\sigma_1) \\
   \qquad \cext{\sigma_3 = \mathsf{task\_add\_dependency}(\sigma_2, \ell, x_{\mathit{task}})} \\
   % \qquad (\sigma_2, x_{\mathit{task}}) = \cext{\mathsf{task\_alloc\_dependency}(\sigma_1,\ell)} \\
   \qquad e_{\mathit{task}} = \mathbfsf{reset}\ ( \\

@@ -1,6 +1,6 @@
 #lang racket
 
-(require redex
+(require redex/reduction-semantics
          "core.rkt"
          "rust.rkt"
          "platform.rkt")

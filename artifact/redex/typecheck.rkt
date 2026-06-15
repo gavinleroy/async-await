@@ -207,6 +207,17 @@
      (define-values (body* bt) (infer env2 body))
      (values `(letrec ,(map list xs rhs-anns) ,body*) bt)]
 
+    ;; --- Let* (sequential scoping) ---
+    [`(let* () ,body)
+     (define-values (b* bt) (infer env body))
+     (values `(let* () ,b*) bt)]
+
+    [`(let* ([,x ,rhs] ,clauses ...) ,body)
+     (define-values (r* rt) (infer env rhs))
+     (define-values (rest* bt) (infer-raw (extend env x rt) `(let* ,clauses ,body)))
+     (match rest*
+       [`(let* ,more ,b*) (values `(let* ([,x ,r*] ,@more) ,b*) bt)])]
+
     ;; --- Let ---
     [`(let (,clauses ...) ,body)
      (define xs (map car clauses))
@@ -230,6 +241,22 @@
      (unify! ct 'Bool)
      (unify! tt ft)
      (values `(if ,c* ,t* ,f*) tt)]
+
+    ;; --- When (body value is discarded; result is Unit) ---
+    [`(when ,cnd ,bodys ...)
+     (define-values (c* ct) (infer env cnd))
+     (unify! ct 'Bool)
+     (define anns
+       (for/list ([b (in-list bodys)])
+         (define-values (a _t) (infer env b))
+         a))
+     (values `(when ,c* ,@anns) 'Unit)]
+
+    ;; --- Print (writes to stdout, no newline) ---
+    [`(print ,e)
+     (define-values (a t) (infer env e))
+     (unify! t 'String)
+     (values `(print ,a) 'Unit)]
 
     [`(begin ,es ...)
      (cond
@@ -362,24 +389,23 @@
        [_ (error 'type "field on non-struct")])]
 
     ;; --- Exceptions ---
+    ;; Thrown values can be of any type, and a `catch` may produce a value
+    ;; from either branch (tests assert sets like '("cancelled" 0)), so the
+    ;; handler's result is deliberately not unified with the body's.
     [`(throw ,e)
      (define-values (a t) (infer env e))
-     (unify! t 'String)
      (define result (fresh!))
      (values `(throw ,a) result)]
 
     [`(catch ,handler ,body)
      (define-values (h* ht) (infer env handler))
      (define-values (b* bt) (infer env body))
-     (define result (fresh!))
-     (unify! ht `(-> (String) ,result))
-     (unify! bt result)
-     (values `(catch ,h* ,b*) result)]
+     (unify! ht `(-> (,(fresh!)) ,(fresh!)))
+     (values `(catch ,h* ,b*) bt)]
 
     [`(throw-in ,coro ,exn)
      (define-values (c* ct) (infer env coro))
      (define-values (e* et) (infer env exn))
-     (unify! et 'String)
      (define result (fresh!))
      (values `(throw-in ,c* ,e*) result)]
 
@@ -405,14 +431,27 @@
      (define-values (a t) (infer env e))
      (values `(spawn ,a) t)]
 
+    ;; Cancelling returns the task itself: some runtimes (smol) await it.
     [`(cancel ,e)
      (define-values (a t) (infer env e))
      (define elem (fresh!))
      (unify! t `(Task ,elem))
-     (values `(cancel ,a) 'Unit)]
+     (values `(cancel ,a) `(Task ,elem))]
 
     [`(cancelled?)
      (values '(cancelled?) 'Bool)]
+
+    [`(os/block ,e)
+     (define-values (a t) (infer env e))
+     (define elem (fresh!))
+     (unify! t `(Task ,elem))
+     (values `(os/block ,a) elem)]
+
+    [`(os/io ,delay ,val)
+     (define-values (d* dt) (infer env delay))
+     (define-values (v* vt) (infer env val))
+     (unify! dt 'Int)
+     (values `(os/io ,d* ,v*) `(Task ,vt))]
 
     ;; --- Application (MUST BE LAST) ---
     [`(,f ,args ...)
@@ -512,5 +551,34 @@
   (let ([r (tc '(letrec ([f (lambda (n) (if (= n 0) 0 (f (- n 1))))]) (f 5)))])
     (check-not-false r)
     (check-equal? (cdr r) 'Int))
+
+  ;; let* scopes sequentially
+  (let ([r (tc '(let* ([x 1] [y (+ x 1)]) (+ x y)))])
+    (check-not-false r)
+    (check-equal? (cdr r) 'Int))
+  (check-false (tc '(let ([x 1] [y (+ x 1)]) (+ x y))))
+
+  ;; when discards the body value
+  (check-equal? (cdr (tc '(when (= 1 2) "side-effect"))) 'Unit)
+  (check-false (tc '(when 1 2)))
+
+  ;; print is String -> Unit
+  (check-equal? (cdr (tc '(print "hello"))) 'Unit)
+  (check-false (tc '(print 42)))
+
+  ;; os hooks
+  (check-equal? (cdr (tc '(os/block ((async/lambda () 42))))) 'Int)
+  (check-equal? (cdr (tc '(await (os/io 1 "v")))) 'String)
+  (check-false (tc '(os/io "soon" 42)))
+
+  ;; cancel returns the task, so it can be awaited (smol)
+  (check-equal?
+   (cdr (tc '(let ([t ((async/lambda () 42))]) (await (cancel t)))))
+   'Int)
+
+  ;; thrown values are not restricted to strings, and the handler's result
+  ;; type is independent of the body's
+  (check-not-false (tc '(throw 42)))
+  (check-equal? (cdr (tc '(catch (lambda (e) "fallback") (+ 1 2)))) 'Int)
 
   (printf "typecheck tests passed~n"))

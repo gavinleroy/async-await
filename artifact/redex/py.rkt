@@ -1,6 +1,6 @@
 #lang racket/base
 
-(require redex
+(require redex/reduction-semantics
          "core.rkt"
          (only-in "exn.rkt" Exn -->exn))
 
@@ -56,18 +56,14 @@
   (require (submod "core.rkt" niceties)
            (submod "lc.rkt" test/helpers))
 
-  (define-metafunction Py
-    resume! : e e -> e
-    [(resume! e_coro e_val)
-     (e_coro e_val)])
-
   (define-syntax-rule (py-->>= e v)
     (test-->> -->py #:equiv prog/equiv (term (() e)) v)))
 
 (module+ test
 
+  ;; applying a coroutine resumes it with the given value
   (py-->>=
-   (resume! ((async/lambda (x) 42) 0) (void))
+   (((async/lambda (x) 42) 0) (void))
    42)
 
   (py-->>=
@@ -77,7 +73,7 @@
                     (begin (await (suspend))
                            (print msg)))]
             [c (work "A")])
-       (resume! c (void))))
+       (c (void))))
    "A")
 
   (py-->>=
@@ -85,7 +81,7 @@
           [main (async/lambda ()
                   (await (work)))])
      (catch (lambda (e) "cancelled")
-            (resume! (main) (void))))
+            ((main) (void))))
    "cancelled")
 
   (py-->>=
@@ -99,7 +95,7 @@
                            (await (suspend))
                            (print msg)))]
             [c (work "A")])
-       (resume! c (void))))
+       (c (void))))
    "AAA")
 
   (py-->>=
@@ -108,8 +104,7 @@
             [transparent (async/lambda ()
                            (let ([ret (append-it)])
                              (begin (print "B") ret)))])
-       (resume! (resume! (transparent) (void))
-                (void))))
+       (((transparent) (void)) (void))))
    "BA")
 
   (py-->>=
@@ -121,7 +116,7 @@
                            (let ([ret (append-it)])
                              (begin (print "B") ret)))])
        (catch (lambda (e) (print "D"))
-              (throw-in (resume! (transparent) (void)) "C"))))
+              (throw-in ((transparent) (void)) "C"))))
    "BD")
 
   (py-->>=
@@ -133,5 +128,5 @@
                            (let ([ret (append-it)])
                              (begin (print "B") ret)))])
        (catch (lambda (e) (print "D"))
-              (throw-in (resume! (transparent) (void)) "C"))))
+              (throw-in ((transparent) (void)) "C"))))
    "BD"))

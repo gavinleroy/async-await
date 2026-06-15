@@ -127,6 +127,13 @@ fn __field(s: &Val, name: &str) -> Val {
 
 fn __throw(e: Val) -> Val { panic!("{}", e) }
 
+fn __print(v: Val) -> Val {
+    use std::io::Write;
+    print!("{}", v);
+    std::io::stdout().flush().unwrap();
+    Val::Unit
+}
+
 EOF
 )
 
@@ -150,15 +157,23 @@ EOF
    preamble-after-task "\n"
    ;; do_await (runtime-specific Task branch)
    (case (runtime)
+     ;; The mutex guard must be dropped before awaiting: holding it across
+     ;; an await point makes the future non-Send, which tokio::spawn rejects.
      [(tokio) #<<EOF
     async fn do_await(self) -> Val {
         match self {
-            Val::Future(f) => f.lock().unwrap().take().expect("future consumed").await,
-            Val::Task(h) => match h.lock().unwrap().take().expect("task consumed").await {
-                Ok(v) => v,
-                Err(e) if e.is_cancelled() => Val::Unit,
-                Err(e) => panic!("task failed: {}", e),
-            },
+            Val::Future(f) => {
+                let fut = f.lock().unwrap().take().expect("future consumed");
+                fut.await
+            }
+            Val::Task(h) => {
+                let handle = h.lock().unwrap().take().expect("task consumed");
+                match handle.await {
+                    Ok(v) => v,
+                    Err(e) if e.is_cancelled() => Val::Unit,
+                    Err(e) => panic!("task failed: {}", e),
+                }
+            }
             other => other,
         }
     }
@@ -167,8 +182,14 @@ EOF
      [(smol) #<<EOF
     async fn do_await(self) -> Val {
         match self {
-            Val::Future(f) => f.lock().unwrap().take().expect("future consumed").await,
-            Val::Task(h) => h.lock().unwrap().take().expect("task consumed").await,
+            Val::Future(f) => {
+                let fut = f.lock().unwrap().take().expect("future consumed");
+                fut.await
+            }
+            Val::Task(h) => {
+                let task = h.lock().unwrap().take().expect("task consumed");
+                task.await
+            }
             other => other,
         }
     }
@@ -205,7 +226,10 @@ async fn __spawn(v: Val) -> Val {
 
 async fn __cancel(v: &Val) {
     if let Val::Task(h) = v {
-        if let Some(task) = h.lock().unwrap().take() {
+        // bind before awaiting: holding the MutexGuard across the await
+        // point would make the future non-Send
+        let task = h.lock().unwrap().take();
+        if let Some(task) = task {
             let _ = task.cancel().await;
         }
     }
@@ -352,6 +376,26 @@ EOF
      (define new-vars (map car clauses))
      (define new-env (append new-vars env))
      (format "{ ~a ~a }" (string-join decls " ") (emit new-env body))]
+
+    ;; --- Let* (each right-hand side sees the bindings before it) ---
+    [`(let* (,clauses ...) ,body)
+     (define-values (rev-decls new-env)
+       (for/fold ([acc '()] [env env]) ([c (in-list clauses)])
+         (match c
+           [`(,x ,rhs)
+            (values (cons (format "let mut ~a = ~a;" (sanitize-var x) (emit env rhs)) acc)
+                    (cons x env))]
+           [_ (values acc env)])))
+     (format "{ ~a ~a }" (string-join (reverse rev-decls) " ") (emit new-env body))]
+
+    ;; --- When ---
+    [`(when ,c ,es ...)
+     (format "if ~a.truthy() { ~a } else { Val::Unit }"
+             (emit env c) (emit env `(begin ,@es (void))))]
+
+    ;; --- Print (no newline) ---
+    [`(print ,e)
+     (format "__print(~a)" (emit env e))]
 
     ;; --- Control flow ---
     [`(if ,c ,t ,f)

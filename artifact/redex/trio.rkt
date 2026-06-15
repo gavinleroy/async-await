@@ -1,6 +1,6 @@
 #lang racket/base
 
-(require redex
+(require redex/reduction-semantics
          (only-in racket/list flatten)
          "core.rkt"
          "py.rkt"
@@ -145,11 +145,6 @@
                              #:iterations 5
                              #:extract-result program-output)))
       (check-runtime-in-set compile-and-run-trio 'e results))))
-
-  (define-metafunction Trio
-    resume! : e e -> e
-    [(resume! e_coro e_val)
-     (e_coro e_val)]))
 
 (module+ test
   (trio-->>=
