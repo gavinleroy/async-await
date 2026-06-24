@@ -390,10 +390,12 @@
 \newcommand*\qpush{\lhd}
 
 \newcommand{\hltikz}[3]{%
+  \kern-1.5pt% cancel left horizontal padding from text flow
   \tikz[baseline=(X.base)]\node[%
     rounded corners=1pt,%
-    inner sep=3pt,%
-    text depth=0pt,%  
+    inner xsep=1.5pt,%   % horizontal pad (split out from inner sep=3pt)
+    inner ysep=3pt,%     % keep vertical pad so box height is unchanged
+    text depth=0pt,%
     shade,%
     shading=radial,%
     inner color=#1!95,%
@@ -401,7 +403,9 @@
     text opacity=1.0,%
     text=#2%
   ](X){#3};%
+  \kern-1.5pt% cancel right horizontal padding -> comma sits flush
 }
+\newcommand{\ghost}[1][0.5em]{\vphantom{dp}\kern#1\relax}
 
 \newcommand{\highlightbox}[3]{%
   \mathchoice%

@@ -1,33 +1,67 @@
+% \noindent
+% \begin{flalign*}
+% &\{ P \uplus \{ \langle \ell, E[\mathbfsf{await}\ v_{\mathit{aw}}] \rangle ~&&\circ FS \} \} & \text{[\CSharp/Swift/Asycio/Trio/Smol-Await]} \\
+% \longrightarrow ~&\{ P \uplus \{ \langle \ell, E[e_{\mathit{check}}] \rangle ~&&\circ FS \} \}&
+% \end{flalign*}
+% \vspace*{-1.5em}
+% \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+% \multicolumn{2}{@{}l@{}}{
+%   $\begin{array}{l}
+%   \where\ e_k = \mathbfsf{shift}\ k \to \semmacro{task\_add\_dependent}(v_{\mathit{aw}}, \ell, \semmacro{task\_continue\_with}(v_{\mathit{aw}}, k)) \\
+%   \qquad e_{\mathit{check}} = \csus{\mathbfsf{if}\ \semmacro{task\_is\_completed}(v_{\mathit{aw}})\ \mathbfsf{then}\ \semmacro{task\_get\_result}(v_{\mathit{aw}})\ \mathbfsf{else}\ e_k}
+%   \end{array}$
+% }
+% \end{tabular*}
+%
+% \vspace{1em}
+% \noindent
+% \begin{flalign*}
+% &\{ P \uplus \{ \langle \ell, E[\mathbfsf{await}\ v_{\mathit{aw}}] \rangle ~&&\circ FS \} \} & \text{[\Js-Await]} \\
+% \longrightarrow ~&\{ P \uplus \{ \langle \ell, E[\csus{e_k}] \rangle ~&&\circ FS \} \}&
+% \end{flalign*}
+% \vspace*{-1.5em}
+% \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+% \multicolumn{2}{@{}l@{}}{
+%   $\begin{array}{l}
+%   \where\ e_{\mathit{check}} = \csus{\mathbfsf{if}\ \semmacro{task\_is\_completed}(v_{\mathit{aw}})\ \mathbfsf{then}\ \semmacro{task\_get\_result}(v_{\mathit{aw}})\ \mathbfsf{else}\ \semmacro{task\_add\_dependent}(v_{\mathit{aw}}, \ell, \semmacro{task\_continue\_with}(v_{\mathit{aw}}, k))} \\
+%   \qquad e_k = \mathbfsf{shift}\ k \to e_{\mathit{check}}
+%   \end{array}$
+% }
+% \end{tabular*}
+
 \noindent
-\begin{flalign*}
-&\{ P \uplus \{ \langle \ell, E[\mathbfsf{await}\ v_{\mathit{aw}}] \rangle ~&&\circ FS \} \} & \text{[\CSharp/Swift/Asycio/Trio/Smol-Await]} \\
-\longrightarrow ~&\{ P \uplus \{ \langle \ell, E[e_{\mathit{check}}] \rangle ~&&\circ FS \} \}&
-\end{flalign*}
-\vspace*{-1.5em}
+$\begin{array}[t]{@{}r@{\ }l@{}l@{}}
+                & \{ P \uplus \{ \langle \ell, E[\mathbfsf{await}\ v_{\mathit{aw}}] \rangle & {}\circ FS \} \} \\
+\longrightarrow & \{ P \uplus \{ \langle \ell, E[e_{\mathit{await}}] \rangle & {}\circ FS \} \}
+\end{array}$\hfill$\text{[\CSharp/Swift/Asycio/Trio/Smol-Await]}$\par
 \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
-% $\langle t, \sigma, Q, T, P \uplus \{ \langle \ell, E[\mathbfsf{await}\ v_{\mathit{aw}}] \rangle \circ FS \} \rangle$ & [\CSharp/Swift/Asycio/Trio/Smol-Await] \\
-% $\longrightarrow \langle t + 1, \sigma, Q, T, P \uplus \{ \langle \ell, E[e_{\mathit{check}}] \rangle \circ FS \} \rangle$ & \\
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
-  \where\ e_k = \mathbfsf{shift}\ k \to \semmacro{task\_add\_dependent}(v_{\mathit{aw}}, \ell, \semmacro{task\_continue\_with}(v_{\mathit{aw}}, k)) \\
-  \qquad e_{\mathit{check}} = \csus{\mathbfsf{if}\ \semmacro{task\_is\_completed}(v_{\mathit{aw}})\ \mathbfsf{then}\ \semmacro{task\_get\_result}(v_{\mathit{aw}})\ \mathbfsf{else}\ e_k}
+  \where\ e_{\mathit{await}} = \begin{array}[t]{@{}l@{\;}l@{}}
+      \mathbfsf{if}   & \semmacro{task\_is\_completed}(v_{\mathit{aw}}) \\
+      \mathbfsf{then} & \semmacro{task\_get\_result}(v_{\mathit{aw}}) \\
+      \mathbfsf{else} & {\csus{\mathbfsf{shift}\ k \to}}\ \semmacro{task\_add\_dependent}(v_{\mathit{aw}},
+\ell, \semmacro{task\_continue\_with}(v_{\mathit{aw}}, k))
+    \end{array}
   \end{array}$
 }
 \end{tabular*}
 
-\vspace{1em}
 \noindent
-\begin{flalign*}
-&\{ P \uplus \{ \langle \ell, E[\mathbfsf{await}\ v_{\mathit{aw}}] \rangle ~&&\circ FS \} \} & \text{[\Js-Await]} \\
-\longrightarrow ~&\{ P \uplus \{ \langle \ell, E[\csus{e_k}] \rangle ~&&\circ FS \} \}&
-\end{flalign*}
-\vspace*{-1.5em}
+$\begin{array}[t]{@{}r@{\ }l@{}l@{}}
+                & \{ P \uplus \{ \langle \ell, E[\mathbfsf{await}\ v_{\mathit{aw}}] \rangle & {}\circ FS \} \} \\
+\longrightarrow & \{ P \uplus \{ \langle \ell, E[e_{\mathit{await}}] \rangle & {}\circ FS \} \}
+\end{array}$\hfill$\text{[\Js-Await]}$\par
 \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
-% $\langle t, \sigma, Q, T, P \uplus \{ \langle \ell, E[\mathbfsf{await}\ v_{\mathit{aw}}] \rangle \circ FS \} \rangle$ & [\Js-Await] \\
-% $\longrightarrow \langle t + 1, \sigma, Q, T, P \uplus \{ \langle \ell, E[\csus{e_k}] \rangle \circ FS \} \rangle$ & \\
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
-  \where\ e_k = \mathbfsf{shift}\ k \to \semmacro{task\_add\_dependent}(v_{\mathit{aw}}, \ell, \semmacro{task\_continue\_with}(v_{\mathit{aw}}, k)) \\
+  \where\ e_{\mathit{await}} = \begin{array}[t]{@{}l@{\;}l@{\;}l@{}}
+    {\csus{\mathbfsf{shift}\ k
+      \to}} & \mathbfsf{if}   & \semmacro{task\_is\_completed}(v_{\mathit{aw}}) \\
+           & \mathbfsf{then} & \semmacro{task\_get\_result}(v_{\mathit{aw}}) \\
+           & \mathbfsf{else} & \semmacro{task\_add\_dependent}(v_{\mathit{aw}},
+\ell, \semmacro{task\_continue\_with}(v_{\mathit{aw}}, k))
+    \end{array}
   \end{array}$
 }
 \end{tabular*}

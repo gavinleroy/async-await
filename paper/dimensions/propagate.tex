@@ -3,7 +3,7 @@
 One final point of divergence at a task's end of life is the handling of exceptions. In all surveyed languages with exceptions (Python, Swift, \Js, \CSharp), awaiting on an async function that has thrown an exception will re-raise the exception at the await point.\footnotemark{} However, what happens to an exception raised in a task that is never awaited? We call this the \Propagation dimension.%
 \cprotect\footnotetext{Instead of exceptions Rust uses the \code|Result| type to communicate errors. An \code|Err| variant is returned on await, which we consider a semantically equivalent design to re-raising an exception at the await point.}
 
-\begin{wrapfigure}{r}{0.8\linewidth}
+\begin{wrapfigure}{r}{0.42\linewidth}
 \begin{lstlisting}[language=Py]
 async def fail():
   raise Exception()

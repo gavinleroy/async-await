@@ -21,15 +21,14 @@
 %   $\langle t, \sigma, Q, T, P \uplus \{ \langle \ell, E[\cdir{\mathsf{cancelled?}()}] \rangle \circ FS \} \rangle$ & [Swift-Cancelled?] \\
 % $\longrightarrow \langle step(t), \sigma, Q, T, P \uplus \{ \langle \ell, E[\cawa{\mathsf{task\_cancelled}(\sigma, \ell)}] \rangle \circ FS \} \rangle$ & 
 % \end{tabular*}
-\begin{flalign*}
-&\{ P \uplus \{ \langle \ell, E[\cdir{\mathsf{cancelled?}()}] \rangle &\circ~ FS \} \} & \text{[Swift-Cancelled?]} \\
-  \longrightarrow ~&\{ P \uplus \{ \langle \ell, E[\cawa{e_{\mathit{bool}}}] \rangle &\circ~ FS \} \} &
-\end{flalign*}
-\vspace*{-1.5em}
+$\begin{array}[t]{@{}r@{\ }l@{}l@{}}
+                & \{ P \uplus \{ \langle \ell, E[\cdir{\mathsf{cancelled?}()}] \rangle & {}\circ FS \} \} \\
+\longrightarrow & \{ P \uplus \{ \langle \ell, E[\cawa{e_{\mathit{bool}}}] \rangle & {}\circ FS \} \}
+\end{array}$\hfill$\text{[Swift-Cancelled?]}$\par
 \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
-    \where\ e_{\mathit{bool}} = \mathsf{task\_cancelled}(\sigma, \ell)\,\cper{\vphantom{o}} 
+    \where\ e_{\mathit{bool}} = \mathsf{task\_cancelled}(\sigma, \ell)\,\cper{\ghost} 
   \end{array}$
 }
 \end{tabular*}
@@ -37,11 +36,10 @@
 
 \vspace{1em}
 \noindent
-\begin{flalign*}
-&\{(\ell, \kappa) &\circ~&Q, &&P \uplus \{ &&\epsilon \} \} & \text{[Trio-Schedule-Cancelled]} \\
-  \longrightarrow ~&\{&&Q, ~&&P \uplus \{ \cawa{\langle \ell,}\, \cdir{\mathsf{throw\_in}(\kappa, \textsf{``stop''})}\, \cawa{\rangle}  &\circ~&\epsilon \} \rangle&
-\end{flalign*}
-\vspace*{-1.5em}
+$\begin{array}[t]{@{}r@{\ }l@{}l@{}l@{\ }l@{}l@{}l@{}}
+                & \{(\ell, \kappa) & {}\circ{} & Q, & P \uplus \{ & & \epsilon \} \} \\
+\longrightarrow & \{               &           & Q, & P \uplus \{ \cawa{\langle \ell,}\, \cdir{\mathsf{throw\_in}(\kappa, \textsf{``stop''})}\, \cawa{\rangle} & {}\circ{} & \epsilon \} \rangle
+\end{array}$\hfill$\text{[Trio-Schedule-Cancelled]}$\par
 \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
 % <<<<<<< Updated upstream
 % $\langle t, \sigma, (\ell_{\mathit{waiting}}, \kappa) \circ Q_1, T, P \uplus \{ \epsilon \} \rangle$ & [Swift/Trio-Schedule-Cancelled] \\
@@ -52,18 +50,17 @@
 % >>>>>>> Stashed changes
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
-    \where\ \mathit{true} = \mathsf{task\_cancelled}(\sigma, \ell)\,\cper{\vphantom{o}} 
+    \where\ \mathit{true} = \mathsf{task\_cancelled}(\sigma, \ell)\,\cper{\ghost} 
   \end{array}$%
 }
 \end{tabular*}
 
 \vspace{1em}
 \noindent
-\begin{flalign*}
-&\{\sigma_0, (\ell, \kappa) &\circ~&Q, ~&&P \uplus \{ ~&&\epsilon \} \} & \text{[Asyncio-Schedule-Cancelled]} \\
-\longrightarrow ~&\{\sigma_1, ~&&Q, ~&&P \uplus \{ \cawa{\langle \ell,}\, \cdir{\mathsf{throw\_in}(\kappa, \textsf{``stop''})}\, \cawa{\rangle} &\circ~&\epsilon \} \rangle&
-\end{flalign*}
-\vspace*{-1.5em}
+$\begin{array}[t]{@{}r@{\ }l@{}l@{}l@{\ }l@{}l@{}l@{}}
+                & \{\sigma_0, (\ell, \kappa) & {}\circ{} & Q, & P \uplus \{ & & \epsilon \} \} \\
+\longrightarrow & \{\sigma_1,                &           & Q, & P \uplus \{ \cawa{\langle \ell,}\, \cdir{\mathsf{throw\_in}(\kappa, \textsf{``stop''})}\, \cawa{\rangle} & {}\circ{} & \epsilon \} \rangle
+\end{array}$\hfill$\text{[Asyncio-Schedule-Cancelled]}$\par
 \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
 % <<<<<<< Updated upstream
 % $\langle t, \sigma_0, (\ell_{\mathit{waiting}}, \kappa) \circ Q_1, T, P \uplus \{ \epsilon \} \rangle$ & [Asyncio-Schedule-Cancelled] \\
@@ -100,18 +97,17 @@
 
 \vspace{1em}
 \noindent
-\begin{flalign*}
-&\{(\ell, \kappa) &\circ~&Q, P \uplus \{ ~&&\epsilon \} \} & \text{[Tokio/Smol-Schedule-Cancelled]} \\
-\longrightarrow ~&\{&&Q, P \uplus \{ \langle \ell, \cawa{e_{\mathit{fail}}} \rangle &\circ~&\epsilon \} \}&
-\end{flalign*}
-\vspace*{-1.5em}
+$\begin{array}[t]{@{}r@{\ }l@{}l@{}l@{}l@{}l@{}}
+                & \{(\ell, \kappa) & {}\circ{} & Q, P \uplus \{ & & \epsilon \} \} \\
+\longrightarrow & \{               &           & Q, P \uplus \{ \langle \ell, \cawa{e_{\mathit{fail}}} \rangle & {}\circ{} & \epsilon \} \}
+\end{array}$\hfill$\text{[Tokio/Smol-Schedule-Cancelled]}$\par
 \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
 % $\langle t, \sigma, (\ell_{\mathit{waiting}}, \kappa) \circ Q_1, T, P \uplus \{ \epsilon \} \rangle$ & [Smol-Schedule-Cancelled] \\
 % $\longrightarrow \langle t + 1, \cper{\sigma,}\, Q_1, T, P \uplus \{ \langle \ell_{\mathit{waiting}}, e_{\mathit{fail}} \rangle \circ \epsilon \} \rangle$ & \\
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
 % <<<<<<< Updated upstream
-  \where\ \mathit{true} = \mathsf{task\_cancelled}(\sigma, \ell)\, \cper{\vphantom{o}} \\
+  \where\ \mathit{true} = \mathsf{task\_cancelled}(\sigma, \ell)\, \cper{\ghost} \\
   \qquad e_{\mathit{fail}} = \semmacro{task\_set\_failed}(\ell, ()) \mathbin{;} \mathbfsf{sys\_start\_soon}(\semmacro{task\_get\_dependents}(x_{\mathit{task}}))
 % =======
 %   \where\ \mathsf{task\_cancelled}(\sigma, \ell_{\mathit{waiting}}) \\

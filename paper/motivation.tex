@@ -12,7 +12,7 @@ Before diving into the details of async design dimensions, we start by providing
 \subsection{Asynchrony vs.\ Concurrency vs.\ Parallelism}
 \label{s:sync-quotes-from-langs}
 
-We will define concurrency as a logical property of a computation, whereby two subcomputations can execute interleaved: one computation begins before another ends. Parallelism is a physical property of a computation, whereby two subcomputations can execute simultaneously: both compuations overlap at the same point in time. Parallelism implies concurrency but not vice versa. For instance, an embedded operating system running on a single core is concurrent but not parallel.
+We will define concurrency as a logical property of a computation, whereby two subcomputations can execute interleaved: one computation begins before another ends. Parallelism is a physical property of a computation, whereby two subcomputations can execute simultaneously: both computations overlap at the same point in time. Parallelism implies concurrency but not vice versa. For instance, an embedded operating system running on a single core is concurrent but not parallel.
 
 We think of asynchrony as a special case of cooperative concurrency. In an asynchronous program, two subcomputations execute interleaved because they are written to yield control to one another. Asynchrony contrasts with competitive concurrency, where interleaving occurs through external imposition, e.g., by context switches. Competitive concurrency usually arises at an architectural level below the language, such as operating system threads.
 

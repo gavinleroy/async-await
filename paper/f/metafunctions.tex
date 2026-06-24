@@ -9,15 +9,15 @@ $\mathsf{task\_add\_dependency} : \sigma \times \ell_1 \times \ell_2 \to \sigma$
 \midrule
 Macro & Description \\
 \midrule
-$\semmacro{task\_add\_dependent} : v \times \ell \times e \to e$ & Add $\ell$ as a dependent of the awaitable value, $v$, using continuation, $e$ \\
-$\semmacro{task\_set\_done} : x \times e \to e$ & Evaluate $e$ and use value as $x$'s resolved success value \\
-$\semmacro{task\_set\_failed} : x \times e \to e$ & Evaluate $e$ and use value as $x$'s resolved failure value \\
-$\semmacro{task\_is\_completed} : e \to e$ & $\mathit{true}$ iff task is resolved (success or failure) \\
-$\semmacro{task\_get\_result} : e \to e$ & Return task's final value; reraise if task failed \\
-$\semmacro{task\_continue\_with} : v \times x \to e$ & Resume continuation bound by $x$ with settled value of task $v$ \\
-$\semmacro{task\_get\_dependents} : e \to e$ & Return dependents of the task that $e$ evaluates to \\
-$\semmacro{task\_cancel\_dependencies} : x \to e$ & Cancel task $x$ and its descendants \\
-$\semmacro{task\_wait\_on\_dependencies} : x \to e$ & Wait for all dependencies of $x$ to settle \\
-$\semmacro{task\_reraise\_dependency\_failures} : x \to e$ & Reraise dependency failures \\
+$\semmacro{task\_add\_dependent} : v \times \ell \times e \rightsquigarrow e$ & Add $\ell$ as a dependent of the awaitable value, $v$, using continuation, $e$ \\
+$\semmacro{task\_set\_done} : x \times e \rightsquigarrow e$ & Evaluate $e$ and use value as $x$'s resolved success value \\
+$\semmacro{task\_set\_failed} : x \times e \rightsquigarrow e$ & Evaluate $e$ and use value as $x$'s resolved failure value \\
+$\semmacro{task\_is\_completed} : e \rightsquigarrow e$ & $\mathit{true}$ iff task is resolved (success or failure) \\
+$\semmacro{task\_get\_result} : e \rightsquigarrow e$ & Return task's final value; reraise if task failed \\
+$\semmacro{task\_continue\_with} : v \times x \rightsquigarrow e$ & Resume continuation bound by $x$ with settled value of task $v$ \\
+$\semmacro{task\_get\_dependents} : e \rightsquigarrow e$ & Return dependents of the task that $e$ evaluates to \\
+$\semmacro{task\_cancel\_dependencies} : x \rightsquigarrow e$ & Cancel task $x$ and its descendants \\
+$\semmacro{task\_wait\_on\_dependencies} : x \rightsquigarrow e$ & Wait for all dependencies of $x$ to settle \\
+$\semmacro{task\_reraise\_dependency\_failures} : x \rightsquigarrow e$ & Reraise dependency failures \\
 \bottomrule
 \end{tabular}

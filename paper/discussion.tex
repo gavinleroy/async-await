@@ -8,7 +8,7 @@ The book is not closed on the design of straight-line asynchrony. Communities ar
 
 The Zig programming language is in the process of stabilizing its ``colorblind'' async/await~\cite{kelley_zigs_2025,cro_what_2020}. The core idea is to parameterize all code over an \abbr{i/o} implementation; libraries can write code to take advantage of asynchrony when available, and library clients can pass any \abbr{i/o} implementation they have available, including a synchronous variant. This approach makes it easier to interoperate sync and async code, but introduces new risks where libraries written explicitly for asynchrony can deadlock and/or panic at runtime if asynchrony is unavailable.
 
-\Cpp20 provides a flexible implementation of coroutines that does not ascribe a semantics to its async/await~\cite{isoiec_jtc1_sc22_wg21_technical_2017}. We cannot attribute \Cpp to any particular design point in the taxonomy provided in \Cref{tab:dims-overview} because each axis is configurable. Although elegant and neutral, the choice of full programmability makes each library an async \abbr{dsl}; knowledge transfer between projects within the same language becomes exceedingly difficult.
+\Cpp{}20 provides a flexible implementation of coroutines that does not ascribe a semantics to its async/await~\cite{isoiec_jtc1_sc22_wg21_technical_2017}. We cannot attribute \Cpp to any particular design point in the taxonomy provided in \Cref{tab:dims-overview} because each axis is configurable. Although elegant and neutral, the choice of full programmability makes each library an async \abbr{dsl}; knowledge transfer between projects within the same language becomes exceedingly difficult.
 
 \paragraph{Where do we go from here?}
 
