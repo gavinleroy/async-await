@@ -1,23 +1,16 @@
 \noindent
 $\begin{array}[t]{@{}r@{\ }l@{}l@{}l@{}l@{}}
-                & \{\sigma_0, P \uplus \{ & & \langle \ell, E[(\mathbfsf{async\ fn}\ \many{x} \to e_{\mathit{body}})\ \many{v}] \rangle & {}\circ FS \} \} \\
-\longrightarrow & \{\sigma_2, P \uplus \{ \ceag{\langle x_{\mathit{task}}, e_{\mathit{task}} \rangle} & {}\circ{} & \langle \ell, E[x_{\mathit{task}}] \rangle & {}\circ FS \} \}
+                & \elided{\sigma_0, P \uplus \{ & & \langle \ell, E[(\mathbfsf{async\ fn}\ \many{x} \to e_{\mathit{body}})\ \many{v}] \rangle & {}\circ FS \}} \\
+\longrightarrow & \elided{\sigma_2, P \uplus \{ \ceag{\langle x_{\mathit{task}}, e_{\mathit{task}} \rangle} & {}\circ{} & \langle \ell, E[x_{\mathit{task}}] \rangle & {}\circ FS \}}
 \end{array}$\hfill$\text{[\CSharp/\Js-Async-App]}$\par
 \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
-% <<<<<<< Updated upstream
   \where\ \many{x}_{\mathit{fresh}} = \many{\mathsf{gensym}(),~ \sigma_1 = \sigma_0[\many{x}_{\mathit{fresh}} \mapsto \many{v}],~ e_{\mathit{subst}} = e_{\mathit{body}}[\many{x}_{\mathit{fresh}}/\many{x}]} \\
-  \qquad (\sigma_2, x_{\mathit{task}}) = \mathsf{task\_alloc}(\sigma_1)\,\cext{\ghost} \\
+  \qquad (\sigma_2, x_{\mathit{task}}) = \mathsf{task\_alloc}(\sigma_1)\;\cext{\ghost} \\
   \qquad e_{\mathit{task}} = \mathbfsf{reset}\ ( \\
-% =======
-%   \where\ (\sigma_1, x_{\mathit{task}}) = \mathsf{task\_alloc}(\sigma_0)\ \mathsf{and}\ \many{x}_{\mathit{fresh}} = \many{\mathsf{gensym}()} \\
-%   \qquad \sigma_2 = \sigma_1[\many{x}_{\mathit{fresh}} \mapsto \many{v}] \\
-%   \qquad e_{\mathit{subst}} = e_{\mathit{body}}[\many{x}_{\mathit{fresh}}/\many{x}] \\
-%   \qquad e_{\mathit{task}} = \mathbfsf{reset}\ ( \\
-% >>>>>>> Stashed changes
   \qquad \qquad \mathbfsf{try}\ \semmacro{task\_set\_done}(x_{\mathit{task}}, e_{\mathit{subst}})\ \mathbfsf{catch}\ v_{\mathit{err}} \to \semmacro{task\_set\_failed}(x_{\mathit{task}}, v_{\mathit{err}}) \\
-  \quad\;\; \cdes{\ghost}\,\cext{\ghost}\,\cpro{\ghost}\, 
+  \quad\;\;\cdes{\ghost}\;\cext{\ghost}\;\cpro{\ghost}\;
   \mathbfsf{sys\_start\_soon}(\semmacro{task\_get\_dependents}(x_{\mathit{task}})))
   \end{array}$
 }
@@ -27,34 +20,19 @@ $\begin{array}[t]{@{}r@{\ }l@{}l@{}l@{}l@{}}
 \noindent
 
 $\begin{array}[t]{@{}r@{\ }l@{\ }l@{}l@{}}
-                & \{\sigma_0, Q, & P \uplus \{ \langle \ell, E[(\mathbfsf{async\ fn}\ \many{x} \to e_{\mathit{body}})\ \many{v}] \rangle & {}\circ FS \} \} \\
-\longrightarrow & \{\sigma_3, \ceag{Q \qpush (x_{\mathit{task}}, \kappa)}, & P \uplus \{ \langle \ell, E[x_{\mathit{task}}] \rangle & {}\circ FS \} \}
+                & \elided{\sigma_0, Q, & P \uplus \{ \langle \ell, E[(\mathbfsf{async\ fn}\ \many{x} \to e_{\mathit{body}})\ \many{v}] \rangle & {}\circ FS \}} \\
+\longrightarrow & \elided{\sigma_3, \ceag{Q \qpush (x_{\mathit{task}}, \kappa)}, & P \uplus \{ \langle \ell, E[x_{\mathit{task}}] \rangle & {}\circ FS \}}
 \end{array}$\hfill$\text{[Swift-Async-App]}$\par
 \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
-% <<<<<<< Updated upstream
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
   \where\ \many{x}_{\mathit{fresh}} = \many{\mathsf{gensym}(),~ \sigma_1 = \sigma_0[\many{x}_{\mathit{fresh}} \mapsto \many{v}],~ e_{\mathit{subst}} = e_{\mathit{body}}[\many{x}_{\mathit{fresh}}/\many{x}]} \\
   \qquad (\sigma_2, x_{\mathit{task}}) = \mathsf{task\_alloc}(\sigma_1) \\
   \qquad \cext{\sigma_3 = \mathsf{task\_add\_dependency}(\sigma_2, \ell, x_{\mathit{task}})} \\
-  % \qquad (\sigma_2, x_{\mathit{task}}) = \cext{\mathsf{task\_alloc\_dependency}(\sigma_1,\ell)} \\
   \qquad e_{\mathit{task}} = \mathbfsf{reset}\ ( \\
-% =======
-% $\langle t, \sigma_0, Q_0, T, P \uplus \{ \langle \ell, E[(\mathbfsf{async\ fn}\ \many{x} \to e_{\mathit{body}})\ \many{v}] \rangle \circ FS \} \rangle$ & [Swift-Async-App] \\
-% $\longrightarrow \langle t + 1, \sigma_3, \ceag{Q_0 \qpush (x_{\mathit{task}}, \kappa)}, T, P \uplus \{ \langle \ell, E[x_{\mathit{task}}] \rangle \circ FS \} \rangle$ & \\
-% \multicolumn{2}{@{}l@{}}{
-%   $\begin{array}{l}
-%   \where\ (\sigma_1, x_{\mathit{task}}) = \mathsf{task\_alloc}(\sigma_0)\ \mathsf{and}\ \many{x}_{\mathit{fresh}} = \many{\mathsf{gensym}()} \\
-%     \qquad \cext{\sigma_2 = \mathsf{task\_add\_dependency}(\sigma_2, \ell, x_{\mathit{task}})} \\
-%   % \where\ (\sigma_1, x_{\mathit{task}}) = \cext{\mathsf{task\_alloc\_dependency}(\sigma_0,\ell)}\ \mathsf{and}\ \many{x}_{\mathit{fresh}} = \many{\mathsf{gensym}()} \\
-%     \qquad \sigma_3 = \sigma_1[\many{x}_{\mathit{fresh}} \mapsto \many{v}] \\
-%   \qquad e_{\mathit{subst}} = e_{\mathit{body}}[\many{x}_{\mathit{fresh}}/\many{x}] \\
-%   \qquad \kappa = \mathbfsf{fn}\ x_\mathit{unit} \to x_\mathit{unit}\mathbin{;}\ \mathbfsf{reset}\ ( \\
-% >>>>>>> Stashed changes
-  % \qquad \qquad \mathsf{task\_add\_parent}(x_{\mathit{task}}, \ell) \mathbin{;} \\
   \qquad \qquad \mathbfsf{try}\ \semmacro{task\_set\_done}(x_{\mathit{task}}, e_{\mathit{subst}})\ \mathbfsf{catch}\ v_{\mathit{err}} \to \semmacro{task\_set\_failed}(x_{\mathit{task}}, v_{\mathit{err}}) \mathbin{;} \\
   \qquad \qquad \cdes{\semmacro{task\_cancel\_dependencies}(x_{\mathit{task}}) \mathbin{;}} \\
-  \qquad \qquad \cext{\semmacro{task\_wait\_on\_dependencies}(x_{\mathit{task}}) \mathbin{;}}\,\cpro{\ghost}\\
+  \qquad \qquad \cext{\semmacro{task\_wait\_on\_dependencies}(x_{\mathit{task}}) \mathbin{;}}\;\cpro{\ghost}\\
   \qquad \qquad \mathbfsf{sys\_start\_soon}(\semmacro{task\_get\_dependents}(x_{\mathit{task}}))) \\
   \qquad \kappa = \mathbfsf{fn}\ x_\mathit{unit} \to x_\mathit{unit}\mathbin{;}\ e_{\mathit{task}}
   \end{array}$
@@ -63,14 +41,10 @@ $\begin{array}[t]{@{}r@{\ }l@{\ }l@{}l@{}}
 
 \vspace{1em}
 $\begin{array}[t]{@{}r@{\ }l@{}}
-                & \{ \sigma_0, E[(\mathbfsf{async\ fn}\ \many{x} \to e_{\mathit{body}})\ \many{v}] \} \\
-\longrightarrow & \{ \sigma_1, E[\ceag{\mathbfsf{reset}\ (\mathbfsf{shift}\ k \to k \mathbin{;} e_{\mathit{subst}})}] \}
+                & \langle \sigma_0, E[(\mathbfsf{async\ fn}\ \many{x} \to e_{\mathit{body}})\ \many{v}] \rangle \\
+\longrightarrow & \langle \sigma_1, E[\ceag{\mathbfsf{reset}\ (\mathbfsf{shift}\ k \to k \mathbin{;} e_{\mathit{subst}})}] \rangle
 \end{array}$\hfill$\text{[Rust/Python-Async-App]}$\par
 \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
-% <<<<<<< Updated upstream
-% =======
-% $\langle \sigma_0, E[(\mathbfsf{async\ fn}\ \many{x} \to e_{\mathit{body}})\ \many{v}] \rangle \longrightarrow \langle \sigma_1, E[\ceag{\mathbfsf{reset}\ (\mathbfsf{shift}\ k \to k \mathbin{;} e_{\mathit{subst}})}] \rangle$ & [Rust/Python-Async-App] \\
-% >>>>>>> Stashed changes
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
   \where\ \many{x}_{\mathit{fresh}} = \many{\mathsf{gensym}(),~ \sigma_1 = \sigma_0[\many{x}_{\mathit{fresh}} \mapsto \many{v}],~ e_{\mathit{subst}} = e_{\mathit{body}}[\many{x}_{\mathit{fresh}}/\many{x}]} \\

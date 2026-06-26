@@ -37,6 +37,7 @@
 \usepackage{bm}
 \usepackage{colortbl}
 \usepackage{pifont}
+\usepackage{expl3}
 
 %%%%
 %% TIKZ packages
@@ -116,7 +117,7 @@
 
 \lstdefinestyle{grayish}{
     morekeywords={async, await, try, defer},
-    basicstyle=\ttfamily\footnotesize,
+    basicstyle=\ttfamily\small,
     stringstyle=\color{gray},
     commentstyle=\color{gray},
     breakatwhitespace=false,
@@ -158,7 +159,10 @@
 
 %%%%%
 
+% XXX change the following two together if needed
 \newcommand{\code}{\lstinline[language=Pseudo]}
+\newcommand{\sysapply}[2]{\mbox{{\ttfamily\small\detokenize{#1(}}$#2${\ttfamily\small\detokenize{)}}}}
+
 \newcommand{\citeurlwith}[2]{(\href{#1}{#2})}
 \newcommand{\citegithub}[1]{\citeurlwith{#1}{\StrBehind{#1}{github.com/}}}
 
@@ -174,9 +178,42 @@
 \newcommand{\Reactor}{Reactor\xspace}
 \newcommand{\reactor}{reactor\xspace}
 
-%% Global formatting for design dimension, and design point names
-\newcommand{\dimension}[1]{\textsc{#1}}
-\newcommand{\designpoint}[1]{\textit{#1}}
+%%%% TODO gavinleroy
+% remove when you're done playing around with typography
+
+\ExplSyntaxOn
+\NewDocumentCommand\Capit{m}{\text_titlecase_all:n {#1}}
+\ExplSyntaxOff
+
+\newif\ifworddebug
+\newif\ifsansterms
+
+\sanstermsfalse
+\worddebugfalse
+
+
+\newcommand{\glow}[1]{%
+  \ifworddebug
+    \ifmmode #1%                  % skip in math mode, avoids breakage
+    \else \colorbox{Apricot}{#1}%    pure colorbox: no tikz, survives \code/lstinline lines
+    \fi
+  \else #1\fi
+}
+
+% Edit these two if you want to tweak either scheme:
+\newcommand{\dimensionfmt}[1]{%
+  \ifsansterms \textsf{\textsc{#1}}%   sans small caps = axis
+  \else        \textsc{#1}%            serif small caps = axis
+  \fi}
+\newcommand{\designpointfmt}[1]{%
+  \ifsansterms \textsf{#1}%            sans upright = value
+  \else        \textit{#1}%            serif italic = value
+  \fi}
+
+\newcommand{\dimension}[1]{\glow{\dimensionfmt{\Capit{#1}}}}
+\newcommand{\designpoint}[1]{\glow{\designpointfmt{\Capit{#1}}}}
+
+%%%%% TODO ends here
 
 \newcommand{\Eagerness}{\dimension{Eagerness}\xspace}
 \newcommand{\eagerness}{\dimension{eagerness}\xspace}
@@ -220,8 +257,6 @@
 \newcommand{\Cancellation}{Cancellation\xspace}
 \newcommand{\cancellation}{cancellation\xspace}
 
-\newcommand{\Cooperation}{\dimension{Awareness}\xspace}
-\newcommand{\cooperation}{\dimension{awareness}\xspace}
 \newcommand{\Awareness}{\dimension{Awareness}\xspace}
 \newcommand{\awareness}{\dimension{awareness}\xspace}
 \newcommand{\aware}{\designpoint{aware}\xspace}
@@ -237,11 +272,10 @@
 
 \newcommand{\Persistence}{\dimension{Persistence}\xspace}
 \newcommand{\persistence}{\dimension{persistence}\xspace}
-\newcommand{\instantaneous}{\designpoint{transient}\xspace}
-\newcommand{\persistent}{\designpoint{persistent}\xspace}
 \newcommand{\Persistent}{\designpoint{Persistent}\xspace}
-\newcommand{\transient}{\designpoint{transient}\xspace}
+\newcommand{\persistent}{\designpoint{persistent}\xspace}
 \newcommand{\Transient}{\designpoint{Transient}\xspace}
+\newcommand{\transient}{\designpoint{transient}\xspace}
 
 \newcommand{\coro}{coroutine\xspace}
 \newcommand{\coros}{coroutines\xspace}
@@ -366,6 +400,15 @@
 %%%%
 %% Typesetting OP semantics
 
+\makeatletter
+\newsavebox{\@brx}
+\newcommand{\llangle}[1][]{\savebox{\@brx}{\(\m@th{#1\langle}\)}%
+  \mathopen{\copy\@brx\mkern2mu\kern-0.9\wd\@brx\usebox{\@brx}}}
+\newcommand{\rrangle}[1][]{\savebox{\@brx}{\(\m@th{#1\rangle}\)}%
+  \mathclose{\copy\@brx\mkern2mu\kern-0.9\wd\@brx\usebox{\@brx}}}
+\makeatother
+
+\newcommand{\elided}[1]{\llangle#1\rrangle}
 \newcommand{\onthread}[1]{\llparenthesis#1\rrparenthesis}
 \newcommand{\mathbfsf}[1]{\bm{\mathsf{#1}}}
 \newcommand{\where}{\mathrm{where}\xspace}
@@ -415,56 +458,8 @@
     {\hltikz{#1}{#2}{\(\scriptscriptstyle#3\)}}%
 }
 
-% \newcommand{\highlightbox}[3]{%
-%   \mathchoice%
-%     {\colorbox{#1}{\(\displaystyle\color{#2}#3\)}}%
-%     {\colorbox{#1}{\(\textstyle\color{#2}#3\)}}%
-%     {\colorbox{#1}{\(\scriptstyle\color{#2}#3\)}}%
-%     {\colorbox{#1}{\(\scriptscriptstyle\color{#2}#3\)}}%
-% }
-
-%%% (The below color palettes were suggested by Claude)
-%%% COLOR PALETTE — ORIGINAL
-%%% Problems: inconsistent saturation across groups, C8 (gray-blue)
-%%% too close to C1 (steel blue), warm C6 clashes with cool neighbors
-%%% in Group 1.
-%%%
-%%% Mapping reminder:
-%%%   Group 1 (ceag,cext,cdes,cpro) = C1, C2, C6, C5
-%%%   Group 2 (csus)                = C7
-%%%   Group 3 (cawa,cdir,cper)      = C4, C3, C8
-%%%
-
-% \definecolor{P1C1}{HTML}{C8DCF0} % Steel blue
-% \definecolor{P1C2}{HTML}{C8E6C6} % Sage green
-% \definecolor{P1C3}{HTML}{FDEAA8} % Warm amber
-% \definecolor{P1C4}{HTML}{F4C8D0} % Soft rose (cawa)
-% \definecolor{P1C5}{HTML}{DDD5F5} % Lavender
-% \definecolor{P1C6}{HTML}{FADEC0} % Peach
-% \definecolor{P1C7}{HTML}{BCE8E4}
-% \definecolor{P1C8}{HTML}{B8DCE4} % Sky teal (cper)
-%
-% \definecolor{P1C1t}{HTML}{0D2D45} % Steel blue text
-% \definecolor{P1C2t}{HTML}{0C2B1A} % Sage green text
-% \definecolor{P1C3t}{HTML}{3D2400} % Warm amber text
-% \definecolor{P1C4t}{HTML}{400C18} % Rose text
-% \definecolor{P1C5t}{HTML}{1A0A3D} % Lavender text
-% \definecolor{P1C6t}{HTML}{3D1800} % Peach text
-% \definecolor{P1C7t}{HTML}{062422} % Pale teal text
-% \definecolor{P1C8t}{HTML}{0C2830} % Sky teal text
-
-%%%
-%%% ALTERNATIVE 1: "Prismatic" — Maximum hue separation within groups.
-%%% Group 1 uses four hues ~90 degrees apart (blue 215, green 145,
-%%% violet 285, coral 15) all at the same lightness/saturation so no
-%%% color dominates. Group 3 uses a warm triad (rose 350, gold 50,
-%%% teal 190) giving strong contrast between awareness/direction/
-%%% persistence. Every color is instantly identifiable next to its
-%%% group-mates.
-%%%
 \definecolor{P1C1}{HTML}{C4D8F4} % Cornflower blue (ceag)
 \definecolor{P1C2}{HTML}{C0E4CC} % Mint green (cext)
-% \definecolor{P1C3}{HTML}{EDE0A4} % Warm gold (cdir)
 \definecolor{P1C3}{HTML}{FDEAA8} % Warm amber
 \definecolor{P1C4}{HTML}{F4C8D0} % Soft rose (cawa)
 \definecolor{P1C5}{HTML}{DCC8F4} % Iris violet (cpro)
@@ -474,7 +469,6 @@
 
 \definecolor{P1C1t}{HTML}{0E2848} % Cornflower text
 \definecolor{P1C2t}{HTML}{0E2C16} % Mint text
-% \definecolor{P1C3t}{HTML}{342C06} % Gold text
 \definecolor{P1C3t}{HTML}{3D2400} % Warm amber text
 \definecolor{P1C4t}{HTML}{400C18} % Rose text
 \definecolor{P1C5t}{HTML}{1C0C42} % Iris text

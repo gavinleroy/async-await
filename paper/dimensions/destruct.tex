@@ -1,14 +1,14 @@
 \subsubsection{\Destruction}\label{ssec:designdims:destruction}
 
-Once a language has decided that it is time to destroy a task, we encounter yet another point of divergence: what does it mean to destroy a task? For example, consider the program in \Cref{fig:destruction}. At the end of the \extent of the spawned \lstinline[language=Pseudo]|work()| task (either end of \lstinline[language=Pseudo]|main()| for \dyn \extent, or end of program for \indef \extent), what happens to the \lstinline[language=Pseudo]|work()| task? Today's languages offer three possibilities: to await the task, to cancel the task, or to terminate the task --- the \awaited, \cancelled, and \terminated points of the \Destruction dimension.
-
-The \destruction dimension is orthogonal to \extent. \Js is a language with \indef \extent and \awaited \destruction --- \Cref{fig:extent} previously showed an example relying on this pair of design decisions. Python+Trio is a language/system with \dyn \extent and \awaited \destruction, as tasks are tied to a ``nursery,'' and the nursery waits until all its child tasks are completed before exiting. The \awaited column in \Cref{fig:destruction} demonstrates Trio semantics, where the program would print ``ABC'' by waiting for the \lstinline[language=Pseudo]|work()| task to finish before exiting \lstinline[language=Pseudo]|main()|.
-
-\begin{figure}[t]
+\begin{figure}[tb]
   \includegraphics[width=\linewidth]{f/destruction-horiz.pdf}
   \caption{An example program demonstrating the \Destruction dimension. Each diagram shows the sequence of instruction execution for a task under Awaited (Trio), Cancelled (Swift), and Terminated (\CSharp). The diagrams branch at the point of divergence between each approach. Administrative instructions which are executed but don't appear in the source code are displayed in brackets. }
   \label{fig:destruction}
 \end{figure}
+
+Once a language has decided that it is time to destroy a task, we encounter yet another point of divergence: what does it mean to destroy a task? For example, consider the program in \Cref{fig:destruction}. At the end of the \extent of the spawned \lstinline[language=Pseudo]|work()| task (either end of \lstinline[language=Pseudo]|main()| for \dyn \extent, or end of program for \indef \extent), what happens to the \lstinline[language=Pseudo]|work()| task? Today's languages offer three possibilities: to await the task, to cancel the task, or to terminate the task --- the \awaited, \cancelled, and \terminated points of the \Destruction dimension.
+
+The \destruction dimension is orthogonal to \extent. \Js is a language with \indef \extent and \awaited \destruction --- \Cref{fig:extent} previously showed an example relying on this pair of design decisions. Python+Trio is a language/system with \dyn \extent and \awaited \destruction, as tasks are tied to a ``nursery,'' and the nursery waits until all its child tasks are completed before exiting. The \awaited column in \Cref{fig:destruction} demonstrates Trio semantics, where the program would print ``ABC'' by waiting for the \lstinline[language=Pseudo]|work()| task to finish before exiting \lstinline[language=Pseudo]|main()|.
 
 Most other designs opt to cancel and then await\footnotemark{} tasks at the end of \extent, such as Swift, Rust+Tokio, Rust+Smol, and Python+Asyncio. \Cref{fig:destruction} running under Swift would output nothing because \code|work()| is cancelled before it can reach a print statement. By contrast, \CSharp will \emph{terminate} tasks at the end of their \indef \extent, meaning the runtime simply exits while the destroyed tasks are running. In \Cref{fig:destruction}, under \CSharp, the program would print ``A'' because the tasks continues until it is terminated after 15 seconds.
 

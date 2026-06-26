@@ -1,22 +1,12 @@
-\subsubsection{\Cooperation}
+\subsubsection{\Awareness}
 \label{ssec:designdims:cooperation}
 
-% <<<<<<< Updated upstream
-% =======
-% \begin{figure}[t]
-%   \includegraphics[width=0.85\linewidth]{f/cooperation.pdf}
-%   \caption{An example program demonstrating the \Cooperation dimension. Each diagram shows the state, broken or intact, of a global invariant as the \code{work} task runs. Unaware cancellation does not communicate to the task that its being cancelled, leaving the invariant broken in this example. Aware cancellation provides a cancelled task the opportunity to handle cancellation, here the cancelled task reinstates the broken invariant before cancelling.}
-%   \label{fig:cooperation}
-% \end{figure}
-% >>>>>>> Stashed changes
 Integrated cancellation approaches all center around triggering cancellations at await points. A key distinction is whether a cancelled task is aware that it is being cancelled, in order to handle or ignore the cancellation at a given await point. 
 
 \begin{wrapfigure}{r}{0.54\linewidth}
-% \begin{figure*}
   \includegraphics[width=\linewidth]{f/cooperation.pdf}
-  \caption{An example program demonstrating the \Cooperation dimension. A branching execution trace is paired with an indicator of whether an invariant is satisfied. An \aware approach allows the canceled task to restore the invariant before proceeding with cancellation, while an \unaware approach remains cancelled with the invariant broken.}
+  \caption{An example program demonstrating the \awareness dimension. A branching execution trace is paired with an indicator of whether an invariant is satisfied. An \aware approach allows the canceled task to restore the invariant before proceeding with cancellation, while an \unaware approach remains cancelled with the invariant broken.}
   \label{fig:cooperation}
-% \end{figure*}
 \end{wrapfigure}
 
 The most straightforward approach is \emph{\unaware} cancellation, where a task has no opportunity to react to being cancelled. This approach is taken by Rust in both Tokio and Smol. In Rust, cancellation essentially means never executing a coroutine again after it has yielded. With a direct handle on the coroutine, this simply means not polling the coroutine, or explicitly dropping it. If the coroutine is within a task, then the task must be marked as cancelled, and the runtime will similarly refuse to reschedule the task.
