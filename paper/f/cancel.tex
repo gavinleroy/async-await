@@ -50,7 +50,7 @@ $\begin{array}[t]{@{}r@{\ }l@{}l@{}l@{}l@{}l@{}}
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
   \where\ \mathit{true} = \mathsf{task\_cancelled}(\sigma, \ell)\, \cper{\ghost} \\
-  \qquad e_{\mathit{fail}} = \semmacro{task\_set\_failed}(\ell, ()) \mathbin{;} \mathbfsf{sys\_start\_soon}(\semmacro{task\_get\_dependents}(x_{\mathit{task}}))
+  \qquad e_{\mathit{fail}} = \semmacro{task\_set\_failed}(\ell, ()) \mathbin{;} \mathbfsf{sys\_start\_soon}(\semmacro{task\_get\_dependents}(\ell))
   \end{array}$
 }
 \end{tabular*}
