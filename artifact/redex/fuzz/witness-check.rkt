@@ -1,0 +1,115 @@
+#lang racket/base
+
+;; -----------------------------------------------------------------------------
+;; Differential gate for the directed witness search (fuzz/witness.rkt).
+;;
+;; The witness search must agree with the ground truth — `reference-output-set`,
+;; the exhaustive reference enumerator — wherever the two can be compared:
+;;
+;;   - every output FULL found must be 'producible        (no false 'unreachable),
+;;   - a clearly-impossible target must NOT be 'producible (no false witness),
+;;   - discover-output-set's result must be a subset of the true set, and equal to
+;;     it when FULL completed (the test programs' outputs are permutations of one
+;;     seed, which discovery's candidate pool covers).
+;;
+;; For programs too large for FULL to finish, we still require every output FULL
+;; DID find to be 'producible: the witness search must never lose a real output.
+;;
+;; A non-string (value) output is exercised too, to cover the unpruned path.
+;;
+;; Run:  racket fuzz/witness-check.rkt        (or via `raco test`)
+;; -----------------------------------------------------------------------------
+
+(require (only-in racket/list make-list)
+         (only-in "../tokio.rkt"      -->>tokio)
+         (only-in "../smol.rkt"       -->>smol)
+         (only-in "../javascript.rkt" -->>js)
+         (only-in "model.rkt" wrap-program)
+         (only-in "reference.rkt" reference-output-set)
+         "witness.rkt")
+
+(provide check-witness)
+
+;; A machine state whose root runs `e` directly (no stdout capture), so the
+;; output is `e`'s value rather than an accumulated string — the convention for
+;; value-returning programs.
+(define (wrap-value e nthreads)
+  `(0 () () () ((thread (root ,e)) ,@(make-list nthreads '(thread)))))
+
+;; Probe one program. `impossible` is a target the model cannot produce; `known`
+;; lists targets the model definitely CAN produce (used for value outputs, which
+;; the stdout-only enumerator cannot supply as ground truth). Returns a result
+;; hash; `ok?` summarizes the hard (must-pass) properties.
+(define (probe name red start impossible #:known [known '()])
+  (define-values (st outs cnt) (reference-output-set red start #:time-cap 45000))
+  (define truth (sort (filter string? outs) string<?))
+  (define complete? (eq? st 'complete))
+  ;; (1) every output FULL found, plus every explicitly-known one, is producible
+  (define all-producible
+    (for/and ([o (in-list (append truth known))])
+      (eq? (witness-search red start o) 'producible)))
+  ;; (2) the impossible target is never a false witness (ideally a proof)
+  (define imp (witness-search red start impossible))
+  (define imp-ok (not (eq? imp 'producible)))
+  ;; (3) discovery is sound, and exact when FULL completed
+  (define disc (discovery-producible (discover-output-set red start truth)))
+  (define disc-sound (for/and ([o (in-list disc)]) (and (member o truth) #t)))
+  (define disc-exact (or (not complete?) (equal? disc truth)))
+  (define ok? (and all-producible imp-ok disc-sound disc-exact))
+  (hash 'name name 'status st 'truth truth 'all-producible all-producible
+        'impossible imp 'imp-ok imp-ok 'disc disc
+        'disc-sound disc-sound 'disc-exact disc-exact 'ok? ok?))
+
+(define (print-result r)
+  (printf "~a\n" (hash-ref r 'name))
+  (printf "  FULL: ~a  outputs=~s\n" (hash-ref r 'status) (hash-ref r 'truth))
+  (printf "  every output producible? ~a\n" (hash-ref r 'all-producible))
+  (printf "  impossible target -> ~a  (not a false witness? ~a)\n" (hash-ref r 'impossible) (hash-ref r 'imp-ok))
+  (printf "  discovered=~s  sound? ~a  exact? ~a\n" (hash-ref r 'disc) (hash-ref r 'disc-sound) (hash-ref r 'disc-exact))
+  (printf "  PASS? ~a\n\n" (hash-ref r 'ok?)))
+
+;; worker prints "A", main prints "M"  (spawn? = use `spawn` vs eager application)
+(define (spawn-main spawn?)
+  `(let ([work (async/lambda () (print "A"))])
+     (let ([main (async/lambda ()
+                   (let ([w ,(if spawn? '(spawn (work)) '(work))])
+                     (begin (print "M") (await w))))])
+       (os/block (main)))))
+
+;; two workers each print after an io suspension; main awaits both
+(define race
+  '(let ([work (async/lambda (msg) (begin (await (os/io 1 (void))) (print msg)))])
+     (let ([main (async/lambda ()
+                   (let ([a (spawn (work "A"))])
+                     (let ([b (spawn (work "B"))])
+                       (begin (await a) (await b)))))])
+       (os/block (main)))))
+
+;; value-returning program: output is 42, not a string
+(define value-prog '(os/block ((async/lambda () 42))))
+
+(define (battery)
+  (list (probe "tokio spawn-main" -->>tokio (wrap-program (spawn-main #t) 2) "ZZZ")
+        (probe "smol  spawn-main" -->>smol  (wrap-program (spawn-main #t) 2) "ZZZ")
+        (probe "js    spawn-main" -->>js    (wrap-program (spawn-main #f) 2) "ZZZ")
+        (probe "tokio race"       -->>tokio (wrap-program race 2)            "ZZZ")
+        (probe "tokio value=42"   -->>tokio (wrap-value value-prog 2)        99 #:known '(42))))
+
+(define (check-witness #:verbose? [verbose? #t])
+  (define results (battery))
+  (when verbose? (for-each print-result results))
+  (define all-ok (for/and ([r (in-list results)]) (hash-ref r 'ok?)))
+  (when verbose?
+    (printf "================ SUMMARY ================\n")
+    (for ([r (in-list results)])
+      (printf "  ~a: ~a\n" (hash-ref r 'name) (if (hash-ref r 'ok?) "PASS" "FAIL")))
+    (printf "ALL PASS: ~a\n" all-ok))
+  all-ok)
+
+(module+ main
+  (unless (check-witness)
+    (error 'witness-check "witness search disagreed with FULL enumeration")))
+
+(module+ test
+  (require rackunit)
+  (check-true (check-witness #:verbose? #f) "witness search must agree with FULL"))

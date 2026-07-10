@@ -207,11 +207,11 @@
   \fi}
 \newcommand{\designpointfmt}[1]{%
   \ifsansterms \textsf{#1}%            sans upright = value
-  \else        \textit{#1}%            serif italic = value
+  \else        \textsc{#1}%            serif italic = value
   \fi}
 
-\newcommand{\dimension}[1]{\glow{\dimensionfmt{\Capit{#1}}}}
-\newcommand{\designpoint}[1]{\glow{\designpointfmt{\Capit{#1}}}}
+\newcommand{\dimension}[1]{\glow{\dimensionfmt{#1}}}
+\newcommand{\designpoint}[1]{\glow{\designpointfmt{#1}}}
 
 %%%%% TODO ends here
 
@@ -245,7 +245,7 @@
 \newcommand{\Propagation}{\dimension{Propagation}\xspace}
 \newcommand{\propagation}{\dimension{propagation}\xspace}
 \newcommand{\never}{\designpoint{never}\xspace}
-\newcommand{\destruct}{\designpoint{destruction}\xspace}
+\newcommand{\destruct}{\designpoint{destructed}\xspace}
 
 \newcommand{\Suspension}{\dimension{Suspension}\xspace}
 \newcommand{\suspension}{\dimension{suspension}\xspace}

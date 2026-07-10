@@ -4,7 +4,7 @@
   \begin{subfigure}[t]{0.4\textwidth}
     \vspace{0cm}
     \input{./f/lc-gr.tex}
-    \cprotect\caption{The grammar for \lc. We elide standard forms (e.g., \code{let}, \code{ref}, \code{fix}) for brevity, the full grammar is available in \Cref{app:semantics}.
+    \cprotect\caption{A subset of the \lc grammar. All standard forms (e.g., \code{let}, \code{ref}, \code{fix}) have been elided.
     \label{fig:lang:lc}}
   \end{subfigure}\hfill%
   \begin{minipage}[t]{0.55\textwidth}
@@ -16,19 +16,19 @@
       \label{fig:lang:exn}
     \end{subfigure}
     \begin{subfigure}{\textwidth}
-      \vspace{0em}
+      \vspace{1em}
       \input{./f/exn-rr.tex}
-      \cprotect\subcaption{The reduction rules for \exn. We elide rules for the standard \code{try}/\code{catch} and \code{throw} forms for brevity. The full set of reduction rules is available in \Cref{app:semantics}.}
+      \cprotect\subcaption{An example reduction rule for the \exn extension language.}
       \label{fig:lang:exn:red}
     \end{subfigure}
   \end{minipage}
-  \caption{The grammar and reduction rules for the core calculi \lc and \exn.}
+  \caption{An illustrative subset of the grammar and reduction rules for the core calculi \lc and \exn.}
   \label{fig:lang:core}
 \end{figure}
 
-The preceding section provides a detailed but informal characterization of our view of the straight-line asynchrony design space. Now, we will put it on a formal footing.
+The preceding section provides a detailed but informal characterization of our view of the straight-line asynchrony design space. Now, we will put it on a formal footing. Our interest is not in the languages themselves but in how each one realizes straight-line asynchrony; we therefore distill each language to a functional core to sharpen the differences in async semantics.
 %
-We present the design dimensions as variants on a formal operational semantics for a core asynchronous language. We start with a small \lc language that captures the computational core of Python, Rust, etc., while eliminating many language-specific details. For example, we unify the languages' implementation of asynchrony using delimited continuations rather than faithfully modeling each implementation using state machines and other such mechanisms. 
+We present the design dimensions as variants on a formal operational semantics for a core asynchronous language. We start with a small \lc language that captures the computational core of Python, Rust, etc., while eliminating many language-specific details. For example, we unify the languages' implementation of asynchrony using delimited continuations rather than faithfully modeling each implementation using state machines and other such mechanisms.
 
 Atop this foundation, we layer semantic rules that capture the essence of the design dimensions in \Cref{sec:designdims}. The goal of these rules is to concisely and precisely describe the exact meaning of each point along each design dimension. The full semantics is too large to include in its entirety; we provide the elided rules in the appendix.
 
@@ -37,14 +37,14 @@ We provide an executable version of the model in Redex~\cite{racket:redex}, incl
 
 \subsection{Base Language}
 
-\Cref{fig:lang:lc,fig:lang:exn} provide the grammar and semantics of the core calculi that comprise our base for the async extensions. The core language \lc contains mutable references and delimited continuations via the \code|shift| and \code|reset| operators described by \citet{danvy_functional_nodate}. The grammar for \lc is provided in \Cref{fig:lang:lc}. The reduction rule is defined over a mutable heap $\sigma$ and an expression $e$, $\langle\sigma,e\rangle$. For space reasons, the standard reduction rules and full grammar for \lc are available in \Cref{app:semantics}.
+\Cref{fig:lang:lc,fig:lang:exn} provide the grammar and semantics of the core calculi that comprise our base for the async extensions. The core language \lc contains mutable references and delimited continuations via the $\mathbfsf{shift}$ and $\mathbfsf{reset}$ operators described by \citet{danvy_functional_nodate}. The grammar for \lc is provided in \Cref{fig:lang:lc}. The reduction rule is defined over a mutable heap $\sigma$ and an expression $e$, $\langle\sigma,e\rangle$. For space reasons, the standard reduction rules and full grammar for \lc are available in \Cref{app:semantics}.
 
 For languages with exceptions, we extend \lc with \code|try|/\code|catch| and \code|throw| forms and refer to this language as \exn. The grammar extension for \exn is provided in \Cref{fig:lang:exn}, and the reduction rule for the non-standard \code|throw_in| form in \Cref{fig:lang:exn:red}; the remaining rules are standard and provided in \Cref{app:semantics}. The non-standard \code|throw_in| resumes a continuation with an exception instead of a value and is modeled after Python's \code{.throw()} coroutine method.
 
 \begin{figure}[t]
   \begin{subfigure}[t]{\textwidth}
     \input{./f/lasync-gr.tex}
-    \cprotect\caption{The full grammar for \lasync.}
+    \cprotect\caption{An illustrative subset of the \lasync extension grammar.}
     \label{fig:lasync:grammar}
   \end{subfigure}\vspace{1em}
   % \begin{subfigure}[t]{\textwidth}
@@ -64,7 +64,7 @@ For languages with exceptions, we extend \lc with \code|try|/\code|catch| and \c
     \cprotect\caption{The order of extension for each async runtime.}
     \label{fig:langs:lineage}
   \end{subfigure}
-  \cprotect\caption{The grammar extensions and order of extension for \lasync and the seven async systems under study.}
+  \cprotect\caption{The grammar extensions and order of extension for \lasync and the seven async systems under study. Python and Rust are \textit{extended by} \lasync because they provide native coroutines. The runtimes for those languages are defined as libraries. The other languages Swift/\Js/\CSharp \textit{extend} \lasync because they do not provide native coroutines and their async runtimes are built in to the language runtime.}
   \label{fig:platform}
 \end{figure}
 
@@ -75,13 +75,13 @@ We now describe the configuration of the shared async grammar, which can extend 
 We introduce the notion of an async \textit{frame}, $F$, written $\langle \ell,\,e\rangle$ which consists of an expression $e$, along with a frame label, $\ell$.\footnotemark A \textit{frame label}, $\ell$, is either the name of the \task this frame corresponds to, or \textit{sync} to denote a synchronous frame. A \textit{frame stack}, $FS$, is a list of frames --- essentially a thread. An empty frame stack is written $\epsilon$, and we write $F \circ FS$ to denote a frame stack whose head is $F$ and tail is $FS$. A \textit{process}, $P$, is a collection of frame stacks. We will use the syntax $P \uplus FS$ to select one frame stack in $P$ to run. A \textit{task queue}, $Q$, stores the async work waiting to be run; $Q$ comprises tuples that have a label and a continuation, $(\ell,\kappa)$. A \textit{signals queue}, $T$, stores async work that is waiting on \abbr{i/o} operations, the work will be rescheduled in the future at timestamp $t$, at the earliest. $T$ comprises tuples that have a time, a label, and a continuation, $(t,\ell,\kappa)$. We will use the same stack notation for $Q$ and $T$ as we do for $FS$. We will additonally write $Q \qpush (\ell,\,\kappa)$ to append to the end of the queue (applicable to both $Q$ and $T$).%
 \footnotetext{We use a labeled async frame to explicitly associate executing code with a task. An alternative formalism would be to delimit tasks using a labeled context. We these two options as equivalent and chose the former.}
 
-The async platform provides a few additional expressions that we will describe here. The \sysapply{sys_block}{e} expression provides the barrier between synchronous code and asynchronous code. Languages may use a block expression to block a synchronous frame until the asynchronous expression has completed running. The block expression marks the runtime entry, and when it returns, the runtime exit.
+The async platform provides a few additional administrative instructions that we will describe here. The \sysapply{sys_block}{e} expression provides the barrier between synchronous code and asynchronous code. Languages may use a block expression to block a synchronous frame until the asynchronous expression has completed running. The block expression marks the runtime entry (e.g., creating a thread pool), and when it returns, the runtime exit (e.g., destroying the thread pool and runtime queues).
 
 The expression \sysapply{sys_io}{e_t,e} is the \abbr{i/o} operation provided by the runtime system. It models real-world \abbr{i/o} operations that would take some non-deterministic amount of time to resolve, like receiving packets from the network or querying a database. The form is prescient because the result is provided upfront: e.g., \sysapply{sys_io}{5, \text{``hello''}} creates a \task that will resolve to the value ``hello'' after at least five time steps. Furthermore, we model \abbr{i/o} operations that may not complete as \code|sys_io|$(\infty, e)$. The \code|sys_io| form is deterministic in its evaluation \textit{value}, but not in its evaluation \textit{time}.
 
-The expression \sysapply{sys_start_soon}{\ell,\kappa} appends the continuation $\kappa$ to $Q$, set to run in a frame with the specified label $\ell$. The expression \sysapply{sys_start_later}{t,\ell,\kappa} appends the continuation to the signal queue, $T$, which will be scheduled after timestep $t$. The expression \sysapply{sys_time}{} simply evaluates to the current timestep.
+The expression \sysapply{sys_start_soon}{\ell,\kappa} appends the continuation $\kappa$ to $Q$, set to run in a frame with the specified label $\ell$. The expression \sysapply{sys_start_later}{t,\ell,\kappa} appends the continuation to the signal queue, $T$, which will be scheduled after timestep $t$.
 
-The grammar extensions for the remaining languages are shown in \Cref{fig:langs:exts}, and the order in which we layer the extensions in \Cref{fig:langs:lineage}. The reduction rules for all async capable languages, which base Python and Rust are not, are defined over the tuple $\langle t, \sigma, Q, T, P \rangle$. Most tuple items remain constant in many rules; to simplify the presentation we will use a double angle notation $\elided{\ldots}$ to indicate that unmodified tuple items are elided.
+The grammar extensions for the remaining languages are shown in \Cref{fig:langs:exts}, and the order in which we layer the extensions in \Cref{fig:langs:lineage}. The reduction rules for all async-capable languages, which base Python and Rust are not, are defined over the tuple $\langle t, \sigma, Q, T, P \rangle$. Most tuple items remain constant in many rules; to simplify the presentation we will use a double angle notation $\elided{\ldots}$ to indicate that unmodified tuple items are elided.
 
 The goal of the operational semantics is to highlight the differences between languages. We will therefore present the same reduction rule from different languages together. We will also call attention to the portion relevant to each design dimension with a highlight in the following colors: \ceag{\eagerness}, \cext{\extent}, \cdes{\destruction}, \cpro{\propagation}, and \csus{\suspension}, and within cancellation: \cawa{\awareness}, \cdir{\direction}, and \cper{\persistence}. For space reasons we do not present the rules relevant for \references, and we simplify the presentation with a liberal use of metafunctions and macros, see \Cref{table:metafunctions} for a description of those used; the full definitions of grammars, reductions, and metafunctions are provided in \Cref{app:semantics}.
 
@@ -105,7 +105,7 @@ The goal of the operational semantics is to highlight the differences between la
 \begin{figure}[b]
     \input{./f/spawn.tex}
     \makelegend{eag,ext,des,pro}
-    \cprotect\caption{A comparison of \semrule{Spawn} across Rust/Python runtimes. The \code{try/catch} is colored gray because it is present in the Asyncio semantics but not for Tokio/Smol; the rules are otherwise equivalent.}
+    \cprotect\caption{A comparison of \semrule{Spawn} across Rust/Python runtimes. The $\mathbfsf{try/catch}$ is colored gray because it is present in the Asyncio semantics, but not those for Tokio/Smol --- the rules are otherwise equivalent.}
     \label{fig:sem:spawn}
 \end{figure}
 
