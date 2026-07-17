@@ -93,8 +93,19 @@
         (~optional (~seq #:def-exn-reduction red/exn/lang:id))
         #:with-base-lang BaseLang:id
         #:with-base-reduction red/base
+        (~optional (~and #:single-threaded single-threaded?))
+        (~optional (~and #:serial-dispatch serial-dispatch?))
         grammar-rule:expr ...
         (~optional (~seq #:binding-forms bf:expr ...)))
+     ;; #:single-threaded -> synchronous code runs unbounded (an infinite loop
+     ;;   blocks the runtime). #:serial-dispatch -> the scheduler dispatches like
+     ;;   a real event loop (run-to-completion, microtasks before macrotasks),
+     ;;   making the runtime deterministic. They are independent: trio is
+     ;;   #:single-threaded but NOT #:serial-dispatch, because its structured-
+     ;;   concurrency cancellation deadlocks under serial dispatch (a trio-model
+     ;;   issue to resolve separately).
+     #:with single? (if (attribute single-threaded?) #'#t #'#f)
+     #:with serial? (if (attribute serial-dispatch?) #'#t #'#f)
      (with-unhygenic
       #'Lang
       (make-big-step async/main
@@ -104,6 +115,7 @@
                      prog/equiv
                      Q:pop Q:push Q:empty
                      T:pop T:push T:empty T:next-signal-at T:pop-cancelled
+                     sys/idle?
                      store:find-unawaited-error
                      store:get-pending-tasks
                      store:get-uncancelled-tasks
@@ -183,11 +195,14 @@
         ;; lets a thread reach its next async point in one step for the programs
         ;; we generate.
         (define big-step-max-steps 50)
-        (define (big-step red term #:deterministic? [det? #true])
+        (define (big-step red term #:deterministic? [det? #true] #:allow-infinity? [inf? #f])
           (with-handlers ([nondeterministic? (lambda (e) 'stuck)])
             (let* ([α-equiv? (lambda (a b) (alpha-equivalent? Lang a b))]
                    [reduced
-                    (reduce red term #:deterministic? det? #:max-steps big-step-max-steps #:α-equiv? α-equiv?)])
+                    (reduce red term
+                            #:deterministic? det?
+                            #:max-steps (if inf? #false big-step-max-steps)
+                            #:α-equiv? α-equiv?)])
               (when (α-equiv? term reduced)
                 (raise 'big-step "form reduced to itself"))
               reduced)))
@@ -204,8 +219,8 @@
             (t_0 σ_0 Q T (FS_0 (... ...) (thread (label e_0) F (... ...)) FS_1 (... ...)))
             (t_1 σ_1 Q T (FS_0 (... ...) (thread (label e_1) F (... ...)) FS_1 (... ...)))
             (side-condition (not (value? (term e_0))))
-            (where (σ_1 e_1) ,(big-step -->sys/sync (term (σ_0 e_0))))
-            (where/error t_1 (step t_0))
+            (where (σ_1 e_1) ,(big-step -->sys/sync (term (σ_0 e_0)) #:allow-infinity? single?))
+            (where/error t_1 t_0)
             "base-lang/reduce"]
 
            [-->
@@ -214,7 +229,7 @@
                  T
                  (FS_0 (... ...) (thread (label (in-hole E (os/time))) F (... ...)) FS_1 (... ...)))
             (t_1 σ Q T (FS_0 (... ...) (thread (label (in-hole E t_0)) F (... ...)) FS_1 (... ...)))
-            (where/error t_1 (step t_0))
+            (where/error t_1 t_0)
             "os/time"]
 
            [-->
@@ -240,7 +255,7 @@
                        (... ...)))
             (where/error (σ_1 x_io v_task) (task:allocate σ_0))
             (where/error σ_2 (ext1 σ_1 (x_io v_task)))
-            (where/error t_1 (step t_0))
+            (where/error t_1 t_0)
             "os/io"]
 
           [-->
@@ -257,7 +272,7 @@
                  (FS_0 (... ...) (thread (label (in-hole E (void))) F (... ...)) FS_1 (... ...)))
 
             (where/error Q_1 (Q:push Q_0 (label_waiting v) (... ...)))
-            (where/error t_1 (step t_0))
+            (where/error t_1 t_0)
             "os/start-soon"]
 
            [-->
@@ -273,7 +288,7 @@
                  T_1
                  (FS_0 (... ...) (thread (label (in-hole E (void))) F (... ...)) FS_1 (... ...)))
             (where/error T_1 (T:push T_0 (t x v)))
-            (where/error t_1 (step t_0))
+            (where/error t_1 t_0)
             "os/start-later"]
 
            [--> ;; NOTE: the default for exiting the runtime is to wait for all tasks to be completed.
@@ -281,17 +296,28 @@
             (t_1 σ () () ((thread (root (in-hole E (task:get-result v_awaitable)))) (thread) ..._1))
             (where #true (task:is-task? v_awaitable))
             (where #true (task:settled? σ v_awaitable))
-            (where/error t_1 (step t_0))
+            (where/error t_1 t_0)
             "os/block-done"]
 
            [-->
-            (t_0 σ () T ((thread (root (in-hole E (os/block v_awaitable)))) (thread) ..._1))
-            (t_1 σ () T ((thread (root (in-hole E (os/block v_awaitable)))) (thread) ..._1))
+            (t_0 σ ()
+                 ((t_a label_a v_a) (... ...) (t_x label_x v_x) (t_b label_b v_b) (... ...))
+                 ((thread (root (in-hole E (os/block v_awaitable)))) (thread) ..._1))
+            (t_1 σ ()
+                 ((t_a label_a v_a) (... ...) (t_x label_x v_x) (t_b label_b v_b) (... ...))
+                 ((thread (root (in-hole E (os/block v_awaitable)))) (thread) ..._1))
             (where #true (task:is-task? v_awaitable))
             (where #false (task:settled? σ v_awaitable))
-            (where (some t_next) (T:next-signal-at T))
-            (side-condition (< (term t_0) (term t_next)))
-            (where/error t_1 (step t_0))
+            (side-condition (< (term t_0) (term t_x)))
+            ;; LOGICAL TIME: jump the clock to ANY pending deadline rather than
+            ;; crawling +1. `os/io n` means the timer fires after AT LEAST n
+            ;; steps, so the clock may pass a due-but-undelivered timer -- that
+            ;; is what lets a 3-step timer fire after a 4-step one (deadline
+            ;; inversion, observed in real runtimes under scheduler jitter).
+            ;; This is the ONLY rule that advances time; every other rule is
+            ;; instantaneous in logical time (t_1 = t_0), so deadlines reflect
+            ;; wait time, not how much computation happened in between.
+            (where/error t_1 t_x)
             "os/block-wait"]
 
            [-->
@@ -300,7 +326,7 @@
             (side-condition
               (let ([remaining-state (term (Q T PS any_before (... ...) any_after (... ...)))])
                 (not (memq (term x) (flatten remaining-state)))))
-            (where/error t_1 (step t_0))
+            (where/error t_1 t_0)
             "sys/gc"]
 
            [-->
@@ -314,7 +340,12 @@
                                             (... ...)))
             (where ((label_waiting v_thunk) Q_1) (Q:pop Q_0))
             (where #false (task:cancelled? σ label_waiting))
-            (where/error t_1 (step t_0))
+            ;; SINGLE-THREADED: a real event loop never starts a microtask while
+            ;; another job is still running -- dispatch only when all threads idle.
+            (side-condition
+             (or (not serial?)
+                 (term (sys/idle? ((thread F F_rs (... ...)) (... ...) (thread) FS_1 (... ...))))))
+            (where/error t_1 t_0)
             "sys/schedule"]
 
           [-->
@@ -322,7 +353,11 @@
             (t_1 σ Q_1 T ((thread F F_rs (... ...)) (... ...) (thread) FS_1 (... ...)))
             (where ((label_waiting v_thunk) Q_1) (Q:pop Q_0))
             (where #true (task:cancelled? σ label_waiting))
-            (where/error t_1 (step t_0))
+            ;; SINGLE-THREADED: same idle gate as sys/schedule (cancelled microtask).
+            (side-condition
+             (or (not serial?)
+                 (term (sys/idle? ((thread F F_rs (... ...)) (... ...) (thread) FS_1 (... ...))))))
+            (where/error t_1 t_0)
             "sys/schedule-cancelled"]
 
            [-->
@@ -332,13 +367,23 @@
             (side-condition (not (eq? 'root (term label))))
             "sys/thread-pop-frame"]
 
+           ;; ANY due timer may fire (deadline <= now), not just the earliest:
+           ;; `os/io n` promises AT LEAST n steps, so among simultaneously-due
+           ;; timers the delivery order is unconstrained. Direct ellipsis match
+           ;; -- a rule may be nondeterministic where a metafunction (the old
+           ;; T:pop) must not be.
            [-->
-            (t_0 σ Q_0 T_0 P)
-            (t_1 σ Q_1 T_1 P)
-            (where ((label v) T_1) (T:pop t_0 T_0))
+            (t_0 σ Q_0 ((t_a label_a v_a) (... ...) (t_d label v) (t_b label_b v_b) (... ...)) P)
+            (t_1 σ Q_1 ((t_a label_a v_a) (... ...) (t_b label_b v_b) (... ...)) P)
+            (side-condition (<= (term t_d) (term t_0)))
             (where #false (task:cancelled? σ label))
+            ;; SINGLE-THREADED: timers (macrotasks) wait until the call stack is
+            ;; empty AND every microtask is drained (micro-before-macro + RTC).
+            (side-condition
+             (or (not serial?)
+                 (and (term (Q:empty Q_0)) (term (sys/idle? P)))))
             (where/error Q_1 (Q:push Q_0 (label v)))
-            (where/error t_1 (step t_0))
+            (where/error t_1 t_0)
             "sys/signal"]))
 
         (~? (~@ (define red/exn/lang
@@ -361,7 +406,7 @@
 
                       (where/error (σ_1 x_io v_task) (task:allocate σ_0))
                       (where/error σ_2 (ext1 σ_1 (x_io v_task)))
-                      (where/error t_1 (step t_0))
+                      (where/error t_1 t_0)
                       "os/io"]
 
                     [-->
@@ -370,21 +415,34 @@
                                             (thread (label_waiting (throw-in v_thunk "cancelled"))) FS_1 (... ...)))
                       (where ((label_waiting v_thunk) Q_1) (Q:pop Q_0))
                       (where #true (task:cancelled? σ label_waiting))
-                      (where/error t_1 (step t_0))
+                      ;; SINGLE-THREADED: idle gate, as on the base sys/schedule.
+                      (side-condition
+                       (or (not serial?)
+                           (term (sys/idle? ((thread F F_rs (... ...)) (... ...) (thread) FS_1 (... ...))))))
+                      (where/error t_1 t_0)
                       "sys/schedule-cancelled"]
 
+                    ;; ANY cancelled timer may drain (direct ellipsis match on T:
+                    ;; a rule may be nondeterministic; the old T:pop-cancelled
+                    ;; METAFUNCTION faulted -- "matched 3 different ways, 2
+                    ;; different results" -- whenever two cancelled timers were
+                    ;; pending, since metafunctions must be functions).
                     [-->
-                      (t_0 σ Q_0 T_0 P)
-                      (t_1 σ Q_1 T_1 P)
-                      (where (some (label v T_1)) (T:pop-cancelled σ T_0))
+                      (t_0 σ Q_0 (any_th (... ...) (t_c label v) any_tt (... ...)) P)
+                      (t_1 σ Q_1 (any_th (... ...) any_tt (... ...)) P)
+                      (where #true (task:cancelled? σ label))
+                      ;; SINGLE-THREADED: macrotask gate, as on the base sys/signal.
+                      (side-condition
+                       (or (not serial?)
+                           (and (term (Q:empty Q_0)) (term (sys/idle? P)))))
                       (where/error Q_1 (Q:push Q_0 (label v)))
-                      (where/error t_1 (step t_0))
+                      (where/error t_1 t_0)
                       "sys/signal-cancel"]
 
                     [-->
                       (t_0 σ Q T (_ ..._1 (thread (throw v)) _ ..._2))
                       (t_1 σ Q T ((thread (throw v)) (thread) ..._1 (thread) ..._2))
-                      (where/error t_1 (step t_0))
+                      (where/error t_1 t_0)
                       "sys/halt"]))))
 
 
@@ -708,6 +766,21 @@
 
         ;;;;
         ;; Queue/Signals metafunctions
+
+        ;; #true iff no thread is runnable: each thread is either an empty worker
+        ;; slot or the root parked on an (os/block <task>) it is still waiting
+        ;; for. Gates the scheduler in single-threaded runtimes so dispatch
+        ;; matches a real event loop (run-to-completion + microtasks before
+        ;; macrotasks). A worker mid-job has a reducible top frame, so it falls
+        ;; through to #false and the scheduler waits.
+        (define-metafunction Lang
+          sys/idle? : (FS (... ...)) -> boolean
+          [(sys/idle? ()) #true]
+          [(sys/idle? ((thread) FS (... ...))) (sys/idle? (FS (... ...)))]
+          [(sys/idle? ((thread (root (in-hole E (os/block v_task)))) FS (... ...)))
+           (sys/idle? (FS (... ...)))
+           (where #true (task:is-task? v_task))]
+          [(sys/idle? _) #false])
 
         (define-metafunction Lang
           Q:pop : Q -> ((label v) Q) or empty

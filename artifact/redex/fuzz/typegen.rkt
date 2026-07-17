@@ -59,6 +59,11 @@
 
 (define typegen-languages (hash-keys language-table))
 
+;; The Rust runtimes (and only they) model JoinHandle::await as a Result:
+;; awaiting a spawned task yields a struct {type, value}, so the generator
+;; unwraps the `value` field wherever it consumes a handle's result.
+(define (rust-lang? lang) (and (memq lang '(tokio smol)) #t))
+
 ;; ---------------------------------------------------------------------------
 ;; Generation state
 ;; ---------------------------------------------------------------------------
@@ -184,7 +189,7 @@
 ;; Create 1-3 tasks from the helpers, interleave traces and delays, cancel
 ;; some (per the language's idiom), and await the rest. Every task is
 ;; consumed: awaited, or cancelled via the language's safe pattern.
-(define (gen-main info helpers)
+(define (gen-main info helpers rust?)
   (define (call-helper h)
     `(,(helper-name h)
       ,@(map (lambda (_) (gen-base-expr (hash) 'String 1)) (helper-params h))))
@@ -237,11 +242,15 @@
            ;; smol: cancelling is itself awaitable
            ['await `(await (cancel ,tname))])])))
 
-  ;; main returns a base-typed value
+  ;; main returns a base-typed value. The awaited task is a spawned handle
+  ;; (lazy runtimes) or a started task (eager); for Rust the handle awaits to a
+  ;; Result struct, so unwrap its `value` field to recover the base value.
   (define awaited (for/first ([p (in-list plans)] #:when (eq? (caddr p) 'await)) p))
   (define-values (result rtype)
     (if awaited
-        (values `(await ,(car awaited)) (helper-ret (cadr awaited)))
+        (values (let ([aw `(await ,(car awaited))])
+                  (if rust? `(field value ,aw) aw))
+                (helper-ret (cadr awaited)))
         (values (gen-base-expr (hash) 'String 1) 'String)))
 
   ;; consume-stmts for awaited tasks yield their value; re-awaiting for the
@@ -278,6 +287,7 @@
                           #:seed [seed #f])
   (define info (hash-ref language-table lang
                          (lambda () (error 'typegen "unknown language: ~a" lang))))
+  (define rust? (rust-lang? lang))
   (parameterize ([current-rng (if seed
                                   (let ([g (make-pseudo-random-generator)])
                                     (parameterize ([current-pseudo-random-generator g])
@@ -292,7 +302,7 @@
         (define-values (h term) (gen-helper info hs))
         (values (cons h hs) (cons term terms))))
 
-    (define-values (main-term _rtype) (gen-main info helpers))
+    (define-values (main-term _rtype) (gen-main info helpers rust?))
 
     (define root-call
       ;; lazy: (main) is a coroutine, os/block drives it
@@ -310,7 +320,7 @@
 
     ;; Safety net: the real typechecker must agree, and the program must be
     ;; a String producer.
-    (define-values (ann τ) (type-check term))
+    (define-values (ann τ) (type-check term #:rust? rust?))
     (unless ann
       (error 'typegen "generated ill-typed term (drift!): ~s" term))
     (unless (equal? τ 'String)

@@ -21,9 +21,12 @@
 
 ;; Check that compiling and running `e` produces stdout
 ;; matching one of `expected-vals`.
+;; `#:rust?` selects the JoinHandle→Result typing discipline (tokio/smol),
+;; under which awaiting a spawned task yields a Result struct.
 (define (check-runtime-in-set compile-and-run e expected-vals
-                              #:normalize [normalize ~a])
-  (define-values (typed-e _type) (type-check (strip-trace-stdout e)))
+                              #:normalize [normalize ~a]
+                              #:rust? [rust? #f])
+  (define-values (typed-e _type) (type-check (strip-trace-stdout e) #:rust? rust?))
   (cond
     [(not typed-e)
      (fail (format "type-check failed: ~s" e))]
@@ -45,6 +48,7 @@
 
 ;; Single-value convenience wrapper.
 (define (check-runtime-output compile-and-run e expected-val
-                              #:normalize [normalize ~a])
+                              #:normalize [normalize ~a]
+                              #:rust? [rust? #f])
   (check-runtime-in-set compile-and-run e (list expected-val)
-                        #:normalize normalize))
+                        #:normalize normalize #:rust? rust?))

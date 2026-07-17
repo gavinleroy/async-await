@@ -5,7 +5,7 @@
          "exn.rkt"
          "platform.rkt")
 
-(provide Swift -->swift)
+(provide Swift -->swift -->>swift)
 
 (define-extended-ev-system Swift
   #:def-reduction -->sys
@@ -59,7 +59,7 @@
                                                          ;; XXX: dynamic-extent enforcement
                                                          (task:wait-on-dependencies x_task)
                                                          (os/start-soon (task:get-dependents x_task)))))))))
-        (where/error t_1 (step t_0))
+        (where/error t_1 t_0)
         "async-app"]
 
    [--> (t_0 σ Q T (FS_0 ... (thread (label (in-hole E (await v_awaitable))) F ...) FS_1 ...))
@@ -71,7 +71,7 @@
                                                                  v_awaitable
                                                                  (label (task:continue-with v_awaitable k))))))) F ...) FS_1 ...))
 
-        (where/error t_1 (step t_0))
+        (where/error t_1 t_0)
         "await"]
 
    [--> (t_0 σ Q T (FS_0 ... (thread (label (in-hole E (cancel v_task))) F ...) FS_1 ...))
@@ -106,13 +106,67 @@
     ;; XXX: add dependency edge
     (where/error (σ_1 x_io v_task) (task:allocate-dependency σ_0 label))
     (where/error σ_2 (ext1 σ_1 (x_io v_task)))
-    (where/error t_1 (step t_0))
-    "os/io"]))
+    (where/error t_1 t_0)
+    "os/io"]
+
+   ;; FREE-RUNNING CLOCK: wall time advances while pool threads run -- see
+   ;; the twin rule and rationale in tokio.rkt.
+   [-->
+    (t_0 σ Q ((t_a label_a v_a) ... (t_x label_x v_x) (t_b label_b v_b) ...) P)
+    (t_x σ Q ((t_a label_a v_a) ... (t_x label_x v_x) (t_b label_b v_b) ...) P)
+    (side-condition (< (term t_0) (term t_x)))
+    "os/clock"]
+
+   ;; Swift cancellation is COOPERATIVE (flag-only): Task.cancel() sets
+   ;; isCancelled -- observable via (cancelled?) -- and nothing else. Probed
+   ;; against real Swift 6: an unstructured Task body runs even when cancelled
+   ;; before its first dispatch, and resumes normally after an emitter-style
+   ;; inner io Task (unstructured Tasks do not inherit cancellation); its
+   ;; awaiter receives the value, no throw. The exn-platform base instead
+   ;; throw-ins "cancelled" at dispatch of a cancelled task's work; shadow
+   ;; that machinery out: dispatch is unguarded, and the cancelled-dispatch /
+   ;; cancelled-timer-drain rules never fire.
+   [-->
+    (t_0 σ Q_0 T ((thread F F_rs ...) ... (thread) FS_1 ...))
+    (t_1 σ Q_1 T ((thread F F_rs ...) ...
+                  (thread (label_waiting (v_thunk (void))))
+                  FS_1 ...))
+    (where ((label_waiting v_thunk) Q_1) (Q:pop Q_0))
+    (where/error t_1 t_0)
+    "sys/schedule"]
+
+   [-->
+    (t_0 σ Q_0 ((t_a label_a v_a) ... (t_d label v) (t_b label_b v_b) ...) P)
+    (t_1 σ Q_1 ((t_a label_a v_a) ... (t_b label_b v_b) ...) P)
+    (side-condition (<= (term t_d) (term t_0)))
+    (where/error Q_1 (Q:push Q_0 (label v)))
+    (where/error t_1 t_0)
+    "sys/signal"]
+
+   [-->
+    (t_0 σ Q T P)
+    (t_0 σ Q T P)
+    (side-condition #false)
+    "sys/schedule-cancelled"]
+
+   [-->
+    (t_0 σ Q T P)
+    (t_0 σ Q T P)
+    (side-condition #false)
+    "sys/signal-cancel"]))
 
 
 (define -->swift
   (union-reduction-relations
    (make-big-step -->sys/overrides)
+   -->swift/core))
+
+;; Non-collapsing variant that exposes every successor (drops the make-big-step
+;; wrapper). Drives whole-state-space exploration: the directed witness search
+;; (fuzz/witness.rkt) and the reference enumerator (fuzz/reference.rkt).
+(define -->>swift
+  (union-reduction-relations
+   -->sys/overrides
    -->swift/core))
 
 ;; -----------------------------------------------------------------------------
@@ -126,10 +180,15 @@
            "fuzz/check.rkt"
            "fuzz/run.rkt")
 
+  ;; Swift prints booleans as true/false; the model's are #t/#f. Normalize
+  ;; expected values to Swift's spelling for the runtime comparison.
+  (define (swift-normalize v)
+    (case v [(#t) "true"] [(#f) "false"] [else (format "~a" v)]))
+
   (define-syntax-rule (swift-->>= e v)
     (begin
       (test-->> -->swift #:equiv prog/equiv (async/main #:threads 2 e) v)
-      (check-runtime-output compile-and-run-swift 'e v)))
+      (check-runtime-output compile-and-run-swift 'e v #:normalize swift-normalize)))
 
   (define-syntax-rule (swift-->>∈ e results)
     (begin
@@ -138,7 +197,7 @@
            (evaluates-in-set -->swift (async/main #:threads 2 e) results
                              #:iterations 1
                              #:extract-result program-output)))
-      (check-runtime-in-set compile-and-run-swift 'e results))))
+      (check-runtime-in-set compile-and-run-swift 'e results #:normalize swift-normalize))))
 
 (module+ test
   (swift-->>=

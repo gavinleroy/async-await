@@ -14,95 +14,181 @@
 ;; produce it? That is a single-target reachability question, and it is cheap in
 ;; the direction that matters.
 ;;
-;; `witness-search` looks for ONE execution whose output is `target`. It prunes
-;; any branch whose output-so-far has already diverged from `target` — printing
-;; only ever appends, so a divergent prefix can never recover — and dedups
-;; canonical states. It returns:
+;; `multi-witness-search` decides ALL of a program's runtime outputs together
+;; (see its header below). Per target it returns:
 ;;
 ;;   'producible    a witness execution was found (definitive yes).
 ;;   'unreachable   the target-consistent subgraph was exhausted with no match:
-;;                  the model PROVABLY cannot produce `target` (definitive no).
-;;   'inconclusive  the search budget (states or time) ran out first (unknown).
+;;                  the model PROVABLY cannot produce the target (definitive no).
+;;   'inconclusive  the search budget (states or time) ran out first (unknown),
+;;                  or an exception truncated a subtree (a completed-but-
+;;                  truncated search must not claim a proof).
 ;;
-;; Finding a witness is cheap — the prefix pruning walks essentially one path.
+;; Finding a witness is cheap — prefix pruning walks essentially one path.
 ;; PROVING 'unreachable can cost as much as enumeration (it must exhaust the
 ;; pruned subgraph), which is why it is budgeted. For the oracle this is exactly
 ;; the right profile: confirming a real output is in the model is fast; the
 ;; expensive case arises only for a genuine divergence, where spending the budget
 ;; is warranted.
-;;
-;; `discover-output-set` recovers much of the model's output set best-effort, by
-;; witness-searching a candidate pool: the seed outputs plus their distinct
-;; character permutations (most concurrent outputs are reorderings of the same
-;; prints). It is SOUND — every returned output has a witness — but not complete:
-;; an output outside the candidate pool, or a candidate that came back
-;; 'inconclusive, is missed. The `discovery` it returns records whether the
-;; result is complete over the pool.
 ;; -----------------------------------------------------------------------------
 
 (require redex/reduction-semantics
          racket/set
+         racket/place
          (only-in racket/string string-prefix?)
-         (only-in racket/list remove-duplicates permutations append*)
-         (only-in "model.rkt" canonicalize accumulator-value program-output))
+         (only-in racket/list remove-duplicates)
+         (only-in "model.rkt" canonicalize accumulator-value observed-output))
 
-(provide witness-search
-         multi-witness-search
-         discover-output-set
-         (struct-out discovery))
+(provide multi-witness-search walk-battery)
 
 ;; ---------------------------------------------------------------------------
-;; Single-target search
-;; ---------------------------------------------------------------------------
-
-;; Does `red` drive `start` to a terminal whose `program-output` is `target`?
-;; -> 'producible | 'unreachable | 'inconclusive   (see file header).
+;; Memoized successor function.
 ;;
-;; Prefix pruning is an optimization that applies when `target` is a string and
-;; the program accumulates stdout: a state whose accumulator is not a prefix of
-;; `target` cannot lead to `target`, so its subtree is skipped. When there is no
-;; string accumulator (e.g. a value-returning program) the search is unpruned
-;; and simply matches `program-output` at each terminal — correct, just slower.
-;; Phase 0: prefix-pruned random walks. A walk that reaches a terminal with
-;; the target output IS a witness (constructive, definitive); failure proves
-;; nothing. Models with parallel/any-order dispatch have witness paths that
-;; walks find in milliseconds where the exhaustive DFS frontier starves --
-;; the walk restarts cheaply whenever a print diverges from the target.
-(define (walk-phase red start target deadline-ms)
-  (and
-   (string? target)
-   (for/or ([_ (in-range 200)])
-     (and (< (current-inexact-milliseconds) deadline-ms)
-          (let loop ([s start] [n 0])
-            (cond
-              ;; deadline is checked per STEP: one walk step costs ~10-30ms of
-              ;; Redex matching, so a per-try check can overrun by an entire
-              ;; 2500-step walk (tens of seconds).
-              [(or (> n 2500)
-                   (and (zero? (modulo n 25))
-                        (>= (current-inexact-milliseconds) deadline-ms)))
-               #f]
-              [else
-               (define succs (with-handlers ([exn:fail? (lambda (_) '())])
-                               (apply-reduction-relation red s)))
-               (cond
-                 [(null? succs) (equal? (program-output s) target)]
-                 [else
-                  (define ok
-                    (for/list ([s* (in-list succs)]
-                               #:when (let ([p (accumulator-value s*)])
-                                        (or (not (string? p)) (string-prefix? target p))))
-                      s*))
-                  (and (pair? ok)
-                       (loop (list-ref ok (random (length ok))) (add1 n)))])]))))))
+;; Successor lists are memoized, keyed on the canonical form of the state
+;; (fuzz/model.rkt `canonicalize`: reachability-renamed, dead store entries
+;; dropped, T deadline-sorted). Reduction always runs on RAW states — the
+;; canonical form is only a lookup key, never reduced, so rules whose
+;; enabledness inspects the whole store syntactically (asyncio's weak-Q
+;; `sys/gc`) see exactly the state the model built. Two raw states with the
+;; same key share one successor list; that is the same states-with-equal-keys-
+;; are-interchangeable assumption the DFS dedup has always made, now also
+;; letting the random walks (which heavily revisit prefix states near the
+;; root) pay the matcher cost once per canonical state.
+;;
+;; Rule firings freshen names, so a raw successor list carries α-twins; one
+;; representative per canonical key is kept, cutting the branching every
+;; consumer sees.
+;;
+;; `on-exn` is called when reduction of a state raises: that state's subtree
+;; is truncated (its successor list is cached as empty), which must poison any
+;; later 'unreachable claim built on top of it.
+;; ---------------------------------------------------------------------------
 
-(define (witness-search red start target
-                        #:state-cap [state-cap 100000]
-                        #:time-cap  [time-cap-ms 10000])
-  (define start-ms (current-inexact-milliseconds))
-  (if (walk-phase red start target (+ start-ms (/ time-cap-ms 3)))
-      'producible
-      (witness-dfs red start target state-cap time-cap-ms start-ms)))
+(define (make-successors red [on-exn void])
+  (define memo (make-hash)) ; canonical key -> (listof raw state)
+  (lambda (s #:key [key (canonicalize s)])
+    (hash-ref! memo key
+               (lambda ()
+                 (define raw (with-handlers ([exn:fail? (lambda (e)
+                                                          (on-exn e)
+                                                          '())])
+                               (apply-reduction-relation red s)))
+                 (define reps (make-hash))
+                 (for ([s* (in-list raw)])
+                   (hash-ref! reps (canonicalize s*) s*))
+                 (hash-values reps)))))
+
+;; ---------------------------------------------------------------------------
+;; Walk engine: SET-pruned random walks. A state survives if its output so far
+;; prefixes ANY unresolved target; a terminal state whose output matches an
+;; unresolved target resolves it. Every walk works for every remaining target
+;; at once. `resolve!` must remove the target from `unresolved`.
+;;
+;; RESERVOIR RESTARTS: a witness can need a narrow schedule window deep in
+;; the trace; root-started walks re-roll every early choice to get there.
+;; Each walk reservoir-samples the prefix-consistent states it passes, and
+;; half of all restarts begin from a random reservoir state instead of the
+;; root — concentrating tries on the deep tail (revisits are near-free via
+;; the successor memo). Restarting from a reachable state keeps every walk a
+;; real execution suffix, so witnesses remain genuine.
+;;
+;; LAGGARD BIAS: real schedulers starve one thread for long stretches (OS
+;; preemption), and several real outputs need exactly that — e.g. a wake
+;; dispatched to a worker that then stalls across the whole of main's
+;; completion. A uniform walk holds a thread still for k consecutive choices
+;; with probability ~2^-k; a third of walks instead pick one P slot up front
+;; and refuse to advance it whenever an alternative successor exists. Bias
+;; only shapes SAMPLING — every path taken is still a real execution.
+;; ---------------------------------------------------------------------------
+
+;; Did the transition s -> s* ADVANCE thread slot i? Filling an EMPTY slot
+;; (dispatch) does not count — the laggard pattern is "work arrives at the
+;; thread, then the OS doesn't run it", so dispatch must stay allowed or a
+;; stalled worker could never have work to be stalled ON.
+(define (advanced-thread? s s* i)
+  (define (P-of st) (and (list? st) (= 5 (length st)) (list-ref st 4)))
+  (define P0 (P-of s))
+  (define P1 (P-of s*))
+  (and (list? P0) (list? P1) (= (length P0) (length P1))
+       (> (length P0) i)
+       (let ([a (list-ref P0 i)] [b (list-ref P1 i)])
+         (and (not (equal? a b))
+              (pair? a) (> (length a) 1))))) ; slot had a frame before the step
+
+(define (run-walks! successors start unresolved resolve! deadline
+                    #:tries [tries 400])
+  (define (prefix-ok? partial)
+    (or (not (string? partial))
+        (for/or ([t (in-mutable-set unresolved)])
+          (and (string? t) (string-prefix? t partial)))))
+  (define nthreads
+    (if (and (list? start) (= 5 (length start)) (list? (list-ref start 4)))
+        (length (list-ref start 4))
+        1))
+  (define reservoir (make-vector 64 #f))
+  (define seen-states 0)
+  (define (reservoir-note! s)
+    (set! seen-states (add1 seen-states))
+    (define slot (if (< seen-states 64) seen-states (random seen-states)))
+    (when (< slot 64) (vector-set! reservoir slot s)))
+  (define (reservoir-pick)
+    (define live (for/list ([s (in-vector reservoir)] #:when s) s))
+    (if (null? live) start (list-ref live (random (length live)))))
+  (let try ([i 0])
+    (when (and (< i tries)
+               (not (set-empty? unresolved))
+               (< (current-inexact-milliseconds) deadline))
+      ;; The laggard re-rolls every ~30 steps: witnesses can need SEQUENTIAL
+      ;; stalls of different threads (e.g. a worker stalled across main's
+      ;; completion, then the root stalled while that worker's tail print
+      ;; lands), which a single per-walk laggard cannot express.
+      (define (roll-laggard)
+        (and (> nthreads 1) (zero? (random 3)) (random nthreads)))
+      (let loop ([s (if (or (< i 20) (zero? (random 2))) start (reservoir-pick))]
+                 [n 0]
+                 [laggard (roll-laggard)])
+        (cond
+          [(or (> n 2500)
+               (and (zero? (modulo n 25))
+                    (>= (current-inexact-milliseconds) deadline)))
+           (void)]
+          [else
+           (define succs (successors s))
+           (cond
+             [(null? succs)
+              (define o (observed-output s))
+              (when (set-member? unresolved o) (resolve! o))]
+             [else
+              (define ok (for/list ([s* (in-list succs)]
+                                    #:when (prefix-ok? (accumulator-value s*)))
+                           s*))
+              (define preferred
+                (if laggard
+                    (let ([still (for/list ([s* (in-list ok)]
+                                            #:unless (advanced-thread? s s* laggard))
+                                   s*)])
+                      (if (pair? still) still ok))
+                    ok))
+              (when (pair? preferred)
+                (define s* (list-ref preferred (random (length preferred))))
+                (reservoir-note! s*)
+                (loop s* (add1 n)
+                      (if (zero? (modulo (add1 n) 30)) (roll-laggard) laggard)))])]))
+      (try (add1 i)))))
+
+;; Standalone walk phase over a fresh memo — the unit of work a place worker
+;; runs (witness-place.rkt). Returns the targets it witnessed before the
+;; deadline. Only ever ADDS 'producible verdicts, so it needs no poisoning
+;; bookkeeping: a truncated walk just fails to witness.
+(define (walk-battery red start targets walk-ms #:tries [tries 2000])
+  (define deadline (+ (current-inexact-milliseconds) walk-ms))
+  (define unresolved (list->mutable-set (remove-duplicates targets)))
+  (define found '())
+  (define successors (make-successors red))
+  (run-walks! successors start unresolved
+              (lambda (t) (set-remove! unresolved t) (set! found (cons t found)))
+              deadline #:tries tries)
+  found)
 
 ;; ---------------------------------------------------------------------------
 ;; Multi-target search
@@ -112,21 +198,27 @@
 ;; overlap heavily, and per-target searches re-explore that shared region
 ;; once per target. Two phases over one budget:
 ;;
-;;  1. SET-pruned random walks (a state survives if its output prefixes ANY
-;;     unresolved target; a terminal matching one resolves it). Every walk
-;;     works for every remaining target at once.
+;;  1. Set-pruned random walks (run-walks! above), up to half the budget.
+;;     With `#:pool`, the same walk battery additionally runs on every place
+;;     worker in parallel with independent RNG (witness-place.rkt); their
+;;     findings are merged before phase 2, so the DFS prune set starts as
+;;     small as possible.
 ;;  2. One UNION-pruned DFS over the rest. Exhausting the union subgraph
 ;;     without the caps proves 'unreachable for every target not found —
 ;;     each target's own subgraph is contained in the union's. Shrinking the
 ;;     prune set as targets resolve mid-DFS is sound: a state pruned by the
-;;     shrunk set cannot reach any REMAINING target.
+;;     shrunk set cannot reach any REMAINING target. (Place results arrive
+;;     before the DFS starts and only shrink its prune set; the DFS's own
+;;     exhaustion argument is unchanged.)
 ;;
 ;; Returns a hash: target -> 'producible | 'unreachable | 'inconclusive.
 ;; ---------------------------------------------------------------------------
 
 (define (multi-witness-search red start targets
                               #:state-cap [state-cap 100000]
-                              #:time-cap  [time-cap-ms 10000])
+                              #:time-cap  [time-cap-ms 10000]
+                              #:pool      [pool '()]
+                              #:lang      [lang #f])
   (define start-ms (current-inexact-milliseconds))
   (define verdicts (make-hash)) ; target -> verdict
   (define unresolved (list->mutable-set (remove-duplicates targets)))
@@ -136,38 +228,28 @@
         (for/or ([t (in-mutable-set unresolved)])
           (and (string? t) (string-prefix? t partial)))))
 
-  ;; Phase 1: set-pruned walks, up to half the budget
-  (let ([deadline (+ start-ms (/ time-cap-ms 2))])
-    (let try ([i 0])
-      (when (and (< i 400)
-                 (not (set-empty? unresolved))
-                 (< (current-inexact-milliseconds) deadline))
-        (let loop ([s start] [n 0])
-          (cond
-            [(or (> n 2500)
-                 (and (zero? (modulo n 25))
-                      (>= (current-inexact-milliseconds) deadline)))
-             (void)]
-            [else
-             (define succs (with-handlers ([exn:fail? (lambda (_) '())])
-                             (apply-reduction-relation red s)))
-             (cond
-               [(null? succs)
-                (define o (program-output s))
-                (when (set-member? unresolved o) (resolve! o))]
-               [else
-                (define ok (for/list ([s* (in-list succs)]
-                                      #:when (prefix-of-some? (accumulator-value s*)))
-                             s*))
-                (when (pair? ok)
-                  (loop (list-ref ok (random (length ok))) (add1 n)))])]))
-        (try (add1 i)))))
+  (define poisoned? #f)
+  (define successors (make-successors red (lambda (_) (set! poisoned? #t))))
+
+  ;; Farm the walk phase out to the pool (non-blocking), then run it locally.
+  (define workers (if lang pool '()))
+  (define walk-ms (quotient time-cap-ms 2))
+  (for ([pl (in-list workers)])
+    (place-channel-put pl (vector lang start (set->list unresolved) walk-ms)))
+
+  ;; Phase 1 (local): set-pruned walks, up to half the budget
+  (run-walks! successors start unresolved resolve! (+ start-ms walk-ms))
+
+  ;; Merge the pool's findings; the workers reply at ~the same deadline the
+  ;; local phase just hit, so this get blocks only for the skew.
+  (for ([pl (in-list workers)])
+    (for ([t (in-list (place-channel-get pl))])
+      (when (set-member? unresolved t) (resolve! t))))
 
   ;; Phase 2: union-pruned DFS with the remaining budget
   (unless (set-empty? unresolved)
     (define seen (make-hash))
     (define count 0)
-    (define poisoned? #f)
     (define capped? #f)
     (let/ec stop
       (define (dfs s)
@@ -180,13 +262,10 @@
           (unless (hash-has-key? seen key)
             (hash-set! seen key #t)
             (set! count (add1 count))
-            (define succs (with-handlers ([exn:fail? (lambda (_)
-                                                       (set! poisoned? #t)
-                                                       '())])
-                            (apply-reduction-relation red s)))
+            (define succs (successors s #:key key))
             (cond
               [(null? succs)
-               (define o (program-output s))
+               (define o (observed-output s))
                (when (set-member? unresolved o)
                  (resolve! o)
                  (when (set-empty? unresolved) (stop (void))))]
@@ -198,80 +277,3 @@
       (hash-set! verdicts t leftover-verdict)))
 
   verdicts)
-
-(define (witness-dfs red start target state-cap time-cap-ms start-ms)
-  (define seen (make-hash))                ; canonical state -> #t
-  (define count 0)
-  ;; Default 'unreachable: completing the DFS having explored the whole
-  ;; target-consistent subgraph without a match IS a proof of absence.
-  (define outcome 'unreachable)
-  ;; An exception while computing successors truncates that state's subtree,
-  ;; so "explored everything" no longer holds -- a completed search can then
-  ;; claim at most 'inconclusive, never a proof. (Found this the hard way: a
-  ;; metafunction fault was being swallowed here, silently deleting
-  ;; subtrees.)
-  (define poisoned? #f)
-  (define string-target? (string? target))
-  (let/ec stop
-    (define (dfs s)
-      (define partial (and string-target? (accumulator-value s)))
-      ;; prune once the accumulated output diverges from the target prefix
-      (when (or (not (string? partial)) (string-prefix? target partial))
-        (when (or (>= count state-cap)
-                  (> (- (current-inexact-milliseconds) start-ms) time-cap-ms))
-          (set! outcome 'inconclusive)
-          (stop (void)))
-        (define key (canonicalize s))
-        (unless (hash-has-key? seen key)
-          (hash-set! seen key #t)
-          (set! count (add1 count))
-          (define succs (with-handlers ([exn:fail? (lambda (_)
-                                                     (set! poisoned? #t)
-                                                     '())])
-                          (apply-reduction-relation red s)))
-          (cond
-            [(null? succs)                       ; terminal
-             (when (equal? (program-output s) target)
-               (set! outcome 'producible)
-               (stop (void)))]
-            [else (for ([s* (in-list succs)]) (dfs s*))]))))
-    (dfs start))
-  (if (and poisoned? (eq? outcome 'unreachable)) 'inconclusive outcome))
-
-;; ---------------------------------------------------------------------------
-;; Best-effort set discovery
-;; ---------------------------------------------------------------------------
-
-;; producible : sorted list of outputs proven reachable (each has a witness)
-;; complete?  : #t iff no candidate came back 'inconclusive — i.e. `producible`
-;;              is the FULL set of reachable outputs WITHIN the candidate pool
-;;              (outputs outside the pool are still not guaranteed)
-;; probed     : number of candidates witness-searched
-(struct discovery (producible complete? probed) #:transparent)
-
-;; Permuting a seed of length n yields n! candidates; cap the length we expand so
-;; the candidate pool cannot blow up factorially. Seeds longer than this (or
-;; non-string seeds) are probed as-is.
-(define max-permuted-length 6)           ; 6! = 720
-
-(define (candidates-of seed)
-  (cond
-    [(and (string? seed) (<= (string-length seed) max-permuted-length))
-     (remove-duplicates (map list->string (permutations (string->list seed))))]
-    [else (list seed)]))
-
-;; Discover reachable outputs by witness-searching the `seeds` and their
-;; character permutations. Per-candidate budgets are passed through to
-;; `witness-search`.
-(define (discover-output-set red start seeds
-                             #:state-cap [state-cap 100000]
-                             #:time-cap  [time-cap-ms 10000])
-  (define candidates (remove-duplicates (append* (map candidates-of seeds))))
-  (define producible '())
-  (define complete? #t)
-  (for ([c (in-list candidates)])
-    (case (witness-search red start c #:state-cap state-cap #:time-cap time-cap-ms)
-      [(producible)   (set! producible (cons c producible))]
-      [(inconclusive) (set! complete? #f)]
-      [(unreachable)  (void)]))
-  (discovery (sort producible string<?) complete? (length candidates)))

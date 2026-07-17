@@ -3,23 +3,34 @@
 ;; -----------------------------------------------------------------------------
 ;; Differential fuzzer.
 ;;
-;; For each generated, well-typed program:
-;;   - the MODEL is sampled K times (nondeterministic reduction); its outputs
-;;     form the specification set,
-;;   - the REAL program is compiled once and run R times,
+;; RUNTIME-FIRST, for each generated, well-typed program:
+;;   - the REAL program is compiled once and run R times; its distinct outputs
+;;     are the membership targets,
+;;   - ONE multi-target witness search on the non-collapsing relation
+;;     (fuzz/witness.rkt) decides for every target at once whether the model
+;;     can produce it; the search's walk phase doubles as directed model
+;;     sampling. A proven-unreachable output is a confirmed mismatch; one we
+;;     cannot decide within budget is reported as `unconfirmed`.
 ;;   - the claim under test: every real-world output is a member of the
 ;;     model's output set.
-;; On a membership miss the model is resampled (up to 10xK extra runs)
-;; before the miss is reported — sampling can under-approximate the set.
 ;;
 ;; Generated programs evaluate to "<trace>|<value>" strings (see typegen.rkt),
 ;; so model values and runtime stdout compare as plain strings.
 ;; -----------------------------------------------------------------------------
 
 (require racket/cmdline
+         racket/file
          racket/match
          racket/string
-         (only-in racket/list make-list remove-duplicates)
+         racket/place
+         racket/runtime-path
+         json
+         (only-in racket/list remove-duplicates)
+         (only-in "model.rkt" wrap-program)
+         (only-in "witness.rkt" multi-witness-search)
+         ;; not used directly here — required so `raco make fuzz/main.rkt`
+         ;; compiles the place-worker module dynamic-place loads at runtime
+         (only-in "witness-place.rkt" witness-place-main)
          "typegen.rkt"
          "run.rkt"
          "../platform.rkt"
@@ -36,102 +47,126 @@
 ;; ---------------------------------------------------------------------------
 
 (define count         (make-parameter 10))
-(define model-samples (make-parameter 2))
 (define runtime-runs  (make-parameter 50))
-(define max-steps     (make-parameter 5000))
 (define threads       (make-parameter #f)) ; #f = per-language default
 (define verbose?      (make-parameter #f))
 (define selected      (make-parameter #f))
+(define seed          (make-parameter #f)) ; #f until chosen; always set before fuzzing
+(define out-dir       (make-parameter #f)) ; run cache directory (JSONL + summaries)
+
+;; Per-language RNG seed. Each language re-seeds from this base before generating
+;; its programs, so `-l <lang> --seed N` reproduces exactly the same programs for
+;; that language regardless of which other languages share the run. The base name
+;; is folded in so distinct languages don't generate identical program streams.
+(define (language-seed base lang)
+  (define name-sum
+    (for/sum ([c (in-string (symbol->string lang))]) (char->integer c)))
+  (add1 (modulo (+ (* base 1000003) name-sum) 1000000006)))
+
+;; Every runtime output is resolved by the directed witness search on the
+;; non-collapsing relation (-->>lang). These bound that search: finding a
+;; witness is cheap, but PROVING an output unreachable can cost as much as
+;; full enumeration. The budget is only SPENT when targets resist the walk
+;; phase (a typical pass finishes in seconds), so the default is generous:
+;; a Redex step costs 40-80ms on these models, and deep interleavings need
+;; thousands of steps to witness.
+;;
+;; `search-workers` place workers per lane run extra walk batteries in
+;; parallel with independent RNG (fuzz/witness-place.rkt); 0 disables the
+;; pool. Each worker is a full OS thread running its own Redex instance.
+(define witness-states (make-parameter 300000))
+(define witness-ms     (make-parameter 300000))
+(define search-workers (make-parameter 2))
+
+;; Lazily-created, lane-lifetime pool of walk workers (each loads every model,
+;; a few seconds once per lane).
+(define-runtime-path witness-place-path "witness-place.rkt")
+(define worker-pool '())
+(define (ensure-pool!)
+  (when (and (null? worker-pool) (> (search-workers) 0))
+    (set! worker-pool
+          (for/list ([i (in-range (search-workers))])
+            (define pl (dynamic-place witness-place-path 'witness-place-main))
+            (place-channel-put pl i)
+            pl)))
+  worker-pool)
 
 ;; Worker threads in the model must match the runtime's concurrency model:
-;; asyncio/trio/JS event loops are single-threaded — giving the model extra
-;; threads produces interleavings (e.g. a spawned task running before its
-;; creator suspends) that the real runtime cannot exhibit, and vice versa
-;; hides orderings the runtime guarantees.
+;; event loops are single-threaded — giving the model extra threads produces
+;; interleavings (e.g. a spawned task running before its creator suspends)
+;; that the real runtime cannot exhibit, and vice versa hides orderings the
+;; runtime guarantees. asyncio/trio/JS need NO worker slot: their scheduler
+;; rules run ready thunks as frames stacked on the root thread (the event
+;; loop IS the one thread).
+;; smol is 1: block_on drives the entry future inline on the root thread
+;; (see smol.rkt os/block-coro) in parallel with ONE executor thread --
+;; smol's global executor defaults to a single worker (SMOL_THREADS unset).
+;; tokio is 4: #[tokio::main] defaults to worker_threads = cores (probed:
+;; >=3 distinct worker ids), and generated programs spawn at most ~4 tasks;
+;; fewer model slots than concurrently-runnable tasks hides real parallel
+;; interleavings.
+;; swift is 4 for the same reason as tokio: the global concurrent executor is
+;; core-width (>=4 anywhere), and with only 2 slots + FIFO dispatch a third
+;; task PROVABLY cannot print before two stalled predecessors (fuzz seed
+;; 227726474 swift[12]/[13]: "DCAAABBB|0"/"AADCABBB|0" enumeration-exhausted
+;; unreachable, yet the real runtime produced them).
 (define model-threads
-  (hasheq 'asyncio    1
-          'trio       1
-          'javascript 1
-          'tokio      2
-          'smol       2
-          'swift      2
+  (hasheq 'asyncio    0
+          'trio       0
+          'javascript 0
+          'tokio      4
+          'smol       1
+          'swift      4
           'csharp     2))
 
 (define (threads-for lang)
   (or (threads) (hash-ref model-threads lang 2)))
 
-(define reducers
-  (hasheq 'asyncio    -->aio
-          'tokio      -->tokio
-          'trio       -->trio
-          'smol       -->smol
-          'javascript -->js
-          'swift      -->swift
-          'csharp     -->c#))
-
-;; ---------------------------------------------------------------------------
-;; Model: sample the reduction relation
-;; ---------------------------------------------------------------------------
-
-;; Generated programs use `(print e)` forms. The compilers treat print as a
-;; built-in writing to real stdout; for the model the same s-expression is
-;; an application of the `print` lambda bound here — the trace-stdout
-;; expansion from core.rkt's niceties, spelled out in grammar forms. The
-;; wrapped program evaluates to the accumulated trace (the program itself
-;; evaluates to "", so the begin's value is exactly what was printed).
-;; Prints are not racy in the model: only one thread evaluates at a time.
-(define (wrap-for-model e)
-  `(let ([stdout ""])
-     (let ([print (lambda (s) (set! stdout (string-append stdout s)))])
-       (begin ,e stdout))))
-
-(define (wrap-expr e nthreads)
-  `(0 () () () ((thread (root ,(wrap-for-model e)))
-                ,@(make-list nthreads '(thread)))))
-
-;; One nondeterministic model run: 'ok + value | 'stuck | 'error
-(define (run-model-once red e nthreads)
-  (with-handlers ([exn:fail? (lambda (exn) (values 'error (exn-message exn)))])
-    (define result (reduce red (wrap-expr e nthreads)
-                           #:max-steps (max-steps)
-                           #:deterministic? #f))
-    (define out (and result (program-output result)))
-    (if (string? out)
-        (values 'ok out)
-        (values 'stuck #f))))
-
-;; Sample k model runs; returns (values outputs stuck-count error-count first-error)
-(define (sample-model red e k nthreads)
-  (for/fold ([outs '()] [stuck 0] [errs 0] [msg #f]
-             #:result (values (remove-duplicates outs) stuck errs msg))
-            ([_ (in-range k)])
-    (define-values (status val) (run-model-once red e nthreads))
-    (match status
-      ['ok    (values (cons val outs) stuck errs msg)]
-      ['stuck (values outs (add1 stuck) errs msg)]
-      ['error (values outs stuck (add1 errs) (or msg val))])))
+;; Non-collapsing variants (-->>lang), for the directed witness search.
+(define witness-reducers
+  (hasheq 'asyncio    -->>aio
+          'tokio      -->>tokio
+          'trio       -->>trio
+          'smol       -->>smol
+          'javascript -->>js
+          'swift      -->>swift
+          'csharp     -->>c#))
 
 ;; ---------------------------------------------------------------------------
 ;; Per-language fuzzer
 ;; ---------------------------------------------------------------------------
 
-(struct stats (pass mismatch model-stuck model-error
+;; `mismatch`    : a real output the model PROVABLY cannot produce (confirmed bug).
+;; `unconfirmed` : a real output we could not witness in the model within budget
+;;                 (neither found nor proven absent) — needs a bigger budget or a
+;;                 human look, but not a confirmed failure.
+(struct stats (pass mismatch unconfirmed
                     runtime-crash runtime-timeout gen-fail)
   #:transparent #:mutable)
 
-(define (make-stats) (stats 0 0 0 0 0 0 0))
+(define (make-stats) (stats 0 0 0 0 0 0))
 
 (define (bump! s field)
   (match field
     ['pass            (set-stats-pass! s (add1 (stats-pass s)))]
     ['mismatch        (set-stats-mismatch! s (add1 (stats-mismatch s)))]
-    ['model-stuck     (set-stats-model-stuck! s (add1 (stats-model-stuck s)))]
-    ['model-error     (set-stats-model-error! s (add1 (stats-model-error s)))]
+    ['unconfirmed     (set-stats-unconfirmed! s (add1 (stats-unconfirmed s)))]
     ['runtime-crash   (set-stats-runtime-crash! s (add1 (stats-runtime-crash s)))]
     ['runtime-timeout (set-stats-runtime-timeout! s (add1 (stats-runtime-timeout s)))]
     ['gen-fail        (set-stats-gen-fail! s (add1 (stats-gen-fail s)))]))
 
-(define (fuzz-one lang red st i)
+;; One JSONL record per program, appended EAGERLY so a running lane can be
+;; inspected mid-flight (and later rendered by a TUI).
+(define (write-record! lang rec)
+  (when (out-dir)
+    (call-with-output-file (build-path (out-dir) (format "~a.jsonl" lang))
+      #:exists 'append
+      (lambda (p) (write-json rec p) (newline p)))))
+
+(define (now-ms) (current-inexact-milliseconds))
+
+(define (fuzz-one lang st i)
+  (define t0 (now-ms))
   (define p
     (with-handlers ([exn:fail? (lambda (exn)
                                  (when (verbose?)
@@ -140,24 +175,29 @@
                                  #f)])
       (generate-program lang)))
   (cond
-    [(not p) (bump! st 'gen-fail)]
+    [(not p)
+     (bump! st 'gen-fail)
+     (write-record! lang (hasheq 'index i 'status "gen-fail"))]
     [else
      (define term (gen-program-term p))
+     (define (record! status counts verdicts ms-extra)
+       (write-record!
+        lang
+        (hasheq 'index i
+                'status status
+                'term (format "~s" term)
+                'outputs (for/list ([o (in-list (hash-keys counts))])
+                           (hasheq 'out o
+                                   'count (hash-ref counts o)
+                                   'verdict (hash-ref verdicts o "unknown")))
+                'ms (hash-set ms-extra 'total (round (- (now-ms) t0))))))
 
-     ;; 1. the model's output set
-     (define-values (model-outs stuck errs err-msg)
-       (sample-model red term (model-samples) (threads-for lang)))
-     (cond
-       [(null? model-outs)
-        (bump! st (if (> errs 0) 'model-error 'model-stuck))
-        (when (verbose?)
-          (printf "  [~a] model ~a~a~n" i (if (> errs 0) "error" "stuck")
-                  (if err-msg (format ": ~a" err-msg) ""))
-          (printf "       expr: ~s~n" term))]
-       [else
-        ;; 2. sample the real program
+     ;; 1. the real program: build once, run R times, count distinct outputs
+     (let ()
+        (define t-run0 (now-ms))
         (define results (compile-and-run-many lang (gen-program-annotated p)
                                               (runtime-runs)))
+        (define t-run (round (- (now-ms) t-run0)))
         (define crash (findf (lambda (r)
                                (and (not (eq? (run-result-exit-code r) 'timeout))
                                     (not (zero? (run-result-exit-code r)))))
@@ -167,48 +207,101 @@
         (cond
           [crash
            (bump! st 'runtime-crash)
+           (record! "runtime-crash" (hash) (hash) (hasheq 'runtime t-run))
            (printf "  [~a] CRASH ~a~n" i (string-trim (run-result-stderr crash)))
-           (when (verbose?) (printf "       expr: ~s~n" term))]
-          [timeout (bump! st 'runtime-timeout)]
+           (printf "       expr: ~s~n" term)
+           (flush-output)]
+          [timeout
+           (bump! st 'runtime-timeout)
+           (record! "runtime-timeout" (hash) (hash) (hasheq 'runtime t-run))
+           (printf "  [~a] runtime TIMEOUT~n" i)
+           (printf "       expr: ~s~n" term)
+           (flush-output)]
           [else
-           (define runtime-outs
-             (remove-duplicates (map (lambda (r) (string-trim (run-result-stdout r)))
-                                     results)))
-           ;; 3. membership, with escalation: sampling can under-approximate
-           ;;    the model's set, so resample before reporting a miss
-           (define misses
-             (for/list ([out (in-list runtime-outs)]
-                        #:unless (member out model-outs))
-               out))
-           (define-values (extra-outs _s _e _m)
-             (if (null? misses)
-                 (values '() 0 0 #f)
-                 (sample-model red term (* 10 (model-samples)) (threads-for lang))))
-           (define model-set (remove-duplicates (append model-outs extra-outs)))
-           (define real-misses
-             (for/list ([out (in-list misses)]
-                        #:unless (member out model-set))
-               out))
+           (define counts
+             (for/fold ([h (hash)]) ([r (in-list results)])
+               (hash-update h (string-trim (run-result-stdout r)) add1 0)))
+           (define runtime-outs (hash-keys counts))
+
+           ;; 2. membership: ONE multi-target search for every distinct
+           ;;    runtime output. The walk phase resolves the common outputs in
+           ;;    milliseconds (it IS the model sampler, directed at exactly
+           ;;    the outputs reality produced); a single union-pruned DFS
+           ;;    proves any leftovers unreachable together (witness.rkt).
+           (define misses runtime-outs)
+           (define t-search0 (now-ms))
+           (define search-verdicts
+             (multi-witness-search (hash-ref witness-reducers lang)
+                                   (wrap-program term (threads-for lang))
+                                   misses
+                                   #:state-cap (witness-states)
+                                   #:time-cap  (witness-ms)
+                                   #:pool      (ensure-pool!)
+                                   #:lang      lang))
+           (define t-search (round (- (now-ms) t-search0)))
+           (define verdicts
+             (for/hash ([o (in-list runtime-outs)])
+               (values o (symbol->string
+                          (hash-ref search-verdicts o 'inconclusive)))))
+           (define confirmed
+             (for/list ([o (in-list misses)]
+                        #:when (eq? (hash-ref search-verdicts o #f) 'unreachable))
+               o))
+           (define unconfirmed
+             (for/list ([o (in-list misses)]
+                        #:when (eq? (hash-ref search-verdicts o #f) 'inconclusive))
+               o))
+           (define ms (hasheq 'runtime t-run 'search t-search))
            (cond
-             [(null? real-misses)
-              (bump! st 'pass)
-              (when (verbose?)
-                (printf "  [~a] pass: ~a runtime outputs ⊆ ~a model outputs~n"
-                        i (length runtime-outs) (length model-set)))]
-             [else
+             [(pair? confirmed)
               (bump! st 'mismatch)
-              (printf "  [~a] MISMATCH: runtime output(s) ~s not in model set ~s~n"
-                      i real-misses model-set)
-              (printf "       expr: ~s~n" term)])])])]))
+              (record! "mismatch" counts verdicts ms)
+              (printf "  [~a] MISMATCH: model cannot produce runtime output(s) ~s~n" i confirmed)
+              (when (pair? unconfirmed)
+                (printf "       (also unconfirmed within budget: ~s)~n" unconfirmed))
+              (printf "       expr: ~s~n" term)]
+             [(pair? unconfirmed)
+              (bump! st 'unconfirmed)
+              (record! "unconfirmed" counts verdicts ms)
+              (printf "  [~a] UNCONFIRMED: could not witness runtime output(s) ~s in the model within budget (~ams)~n"
+                      i unconfirmed (witness-ms))
+              (printf "       expr: ~s~n" term)]
+             [else
+              (bump! st 'pass)
+              (record! "pass" counts verdicts ms)
+              (printf "  [~a] pass: ~a output~a in ~as~n"
+                      i (length runtime-outs)
+                      (if (= 1 (length runtime-outs)) "" "s")
+                      (/ (round (/ (- (now-ms) t0) 100)) 10.0))])
+           (flush-output)]))]))
+
 
 (define (fuzz-language lang)
   (printf "--- ~a ---~n" lang)
-  (define red (hash-ref reducers lang))
+  (flush-output)
+  (random-seed (language-seed (seed) lang))
   (define st (make-stats))
+  (define t0 (now-ms))
   (for ([i (in-range (count))])
-    (fuzz-one lang red st i))
-  (printf "  pass: ~a  mismatch: ~a  model-stuck: ~a  model-error: ~a~n"
-          (stats-pass st) (stats-mismatch st) (stats-model-stuck st) (stats-model-error st))
+    (fuzz-one lang st i))
+  (when (out-dir)
+    (call-with-output-file (build-path (out-dir) (format "~a-summary.json" lang))
+      #:exists 'replace
+      (lambda (p)
+        (write-json
+         (hasheq 'lang (symbol->string lang)
+                 'seed (seed)
+                 'count (count)
+                 'pass (stats-pass st)
+                 'mismatch (stats-mismatch st)
+                 'unconfirmed (stats-unconfirmed st)
+                 'runtime-crash (stats-runtime-crash st)
+                 'runtime-timeout (stats-runtime-timeout st)
+                 'gen-fail (stats-gen-fail st)
+                 'wall-ms (round (- (now-ms) t0)))
+         p))))
+  (printf "  pass: ~a  mismatch: ~a  unconfirmed: ~a~n"
+          (stats-pass st) (stats-mismatch st) (stats-unconfirmed st))
   (printf "  runtime-crash: ~a  runtime-timeout: ~a  gen-fail: ~a  (of ~a)~n"
           (stats-runtime-crash st) (stats-runtime-timeout st) (stats-gen-fail st) (count))
   st)
@@ -224,15 +317,24 @@
    [("-n" "--count") n
     "Programs per language (default: 10)"
     (count (string->number n))]
-   [("-k" "--model-samples") k
-    "Model runs per program (default: 2; escalates 10x on a membership miss)"
-    (model-samples (string->number k))]
+   [("--out") dir
+    "Run cache directory: per-lane JSONL records and summaries are written here"
+    (out-dir dir)]
+   [("--seed") s
+    "RNG seed for reproducible program generation (default: a fresh one, printed)"
+    (seed (string->number s))]
    [("-r" "--runtime-runs") r
     "Real-program runs per program (default: 50)"
     (runtime-runs (string->number r))]
-   [("--max-steps") m
-    "Max model reduction steps (default: 5000)"
-    (max-steps (string->number m))]
+   [("--witness-time") wt
+    "Per-program multi-target search time budget in ms (default: 300000)"
+    (witness-ms (string->number wt))]
+   [("--witness-states") ws
+    "Per-program multi-target search state budget (default: 300000)"
+    (witness-states (string->number ws))]
+   [("--search-workers") sw
+    "Parallel walk workers per lane, 0 disables the pool (default: 2)"
+    (search-workers (string->number sw))]
    [("--threads") t
     "Override worker threads in model (default: per-language)"
     (threads (string->number t))]
@@ -254,8 +356,16 @@
                        sel)]
       [else typegen-languages]))
 
-  (printf "async-fuzz: ~a programs × ~a languages (model-samples=~a, runtime-runs=~a)~n"
-          (count) (length langs) (model-samples) (runtime-runs))
+  ;; Always run with a definite seed, and print it, so every run is reproducible:
+  ;; re-run with `--seed <printed>` to regenerate the exact same programs.
+  (unless (seed) (seed (random 1000000007)))
+
+  (when (out-dir)
+    (make-directory* (out-dir)))
+
+  (printf "async-fuzz: ~a programs × ~a languages (seed=~a, runtime-runs=~a)~n"
+          (count) (length langs) (seed) (runtime-runs))
+  (flush-output)
 
   (define results
     (for/list ([lang (in-list langs)])
@@ -265,12 +375,20 @@
   (printf "=== summary ===~n")
   (define total-pass 0)
   (define total-fail 0)
+  (define total-unconfirmed 0)
   (for ([r (in-list results)])
     (define st (cdr r))
     (define fails (+ (stats-mismatch st) (stats-runtime-crash st)))
     (set! total-pass (+ total-pass (stats-pass st)))
     (set! total-fail (+ total-fail fails))
-    (when (> fails 0)
-      (printf "  ~a: ~a failures~n" (car r) fails)))
-  (printf "total: ~a pass, ~a fail~n" total-pass total-fail)
+    (set! total-unconfirmed (+ total-unconfirmed (stats-unconfirmed st)))
+    (when (or (> fails 0) (> (stats-unconfirmed st) 0))
+      (printf "  ~a: ~a failures~a~n" (car r) fails
+              (if (> (stats-unconfirmed st) 0)
+                  (format ", ~a unconfirmed" (stats-unconfirmed st))
+                  ""))))
+  (printf "total: ~a pass, ~a fail~a~n" total-pass total-fail
+          (if (> total-unconfirmed 0) (format ", ~a unconfirmed" total-unconfirmed) ""))
+  ;; unconfirmed outputs are not counted as hard failures (we could not prove a
+  ;; divergence), but they are surfaced above for investigation.
   (exit (if (zero? total-fail) 0 1)))

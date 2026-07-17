@@ -10,7 +10,8 @@
 ;;   (async-> (τ ...) τ)
 ;;   (List τ)
 ;;   (Box τ)
-;;   (Task τ)
+;;   (Task τ)        -- awaitable coroutine / timer future (await → τ, raw)
+;;   (Handle τ)      -- JoinHandle from `spawn` (Rust: await → Result struct)
 ;;   (Struct ((name τ) ...))
 ;;
 ;; Output: typed expression where lambda/async-lambda become:
@@ -27,6 +28,11 @@
 (define counter 0)
 (define (fresh!) (set! counter (add1 counter)) (tvar counter #f))
 (define (reset!) (set! counter 0))
+
+;; When #true, awaiting a spawned JoinHandle yields a Result struct
+;; {type:String, value:τ} (Rust's JoinHandle::await -> Result<T, JoinError>);
+;; otherwise it yields τ directly (every other runtime). Set by type-check.
+(define current-rust? (make-parameter #f))
 
 (define (resolve t)
   (if (and (tvar? t) (tvar-link t))
@@ -50,6 +56,7 @@
        [`(List ,t)   (occurs? tv t)]
        [`(Box ,t)    (occurs? tv t)]
        [`(Task ,t)   (occurs? tv t)]
+       [`(Handle ,t) (occurs? tv t)]
        [`(Struct ,fs) (ormap (λ (f) (occurs? tv (cadr f))) fs)]
        [_ #f])]))
 
@@ -83,6 +90,7 @@
        [(`(List ,a) `(List ,b)) (unify! a b)]
        [(`(Box ,a) `(Box ,b)) (unify! a b)]
        [(`(Task ,a) `(Task ,b)) (unify! a b)]
+       [(`(Handle ,a) `(Handle ,b)) (unify! a b)]
        [(`(Struct ,f1) `(Struct ,f2))
         (unless (= (length f1) (length f2)) (error 'type "struct fields"))
         (for-each (λ (a b)
@@ -106,6 +114,7 @@
         [`(List ,t)   `(List ,(zonk t))]
         [`(Box ,t)    `(Box ,(zonk t))]
         [`(Task ,t)   `(Task ,(zonk t))]
+        [`(Handle ,t) `(Handle ,(zonk t))]
         [`(Struct ,fs) `(Struct ,(map (λ (f) (list (car f) (zonk (cadr f)))) fs))]
         [_ (error 'zonk "unexpected: ~a" r)])))
 
@@ -193,7 +202,17 @@
     [`(letrec (,clauses ...) ,body)
      (define xs (map car clauses))
      (define rhss (map cadr clauses))
-     (define x-types (map (λ (_) (fresh!)) xs))
+     ;; Seed each binding's type from the rhs's syntactic shape *before*
+     ;; inferring the body, so a recursive self-call sees the right arrow.
+     ;; Without this an `async/lambda` that calls itself is pinned to a sync
+     ;; `->` by the application rule and then clashes with its `async->`
+     ;; definition (recursive async functions would fail to type-check).
+     (define x-types
+       (for/list ([rhs (in-list rhss)])
+         (match rhs
+           [`(async/lambda (,as ...) ,_) `(async-> ,(map (λ (_) (fresh!)) as) ,(fresh!))]
+           [`(lambda (,as ...) ,_)       `(-> ,(map (λ (_) (fresh!)) as) ,(fresh!))]
+           [_ (fresh!)])))
      (define env2 (for/fold ([e env]) ([x (in-list xs)] [t (in-list x-types)])
                     (extend e x t)))
      (define rhs-anns '())
@@ -421,31 +440,50 @@
      (values `(err ,a) result)]
 
     ;; --- Async ---
+    ;; A coroutine / timer future (Task) awaits to its raw value. A JoinHandle
+    ;; (Handle, produced by `spawn`) awaits to a Result: in Rust that is a
+    ;; struct {type:String, value:τ}; elsewhere a Handle never arises.
     [`(await ,e)
      (define-values (a t) (infer env e))
-     (define elem (fresh!))
-     (unify! t `(Task ,elem))
-     (values `(await ,a) elem)]
+     (match (resolve t)
+       [`(Handle ,elem)
+        (values `(await ,a) `(Struct ((type String) (value ,elem))))]
+       [_
+        (define elem (fresh!))
+        (unify! t `(Task ,elem))
+        (values `(await ,a) elem)])]
 
+    ;; `spawn` turns a coroutine into a task handle. Under #:rust? the handle is
+    ;; a JoinHandle (await → Result); otherwise it is an ordinary task.
     [`(spawn ,e)
      (define-values (a t) (infer env e))
-     (values `(spawn ,a) t)]
-
-    ;; Cancelling returns the task itself: some runtimes (smol) await it.
-    [`(cancel ,e)
-     (define-values (a t) (infer env e))
      (define elem (fresh!))
      (unify! t `(Task ,elem))
-     (values `(cancel ,a) `(Task ,elem))]
+     (values `(spawn ,a) (if (current-rust?) `(Handle ,elem) `(Task ,elem)))]
+
+    ;; Cancelling returns the handle/task itself: some runtimes (smol) await it.
+    [`(cancel ,e)
+     (define-values (a t) (infer env e))
+     (match (resolve t)
+       [`(Handle ,elem) (values `(cancel ,a) `(Handle ,elem))]
+       [_
+        (define elem (fresh!))
+        (unify! t `(Task ,elem))
+        (values `(cancel ,a) `(Task ,elem))])]
 
     [`(cancelled?)
      (values '(cancelled?) 'Bool)]
 
+    ;; block_on returns the future's raw output T, whether given a coroutine or
+    ;; a handle.
     [`(os/block ,e)
      (define-values (a t) (infer env e))
-     (define elem (fresh!))
-     (unify! t `(Task ,elem))
-     (values `(os/block ,a) elem)]
+     (match (resolve t)
+       [`(Handle ,elem) (values `(os/block ,a) elem)]
+       [_
+        (define elem (fresh!))
+        (unify! t `(Task ,elem))
+        (values `(os/block ,a) elem)])]
 
     [`(os/io ,delay ,val)
      (define-values (d* dt) (infer env delay))
@@ -490,11 +528,12 @@
 ;; Entry Point
 ;; ---------------------------------------------------------------------------
 
-(define (type-check e)
+(define (type-check e #:rust? [rust? #f])
   (reset!)
-  (with-handlers ([exn:fail? (λ (_) (values #f #f))])
-    (define-values (ann type) (infer '() e))
-    (values (zonk-expr ann) (zonk type))))
+  (parameterize ([current-rust? rust?])
+    (with-handlers ([exn:fail? (λ (_) (values #f #f))])
+      (define-values (ann type) (infer '() e))
+      (values (zonk-expr ann) (zonk type)))))
 
 ;; ---------------------------------------------------------------------------
 ;; Tests
@@ -580,5 +619,34 @@
   ;; type is independent of the body's
   (check-not-false (tc '(throw 42)))
   (check-equal? (cdr (tc '(catch (lambda (e) "fallback") (+ 1 2)))) 'Int)
+
+  ;; --- Rust JoinHandle Result discipline (#:rust? #t) ---
+  (define (tc/rust e)
+    (define-values (ann type) (type-check e #:rust? #t))
+    (and ann (cons ann type)))
+
+  ;; awaiting a spawned handle yields a Result struct {type, value}
+  (check-equal?
+   (cdr (tc/rust '(let ([t (spawn ((async/lambda () 42)))]) (await t))))
+   '(Struct ((type String) (value Int))))
+
+  ;; unwrapping the handle's value recovers the payload type
+  (check-equal?
+   (cdr (tc/rust '(let ([t (spawn ((async/lambda () 42)))]) (field value (await t)))))
+   'Int)
+
+  ;; awaiting a coroutine directly (no spawn) stays raw even under #:rust?
+  (check-equal? (cdr (tc/rust '(await ((async/lambda () 42))))) 'Int)
+
+  ;; await of an os/io future is raw, even under #:rust?
+  (check-equal? (cdr (tc/rust '(await (os/io 1 "v")))) 'String)
+
+  ;; block_on returns the raw output, even for Rust
+  (check-equal? (cdr (tc/rust '(os/block ((async/lambda () 42))))) 'Int)
+
+  ;; without #:rust?, awaiting a spawned handle is raw (every other runtime)
+  (check-equal?
+   (cdr (tc '(let ([t (spawn ((async/lambda () 42)))]) (await t))))
+   'Int)
 
   (printf "typecheck tests passed~n"))

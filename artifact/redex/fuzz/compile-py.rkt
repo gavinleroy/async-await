@@ -51,8 +51,12 @@ EOF
    preamble-common
    #<<EOF
 
+# Model delays are logical units ordered by deadline, not durations; 20ms per
+# unit keeps that ordering robust against loop jitter while letting a fuzz run
+# finish in seconds instead of minutes (the JS backend gets the same numbers
+# as setTimeout milliseconds).
 async def __io(delay, val):
-    await asyncio.sleep(delay)
+    await asyncio.sleep(delay * 0.02)
     return val
 
 EOF
@@ -69,12 +73,35 @@ class _TrioTask:
         self._event = trio.Event()
         self._result = self._error = None
         self._scope = None
+        self._cancel_requested = False
 
+    # Task-extent structured concurrency, mirroring the model: one CancelScope
+    # per task (individual cancellation) enclosing one nursery (children
+    # spawned anywhere during this task's execution live at most as long as
+    # the task, and the task completes only after they do -- the model's
+    # task:await-dependencies at task end). _current_nursery is set in the
+    # task's OWN context: start_soon copies the spawner's context, so the
+    # assignment cannot leak back into the spawner.
     async def _run(self, coro):
         with trio.CancelScope() as scope:
             self._scope = scope
-            try: self._result = await coro
-            except BaseException as e: self._error = e
+            # cancel() arrived before the task's first step: cancel the scope
+            # now, so the body runs exactly to its first checkpoint (trio
+            # guarantees a started task reaches its first checkpoint).
+            if self._cancel_requested:
+                scope.cancel()
+            try:
+                async with trio.open_nursery() as nursery:
+                    _current_nursery.set(nursery)
+                    self._result = await coro
+            except BaseException as e:
+                # nurseries wrap exceptions in ExceptionGroup; unwrap
+                # singletons so awaiters see the original error, matching the
+                # model's task:set-failed! payload.
+                while (isinstance(e, BaseExceptionGroup)
+                       and len(e.exceptions) == 1):
+                    e = e.exceptions[0]
+                self._error = e
             self._event.set()
 
     async def wait(self):
@@ -83,6 +110,7 @@ class _TrioTask:
         return self._result
 
     def cancel(self):
+        self._cancel_requested = True
         if self._scope: self._scope.cancel()
 
 _current_nursery = contextvars.ContextVar('_current_nursery')
@@ -91,15 +119,15 @@ async def __spawn(coro):
     nursery = _current_nursery.get()
     task = _TrioTask()
     nursery.start_soon(task._run, coro)
-    await trio.sleep(0)
     return task
 
 async def __await_task(t):
     if isinstance(t, _TrioTask): return await t.wait()
     return await t
 
+# Same logical-units-to-20ms scaling as the asyncio backend.
 async def __io(delay, val):
-    await trio.sleep(delay)
+    await trio.sleep(delay * 0.02)
     return val
 
 EOF
@@ -410,19 +438,16 @@ EOF
   (string-join
    (for/list ([h (in-list hoisted)])
      (match h
+       ;; Task-extent (trio): helper functions do NOT open nurseries -- the
+       ;; only nurseries are per-task (_TrioTask._run) and the entry's
+       ;; (__trio_entry). A helper's spawns attach to the RUNNING task's
+       ;; nursery via _current_nursery, so a spawned task may outlive the
+       ;; function that spawned it but never its spawning task.
        [(list 'async-nursery name params ret body)
         (define sig (if (string=? params "")
                         (format "async def ~a()~a:" name (ret-ann ret))
                         (format "async def ~a(~a)~a:" name params (ret-ann ret))))
-        (case (runtime)
-          [(trio)
-           (string-append
-            sig "\n"
-            "    async with trio.open_nursery() as __nursery:\n"
-            "        _current_nursery.set(__nursery)\n"
-            (format "        ~a\n" body))]
-          [else
-           (string-append sig "\n" (format "    ~a\n" body))])]
+        (string-append sig "\n" (format "    ~a\n" body))]
        [(list 'async name params ret body)
         (define ra (ret-ann ret))
         (if (string=? params "")

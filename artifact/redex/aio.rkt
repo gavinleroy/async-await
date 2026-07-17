@@ -6,13 +6,20 @@
          "py.rkt"
          "platform.rkt")
 
-(provide AsyncIO -->aio)
+(provide AsyncIO -->aio -->>aio)
 
 (define-extended-ev-system AsyncIO
   #:def-reduction -->sys
   #:def-exn-reduction -->sys/exn
   #:with-base-lang Py
   #:with-base-reduction -->py
+  #:single-threaded
+  ;; No #:serial-dispatch: run-to-completion is structural -- ready thunks run
+  ;; as frames stacked on the root thread (see sys/schedule below), so nothing
+  ;; can dispatch while a callback is mid-run. And asyncio has no
+  ;; micro-before-macro priority: call_soon callbacks and due timer callbacks
+  ;; feed the same FIFO ready deque, so sys/signal must NOT wait for an idle
+  ;; loop (a due timer is queued while an earlier callback still runs).
   (e ::= .... (spawn e) (cancel e))
   (E ::= .... (spawn E) (cancel E))
   (M ::= .... (spawn M) (cancel M))
@@ -44,7 +51,7 @@
                                     ;; EXTENT: indefinite, at the end of the task scope we don't destroy
                                     ;; tasks that were spawned during the execution of `v_coro`.
                                     ))))
-        (where/error t_1 (step t_0))
+        (where/error t_1 t_0)
         "spawn"]
 
    [--> (t_0 σ Q T (FS_0 ... (thread (label (in-hole E (await v_awaitable))) F ...) FS_1 ...))
@@ -61,17 +68,32 @@
                                                           (label (task:continue-with v_awaitable k)))))))) F ...) FS_1 ...))
 
         (where #true (task:is-task? v_awaitable))
-        (where/error t_1 (step t_0))
+        (where/error t_1 t_0)
         "await-task"]
 
    [--> (t_0 σ Q T (FS_0 ... (thread (label (in-hole E (cancel v_task))) F ...) FS_1 ...))
         (t_0 σ Q T (FS_0 ... (thread (label (in-hole E (task:set-cancelled! v_task))) F ...) FS_1 ...))
         "cancel"]
 
-   [--> (t_0 σ Q T (FS_0 ... (thread (root (in-hole E (os/block (name v_coro (lambda (x) e))))) F ...) FS_1 ...))
-        (t_1 σ Q T (FS_0 ... (thread (root (in-hole E (os/block (spawn v_coro)))) F ...) FS_1 ...))
+   ;; The entry coroutine: asyncio.run wraps it in a task and the ONE thread
+   ;; immediately starts driving it -- run_until_complete never returns to the
+   ;; scheduler first, so anything already in Q runs strictly after main's
+   ;; first suspension. Modeled by stacking the task's wrapper frame directly
+   ;; on the root thread (contrast spawn, which pushes to the BACK of Q). No
+   ;; (begin none ...) first-run hook here: nothing can cancel the entry task
+   ;; before its first step.
+   [--> (t_0 σ_0 Q T ((thread (root (in-hole E (os/block (name v_coro (lambda (x) e)))))) FS ...))
+        (t_1 σ_2 Q T ((thread (x_task (reset
+                                       (begin
+                                         (catch (lambda (v_err) (task:set-failed! x_task v_err))
+                                                (task:set-done! x_task (await v_coro)))
+                                         (os/start-soon (task:get-dependents x_task)))))
+                              (root (in-hole E (os/block x_task))))
+                      FS ...))
 
-        (where/error t_1 (step t_0))
+        (where/error (σ_1 x_task v_task) (task:allocate σ_0))
+        (where/error σ_2 (ext1 σ_1 (x_task v_task)))
+        (where/error t_1 t_0)
         "os/block-coro"]))
 
 (define -->sys/overriden
@@ -79,14 +101,38 @@
    -->sys/exn
    AsyncIO
 
+   ;; SINGLE-THREADED: the event loop IS the root thread. run_until_complete
+   ;; executes ready callbacks on the calling thread, so dispatch (these two
+   ;; rules shadow the platform's, which require an empty worker slot) pops the
+   ;; ready queue and runs the thunk as a frame stacked on the parked root.
+   ;; The pattern is the idle gate: while a callback frame sits on top of
+   ;; root, or before os/block-coro has started the entry task (is-task?
+   ;; fails on the coroutine), neither rule can fire.
    [-->
-    (t_0 σ_0 Q_0 T ((thread F F_rs ...) ... (thread) FS_1 ...))
-    (t_1 σ_1 Q_1 T ((thread F F_rs ...) ... (thread (label_waiting (throw-in v_thunk "cancelled"))) FS_1 ...))
+    (t_0 σ Q_0 T ((thread (root (in-hole E (os/block v_task)))) FS ...))
+    (t_1 σ Q_1 T ((thread (label_waiting (v_thunk (void)))
+                          (root (in-hole E (os/block v_task))))
+                  FS ...))
 
+    (where #true (task:is-task? v_task))
+    (where ((label_waiting v_thunk) Q_1) (Q:pop Q_0))
+    (where #false (task:cancelled? σ label_waiting))
+    (where/error t_1 t_0)
+    "sys/schedule"]
+
+   ;; Cancelled-task dispatch keeps AsyncIO's one-shot delivery: throw the
+   ;; cancellation into the thunk and uncancel (the flag is consumed).
+   [-->
+    (t_0 σ_0 Q_0 T ((thread (root (in-hole E (os/block v_task)))) FS ...))
+    (t_1 σ_1 Q_1 T ((thread (label_waiting (throw-in v_thunk "cancelled"))
+                            (root (in-hole E (os/block v_task))))
+                    FS ...))
+
+    (where #true (task:is-task? v_task))
     (where ((label_waiting v_thunk) Q_1) (Q:pop Q_0))
     (where #true (task:cancelled? σ_0 label_waiting))
     (where/error σ_1 (task:uncancel σ_0 label_waiting))
-    (where/error t_1 (step t_0))
+    (where/error t_1 t_0)
     "sys/schedule-cancelled"]
 
    ;; STRENGTH weak, `Q`, the Executor loop is not a part of the GC root set
@@ -95,7 +141,7 @@
         (side-condition
          (let ([remaining-state (term (T PS any_before ... any_after ...))])
            (not (memq (term x) (flatten remaining-state)))))
-        (where/error t_1 (step t_0))
+        (where/error t_1 t_0)
         "sys/gc"]
 
 
@@ -106,30 +152,35 @@
 
         (where #true (task:settled? σ v_task))
         (where (x_0 x_1 ...) (store:get-uncancelled-tasks σ))
-        (where/error t_1 (step t_0))
+        (where/error t_1 t_0)
         "os/block-cancel"]
 
+   ;; PROPAGATION: log. asyncio.run returns the entry task's value; an
+   ;; exception in a task that was never awaited does NOT propagate into user
+   ;; code -- the loop reports it out-of-band ("Task exception was never
+   ;; retrieved", on stderr), a channel outside the model's observables.
+   ;; Equivalently: a reraise caught immediately at the runtime boundary. If
+   ;; main itself failed, task:get-result rethrows its error, which IS what
+   ;; asyncio.run does.
    [--> (t_0 σ () () ((thread (root (in-hole E (os/block v_task)))) FS ...))
         (t_1 σ () () ((thread (root (in-hole E (task:get-result v_task)))) FS ...))
 
         (where #true (task:settled? σ v_task))
         (where () (store:get-uncancelled-tasks σ))
-        (where none (store:find-unawaited-error σ))
-        (where/error t_1 (step t_0))
-        "os/block-exit"]
-
-   [--> (t_0 σ () () ((thread (root (in-hole E (os/block v_task)))) FS ...))
-        (t_1 σ () () ((thread (root (in-hole E (throw v_error)))) FS ...))
-
-        (where #true (task:settled? σ v_task))
-        ;; PROPAGATION: reraise, exceptions are reraised at the end of the jk
-        (where (some v_error) (store:find-unawaited-error σ))
-        (where/error t_1 (step t_0))
-        "os/block-exit-throwing"]))
+        (where/error t_1 t_0)
+        "os/block-exit"]))
 
 (define -->aio
   (union-reduction-relations
    (make-big-step -->sys/overriden)
+   -->aio/core))
+
+;; Non-collapsing variant that exposes every successor (drops the make-big-step
+;; wrapper). Drives whole-state-space exploration: the directed witness search
+;; (fuzz/witness.rkt) and the reference enumerator (fuzz/reference.rkt).
+(define -->>aio
+  (union-reduction-relations
+   -->sys/overriden
    -->aio/core))
 
 ;; -----------------------------------------------------------------------------
@@ -143,16 +194,18 @@
            "fuzz/check.rkt"
            "fuzz/run.rkt")
 
+  ;; #:threads 1: the model runs asyncio on a single P-slot (the root thread
+  ;; is the event loop), matching the single-threaded runtime.
   (define-syntax-rule (aio-->>= e v)
     (begin
-      (test-->> -->aio #:equiv prog/equiv (async/main #:threads 2 e) v)
+      (test-->> -->aio #:equiv prog/equiv (async/main #:threads 1 e) v)
       (check-runtime-output compile-and-run-asyncio 'e v)))
 
   (define-syntax-rule (aio-->>∈ e results)
     (begin
       (unit:check-true
        (with-exn-handler
-           (evaluates-in-set -->aio (async/main #:threads 2 e) results
+           (evaluates-in-set -->aio (async/main #:threads 1 e) results
                              #:iterations 5
                              #:extract-result program-output)))
       (check-runtime-in-set compile-and-run-asyncio 'e results))))
@@ -195,6 +248,10 @@
      (os/block (main)))
    42)
 
+  ;; PROPAGATION: log -- an unretrieved task exception never reaches user
+  ;; code (the root catch stays empty) and asyncio.run returns main's value.
+  ;; The loop's "Task exception was never retrieved" report is stderr-only,
+  ;; outside the model's observables.
   (aio-->>=
    (let* ([exn (async/lambda ()
                  (throw "whoops"))]
@@ -203,7 +260,7 @@
                     (await (os/io 1 42))))])
      (catch (lambda (e) e)
             (os/block (main))))
-   "whoops")
+   42)
 
   (aio-->>=
    (trace-stdout (print)
@@ -250,6 +307,10 @@
      (os/block (main)))
    '("cancelled"))
 
+  ;; The task is cancelled before its first step (main runs inline ahead of
+  ;; anything create_task queued), so the cancellation is raised at the
+  ;; coroutine's entry: work's catch never engages and 42 is unreachable.
+  ;; Matches real asyncio, which raises CancelledError out of asyncio.run.
   (aio-->>∈
    (let* ([work (async/lambda ()
                   (catch (lambda (e) 42)
@@ -258,8 +319,9 @@
           [main (async/lambda ()
                   (begin (cancel t)
                          (await t)))])
-     (os/block (main)))
-   '(42 0))
+     (catch (lambda (e) "cancelled")
+            (os/block (main))))
+   '("cancelled"))
 
   (aio-->>=
    (trace-stdout (print)

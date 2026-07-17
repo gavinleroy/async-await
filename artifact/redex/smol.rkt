@@ -5,7 +5,7 @@
          "rust.rkt"
          "platform.rkt")
 
-(provide Smol -->smol)
+(provide Smol -->smol -->>smol)
 
 (define-extended-ev-system Smol
   #:def-reduction -->sys
@@ -35,9 +35,9 @@
                                     (begin none
                                            (reset
                                             (begin
-                                              (task:set-done! x_task (await v_coro))
+                                              (task:set-done! x_task (struct [type "Ok"] [value (await v_coro)]))
                                               (os/start-soon (task:get-dependents x_task)))))))))
-        (where/error t_1 (step t_0))
+        (where/error t_1 t_0)
         "spawn"]
 
    [--> (t_0 σ Q T (FS_0 ... (thread (label (in-hole E (await v_awaitable))) F ...) FS_1 ...))
@@ -53,23 +53,66 @@
                                                            (k (task:get-result v_awaitable))))))))) F ...) FS_1 ...))
 
         (where #true (task:is-task? v_awaitable))
-        (where/error t_1 (step t_0))
+        (where/error t_1 t_0)
         "await-task"]
 
+   ;; cancel of a NEVER-STARTED task: async-task closes an unpolled task in
+   ;; place -- it is unlinked from the queue without running (no print, no
+   ;; poll), and cancel().await resolves WITHOUT an executor round-trip, so
+   ;; the caller's next statement runs before any queued task dispatches.
+   ;; The waiter handle is allocated already-done so `(await (cancel t))`
+   ;; completes inline. The general rule below stays applicable: the
+   ;; executor may also have started the task concurrently, in which case
+   ;; the flag-and-wait path is what really happens.
+   [--> (t_0 σ_0 (any_qpre ... (x_t _) any_qpost ...) T
+             (FS_0 ... (thread (label (in-hole E (cancel (name v_task (struct (self (ptr x_t)) any_field ...))))) F ...) FS_1 ...))
+        (t_1 σ_2 (any_qpre ... any_qpost ...) T
+             (FS_0 ... (thread (label (in-hole E
+                                              (begin
+                                                (task:set-done! x_t (struct [type "Err"] [value (void)]))
+                                                (os/start-soon (task:get-dependents x_t))
+                                                (task:set-done! x_w (void))
+                                                x_w))) F ...) FS_1 ...))
+
+        (where/error (σ_1 x_w v_w) (task:allocate σ_0))
+        (where/error σ_2 (ext1 σ_1 (x_w v_w)))
+        (where/error t_1 t_0)
+        "cancel-unstarted"]
+
+   ;; Task::cancel().await sets the cancelled flag on the caller's own poll --
+   ;; INLINE, not through the executor queue (deferring the flag to a queued
+   ;; canceller task lets already-queued wakeups of the target run first,
+   ;; which the real runtime cannot do). The spawned waiter models only the
+   ;; wind-down wait that `(await (cancel t))` observes: it resolves once the
+   ;; target has settled.
    [--> (t_0 σ Q T (FS_0 ... (thread (label (in-hole E (cancel v_task))) F ...) FS_1 ...))
         (t_1 σ Q T (FS_0 ... (thread (label (in-hole E
-                                                     (spawn ((async/lambda ()
-                                                               (begin (task:set-cancelled! v_task)
-                                                                      (await v_task)
-                                                                      (void))))))) F ...) FS_1 ...))
+                                                     (begin
+                                                       (task:set-cancelled! v_task)
+                                                       (spawn ((async/lambda ()
+                                                                 (begin (await v_task)
+                                                                        (void)))))))) F ...) FS_1 ...))
 
-        (where/error t_1 (step t_0))
+        (where/error t_1 t_0)
         "cancel"]
 
-   [--> (t_0 σ Q T (FS_0 ... (thread (root (in-hole E (os/block (name v_coro (lambda (x) e))))) F ...) FS_1 ...))
-        (t_1 σ Q T (FS_0 ... (thread (root (in-hole E (os/block (spawn v_coro)))) F ...) FS_1 ...))
+   ;; The entry future: block_on drives it INLINE on the calling thread, in
+   ;; parallel with the (single) executor thread -- it never goes through the
+   ;; executor queue. Modeled by stacking the entry task's wrapper frame
+   ;; directly on the root thread: same Ok-wrapping wrapper as spawn's thunk
+   ;; (os/block-done unwraps it), minus the first-run cancellation hook
+   ;; (nothing can cancel the entry).
+   [--> (t_0 σ_0 Q T ((thread (root (in-hole E (os/block (name v_coro (lambda (x) e)))))) FS ...))
+        (t_1 σ_2 Q T ((thread (x_task (reset
+                                       (begin
+                                         (task:set-done! x_task (struct [type "Ok"] [value (await v_coro)]))
+                                         (os/start-soon (task:get-dependents x_task)))))
+                              (root (in-hole E (os/block x_task))))
+                      FS ...))
 
-        (where/error t_1 (step t_0))
+        (where/error (σ_1 x_task v_task) (task:allocate σ_0))
+        (where/error σ_2 (ext1 σ_1 (x_task v_task)))
+        (where/error t_1 t_0)
         "os/block-coro"]))
 
 (define -->sys/overrides
@@ -77,21 +120,86 @@
    -->sys
    Smol
 
+   ;; FREE-RUNNING CLOCK: wall time advances while threads run (the block_on
+   ;; thread can be OS-preempted while the executor thread and timers
+   ;; proceed) -- see the twin rule and rationale in tokio.rkt.
+   [-->
+    (t_0 σ Q ((t_a label_a v_a) ... (t_x label_x v_x) (t_b label_b v_b) ...) P)
+    (t_x σ Q ((t_a label_a v_a) ... (t_x label_x v_x) (t_b label_b v_b) ...) P)
+    (side-condition (< (term t_0) (term t_x)))
+    "os/clock"]
+
    [-->
     (t_0 σ Q_0 T ((thread F F_rs ...) ... (thread) FS_1 ...))
     (t_1 σ Q_1 T ((thread F F_rs ...) ... (thread
-                                           (label_waiting (begin (task:set-done! label_waiting "cancelled")
+                                           (label_waiting (begin (task:set-done! label_waiting (struct [type "Err"] [value (void)]))
                                                                  (os/start-soon (task:get-dependents label_waiting))))) FS_1 ...))
 
     (where ((label_waiting _) Q_1) (Q:pop Q_0))
     (where #true (task:cancelled? σ label_waiting))
-    (where/error t_1 (step t_0))
-    "sys/schedule-cancelled"]))
+    (where/error t_1 t_0)
+    "sys/schedule-cancelled"]
+
+   ;; A cancelled timer (ANY of them -- direct ellipsis match; the old
+   ;; T:pop-cancelled metafunction faulted with two cancelled timers pending)
+   ;; is drained from T and placed back on Q (modelling Drop releasing the
+   ;; task's IO), where sys/schedule-cancelled settles it Err and wakes its
+   ;; dependents. Without this rule a cancelled timer is a zombie in T and
+   ;; os/block can never exit.
+   [--> (t_0 σ Q_0 (any_th ... (t_c label v) any_tt ...) P)
+        (t_1 σ Q_1 (any_th ... any_tt ...) P)
+
+        (where #true (task:cancelled? σ label))
+        (where/error Q_1 (Q:push Q_0 (label v)))
+        (where/error t_1 t_0)
+        "sys/signal-cancel"]
+
+   ;; B3: block_on resumptions. The entry future is polled on the CALLING
+   ;; thread: when main's wake-up is queued, it resumes as a frame on the
+   ;; parked root -- in genuine parallel with the executor thread -- never on
+   ;; the worker. Any-position pop: the reactor wakes the block_on thread
+   ;; directly, so main's wake does not queue behind executor work. (The
+   ;; base head-pop dispatch may still grab a main-labeled entry into the
+   ;; worker; those orderings are an over-approximation the oracle
+   ;; tolerates.)
+   [-->
+    (t_0 σ (any_qpre ... (x_main v_thunk) any_qpost ...) T
+         ((thread (root (in-hole E (os/block (name v_task (struct (self (ptr x_main)) any_field ...)))))) FS ...))
+    (t_1 σ (any_qpre ... any_qpost ...) T
+         ((thread (x_main (v_thunk (void)))
+                  (root (in-hole E (os/block v_task))))
+          FS ...))
+
+    (where/error t_1 t_0)
+    "sys/schedule-main"]
+
+   ;; block_on returns the moment the entry future settles -- it does NOT
+   ;; wait for executor quiescence. Pending queue entries and timers are
+   ;; ABANDONED (probed: a spawned task's remaining prints never appear once
+   ;; main returns; 30/30), but workers may be MID-POLL: they keep running,
+   ;; so their remaining prints can land after the root's final output --
+   ;; the racy shutdown tail a detached executor thread produces. The
+   ;; (field value ...) unwrap removes the entry task's JoinHandle Ok
+   ;; wrapper.
+   [--> (t_0 σ Q T ((thread (root (in-hole E (os/block v_awaitable)))) FS ...))
+        (t_1 σ () () ((thread (root (in-hole E (field value (task:get-result v_awaitable))))) FS ...))
+        (where #true (task:is-task? v_awaitable))
+        (where #true (task:settled? σ v_awaitable))
+        (where/error t_1 t_0)
+        "os/block-done"]))
 
 
 (define -->smol
   (union-reduction-relations
    (make-big-step -->sys/overrides)
+   -->smol/core))
+
+;; Non-collapsing variant that exposes every successor (drops the make-big-step
+;; wrapper). Drives whole-state-space exploration: the directed witness search
+;; (fuzz/witness.rkt) and the reference enumerator (fuzz/reference.rkt).
+(define -->>smol
+  (union-reduction-relations
+   -->sys/overrides
    -->smol/core))
 
 ;; -----------------------------------------------------------------------------
@@ -108,7 +216,7 @@
   (define-syntax-rule (smol-->>= e v)
     (begin
       (test-->> -->smol #:equiv prog/equiv (async/main #:threads 2 e) v)
-      (check-runtime-output compile-and-run-smol 'e v)))
+      (check-runtime-output compile-and-run-smol 'e v #:rust? #t)))
 
   (define-syntax-rule (smol-->>∈ e results)
     (begin
@@ -116,7 +224,20 @@
        (with-exn-handler
            (evaluates-in-set -->smol (async/main #:threads 2 e) results
                              #:extract-result program-output)))
-      (check-runtime-in-set compile-and-run-smol 'e results))))
+      (check-runtime-in-set compile-and-run-smol 'e results #:rust? #t)))
+
+  ;; Model outputs checked against a REGEXP, runtime outputs against the
+  ;; observed set: under the free-running clock (os/clock) a program whose
+  ;; output is bounded only by timing has an unbounded model set (at-least-n
+  ;; sleeps can lag any amount), while real jitter stays small.
+  (define-syntax-rule (smol-->>~ e px results)
+    (begin
+      (unit:check-true
+       (with-exn-handler
+           (evaluates-in-set -->smol (async/main #:threads 2 e) (list px)
+                             #:extract-result program-output
+                             #:equiv? (lambda (got pat) (regexp-match? pat got)))))
+      (check-runtime-in-set compile-and-run-smol 'e results #:rust? #t))))
 
 (module+ test
   (smol-->>=
@@ -143,12 +264,13 @@
      (os/block (work)))
    42)
 
+  ;; Awaiting a JoinHandle yields a Result; unwrap its value to recover 42.
   (smol-->>=
    (let* ([work (async/lambda ()
                   (begin (await (os/io 1 (void)))
                          (await (os/io 1 (void)))
                          42))]
-          [main (async/lambda () (await (spawn (work))))])
+          [main (async/lambda () (field value (await (spawn (work)))))])
      (os/block (main)))
    42)
 
@@ -161,19 +283,20 @@
        (os/block (transparent))))
    "B")
 
-  (smol-->>∈
+  (smol-->>~
    (trace-stdout (print)
      (let* ([work (async/lambda ()
-                    (letrec ([loop (lambda ()
+                    (letrec ([loop (async/lambda ()
                                      (begin (await (os/io 1 (print "A")))
-                                            (loop)))])
-                      (loop)))]
+                                            (await (loop))))])
+                      (await (loop))))]
 
             [main (async/lambda ()
                     (let ([t (spawn (work))])
                       (begin (await (os/io 2 (void)))
                              (await (cancel t)))))])
        (os/block (main))))
+   #px"^A*$"
    (for/list ([i (in-range 5)])
      (make-string i #\A)))
 

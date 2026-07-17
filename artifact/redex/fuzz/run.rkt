@@ -4,6 +4,7 @@
          racket/file
          racket/format
          racket/match
+         racket/runtime-path
          "compile-js.rkt"
          "compile-py.rkt"
          "compile-cs.rkt"
@@ -126,55 +127,67 @@ EOF
     (delete-directory/files dir)))
 
 ;; ---------------------------------------------------------------------------
-;; Rust — cargo run (tokio / smol)
+;; Rust — cargo (tokio / smol)
+;;
+;; Fixed, fully pre-fetched environment: dependencies come from the
+;; Nix-vendored crate set (ASYNC_FUZZ_CARGO_CONFIG points crates-io at the
+;; store's vendor directory and sets [net] offline), version-pinned by the
+;; committed rust-template/Cargo.lock and built with --locked -- no network,
+;; no re-resolution. Every generated project shares one persistent
+;; per-language CARGO_TARGET_DIR, so the dependency tree compiles ONCE
+;; (debug profile); each program only rebuilds the single-file crate itself.
+;; Both languages use the template's union manifest (tokio + smol) -- the
+;; one the lockfile covers; the unused runtime costs one compile into the
+;; shared cache, after which it is free. Target dirs are per-language so
+;; concurrent tokio/smol fuzz lanes cannot clobber each other's
+;; debug/generated binary.
 ;; ---------------------------------------------------------------------------
 
-(define tokio-cargo-toml #<<EOF
-[package]
-name = "generated"
-version = "0.1.0"
-edition = "2021"
+(define-runtime-path rust-template-dir "rust-template")
 
-[dependencies]
-tokio = { version = "=1.50.0", features = ["full"] }
-EOF
-)
+(define (rust-target-dir lang)
+  (build-path (find-system-path 'temp-dir)
+              (format "async-fuzz-target-~a" lang)))
 
-(define smol-cargo-toml #<<EOF
-[package]
-name = "generated"
-version = "0.1.0"
-edition = "2021"
+(define (rust-bin lang)
+  (build-path (rust-target-dir lang) "debug" "generated"))
 
-[dependencies]
-smol = "=2.0.2"
-EOF
-)
-
-;; When ASYNC_FUZZ_CARGO_CONFIG is set (the Nix shell points it at a cargo
-;; config with vendored sources), builds run fully offline.
-(define (compile-and-run-rust cargo-toml compile-fn e #:timeout [timeout 120])
-  (define src (compile-fn e))
+;; Temp project: template manifest + lockfile, generated main.rs, and the
+;; vendored-sources cargo config when the environment provides one.
+(define (make-rust-project src)
   (define dir (make-temp-dir))
   (define cargo-config (getenv "ASYNC_FUZZ_CARGO_CONFIG"))
   (make-directory (build-path dir "src"))
-  (display-to-file cargo-toml (build-path dir "Cargo.toml"))
+  (copy-file (build-path rust-template-dir "Cargo.toml")
+             (build-path dir "Cargo.toml"))
+  (copy-file (build-path rust-template-dir "Cargo.lock")
+             (build-path dir "Cargo.lock"))
   (display-to-file src (build-path dir "src" "main.rs"))
   (when cargo-config
     (make-directory (build-path dir ".cargo"))
     (copy-file cargo-config (build-path dir ".cargo" "config.toml")))
+  (values dir cargo-config))
+
+(define (rust-build-cmd dir lang cargo-config)
+  (format "cd '~a' && CARGO_TARGET_DIR='~a' cargo build -q --locked~a"
+          (path->string dir)
+          (path->string (rust-target-dir lang))
+          (if cargo-config " --offline" "")))
+
+(define (compile-and-run-rust lang compile-fn e #:timeout [timeout 120])
+  (define-values (dir cargo-config) (make-rust-project (compile-fn e)))
   (begin0
-    (run-command (format "cd '~a' && cargo run -q~a"
-                         (path->string dir)
-                         (if cargo-config " --offline" ""))
+    (run-command (format "~a && '~a'"
+                         (rust-build-cmd dir lang cargo-config)
+                         (path->string (rust-bin lang)))
                  #:timeout timeout)
     (delete-directory/files dir)))
 
 (define (compile-and-run-tokio e #:timeout [timeout 120])
-  (compile-and-run-rust tokio-cargo-toml compile-tokio e #:timeout timeout))
+  (compile-and-run-rust 'tokio compile-tokio e #:timeout timeout))
 
 (define (compile-and-run-smol e #:timeout [timeout 120])
-  (compile-and-run-rust smol-cargo-toml compile-smol e #:timeout timeout))
+  (compile-and-run-rust 'smol compile-smol e #:timeout timeout))
 
 ;; ---------------------------------------------------------------------------
 ;; Multi-run execution: compile once, run n times
@@ -232,22 +245,12 @@ EOF
       (lambda () (delete-directory/files dir)))]
 
     [(or 'tokio 'smol)
-     (define dir (make-temp-dir))
-     (define cargo-config (getenv "ASYNC_FUZZ_CARGO_CONFIG"))
-     (make-directory (build-path dir "src"))
-     (display-to-file (if (eq? lang 'tokio) tokio-cargo-toml smol-cargo-toml)
-                      (build-path dir "Cargo.toml"))
-     (display-to-file ((if (eq? lang 'tokio) compile-tokio compile-smol) e)
-                      (build-path dir "src" "main.rs"))
-     (when cargo-config
-       (make-directory (build-path dir ".cargo"))
-       (copy-file cargo-config (build-path dir ".cargo" "config.toml")))
+     (define-values (dir cargo-config)
+       (make-rust-project ((if (eq? lang 'tokio) compile-tokio compile-smol) e)))
      (compiled
-      (lambda () (run-command (format "cd '~a' && cargo build -q~a"
-                                      (path->string dir)
-                                      (if cargo-config " --offline" ""))
+      (lambda () (run-command (rust-build-cmd dir lang cargo-config)
                               #:timeout 300))
-      (format "'~a'" (path->string (build-path dir "target" "debug" "generated")))
+      (format "'~a'" (path->string (rust-bin lang)))
       (lambda () (delete-directory/files dir)))]
 
     [_ (error 'compile-and-run-many "unknown language: ~a" lang)]))

@@ -49,9 +49,39 @@
           [net]
           offline = true
         '';
+
+        model = pkgs.stdenv.mkDerivation {
+          pname = "models";
+          version = "0.1.0";
+          src = pkgs.lib.cleanSource ./redex;
+          nativeBuildInputs = [ pkgs.racket ];
+
+          buildPhase = ''
+            export HOME=$(mktemp -d)
+            # fuzz/main.rkt transitively requires every model; compiling it
+            # compiles the world into compiled/*.zo for fast startup.
+            raco make fuzz/main.rkt
+          '';
+
+          # Module tests need the real runtimes (python/node/cargo/swiftc/
+          # dotnet) and spawn processes; they run in the dev shell, not the
+          # nix sandbox.
+          doCheck = false;
+
+          installPhase = ''
+            mkdir -p $out/lib/redex
+            cp -r . $out/lib/redex
+            chmod +x $out/lib/redex/fuzz/fuzz-parallel.sh
+          '';
+        };
       in
       {
-        packages.default = pkgs.writeShellApplication {
+        # `nix run .#fuzz` (also the default): the full fuzz endpoint — all
+        # lanes in parallel against the precompiled models, one cache
+        # directory per run (default ./fuzz-cache), live status on the
+        # terminal. See redex/fuzz/fuzz-parallel.sh for flags.
+        packages.default = self.packages.${system}.fuzz;
+        packages.fuzz = pkgs.writeShellApplication {
           name = "fuzz";
           runtimeInputs = [
             pkgs.racket
@@ -60,6 +90,7 @@
             pkgs.typescript
             pkgs.dotnet-sdk_10 # C# 14 / .NET 10
             rust-toolchain # 1.92.0
+            pkgs.gawk
           ];
           runtimeEnv = {
             ASYNC_FUZZ_CARGO_CONFIG = cargo-offline-config;
@@ -69,36 +100,12 @@
             # nix Apple SDK shadows it via DEVELOPER_DIR/SDKROOT; clear those
             # so swiftc resolves the system Xcode SDK (xcode-select default).
             unset DEVELOPER_DIR SDKROOT
-            racket ${./redex/fuzz/main.rkt} "$@"
+            export FUZZ_CACHE="''${FUZZ_CACHE:-$PWD/fuzz-cache}"
+            exec bash ${model}/lib/redex/fuzz/fuzz-parallel.sh "$@"
           '';
         };
 
-        packages.model = pkgs.stdenv.mkDerivation {
-          pname = "models";
-          version = "0.1.0";
-          src = pkgs.lib.cleanSourceWith ./redex;
-          nativeBuildInputs = [ pkgs.racket ];
-
-          buildPhase = ''
-            export HOME=$(mktemp -d)
-            raco make .
-          '';
-
-          doCheck = true;
-          checkPhase = ''
-            export HOME=$(mktemp -d)
-            raco test .
-          '';
-
-          installPhase = ''
-            mkdir -p $out/lib/redex
-            cp *.rkt $out/lib/redex/
-
-            mkdir -p $out/share/cargo-templates
-            cp fuzz/rust-template/Cargo.toml fuzz/rust-template/Cargo.lock \
-              $out/share/cargo-templates/
-          '';
-        };
+        packages.model = model;
 
         devShells.default = pkgs.mkShell {
           packages = [

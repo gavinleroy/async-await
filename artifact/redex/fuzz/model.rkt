@@ -19,6 +19,7 @@
          canonicalize
          accumulator-value
          output-so-far
+         observed-output
          program-output)
 
 ;; ---------------------------------------------------------------------------
@@ -119,3 +120,15 @@
 
 (define (output-so-far state)
   (or (accumulator-value state) ""))
+
+;; The OBSERVED output of a TERMINAL state: what the real process's stdout
+;; shows at exit — everything printed by the time every thread finished.
+;; The root's return value is instead a SNAPSHOT of the accumulator taken at
+;; the root's own last step: a worker's tail print (real behavior — a
+;; mid-poll worker finishing after block_on returns; observed 2/20 runs on
+;; tokio) lands after that read and is invisible through the root value.
+;; Falls back to the root value for programs with no print accumulator
+;; (value-returning programs).
+(define (observed-output state)
+  (define acc (accumulator-value state))
+  (if (string? acc) acc (program-output state)))

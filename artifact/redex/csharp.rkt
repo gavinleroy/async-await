@@ -5,7 +5,7 @@
          "exn.rkt"
          "platform.rkt")
 
-(provide C# -->c#)
+(provide C# -->c# -->>c#)
 
 (define-extended-ev-system C#
   #:def-reduction -->sys
@@ -54,7 +54,7 @@
         (where/error (x_fresh ...) (gensyms (σ_1 e_body) (x ...)))
         (where/error σ_2 (ext σ_1 (x_task v_task) (x_fresh v) ...))
         (where/error e_subst (substitute* e_body (x x_fresh) ...))
-        (where/error t_1 (step t_0))
+        (where/error t_1 t_0)
         "async-app"]
 
    [--> (t_0 σ Q T (FS_0 ... (thread (label (in-hole E (await v_awaitable))) F ...) FS_1 ...))
@@ -67,7 +67,7 @@
                                                                  v_awaitable
                                                                  (label (task:continue-with v_awaitable k))))))) F ...) FS_1 ...))
 
-        (where/error t_1 (step t_0))
+        (where/error t_1 t_0)
         "await"]))
 
 (define -->sys/overrides
@@ -76,13 +76,21 @@
    -->sys/exn
    C#
 
+   ;; FREE-RUNNING CLOCK: wall time advances while thread-pool threads run --
+   ;; see the twin rule and rationale in tokio.rkt.
+   [-->
+    (t_0 σ Q ((t_a label_a v_a) ... (t_x label_x v_x) (t_b label_b v_b) ...) P)
+    (t_x σ Q ((t_a label_a v_a) ... (t_x label_x v_x) (t_b label_b v_b) ...) P)
+    (side-condition (< (term t_0) (term t_x)))
+    "os/clock"]
+
    ;; DESTRUCTION: terminated, the event loop can exit with tasks remaining in Q/T
    [-->
     (t_0 σ Q T ((thread (root (in-hole E (os/block v_awaitable)))) FS ..._1))
     (t_1 σ () () ((thread (root (in-hole E (task:get-result v_awaitable)))) (thread) ..._1))
     (where #true (task:is-task? v_awaitable))
     (where #true (task:settled? σ v_awaitable))
-    (where/error t_1 (step t_0))
+    (where/error t_1 t_0)
     "os/block-done"]))
 
 (define -->c#
@@ -91,6 +99,14 @@
    ;; PROPAGATION: await, no rule reraises unawaited exceptions
    ;; CANCELLATION: undefined
    (make-big-step -->sys/overrides)
+   -->c#/core))
+
+;; Non-collapsing variant that exposes every successor (drops the make-big-step
+;; wrapper). Drives whole-state-space exploration: the directed witness search
+;; (fuzz/witness.rkt) and the reference enumerator (fuzz/reference.rkt).
+(define -->>c#
+  (union-reduction-relations
+   -->sys/overrides
    -->c#/core))
 
 ;; -----------------------------------------------------------------------------

@@ -26,7 +26,7 @@
 ;; -----------------------------------------------------------------------------
 
 (require redex/reduction-semantics
-         (only-in "model.rkt" canonicalize program-output))
+         (only-in "model.rkt" canonicalize observed-output))
 
 (provide reference-output-set)
 
@@ -82,7 +82,7 @@
         (set! count (add1 count))
         (cond
           [terminal?
-           (define o (program-output node))
+           (define o (observed-output node))
            (when (string? o) (hash-set! outputs o #t))]
           [else
            (for ([s* (in-list (successors red node))])

@@ -1,6 +1,8 @@
 #lang racket
 
-(require redex)
+;; redex/reduction-semantics (not the full `redex`, which pulls in redex/gui →
+;; framework → GTK and fails to load on a headless display).
+(require redex/reduction-semantics)
 
 (provide (all-defined-out))
 

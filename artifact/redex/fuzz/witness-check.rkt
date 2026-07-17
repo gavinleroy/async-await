@@ -3,14 +3,14 @@
 ;; -----------------------------------------------------------------------------
 ;; Differential gate for the directed witness search (fuzz/witness.rkt).
 ;;
-;; The witness search must agree with the ground truth — `reference-output-set`,
-;; the exhaustive reference enumerator — wherever the two can be compared:
+;; The multi-target witness search must agree with the ground truth —
+;; `reference-output-set`, the exhaustive reference enumerator — wherever the
+;; two can be compared:
 ;;
 ;;   - every output FULL found must be 'producible        (no false 'unreachable),
 ;;   - a clearly-impossible target must NOT be 'producible (no false witness),
-;;   - discover-output-set's result must be a subset of the true set, and equal to
-;;     it when FULL completed (the test programs' outputs are permutations of one
-;;     seed, which discovery's candidate pool covers).
+;;     even when searched TOGETHER with the producible ones (exercising the
+;;     union prune and its mid-search shrinking).
 ;;
 ;; For programs too large for FULL to finish, we still require every output FULL
 ;; DID find to be 'producible: the witness search must never lose a real output.
@@ -43,29 +43,26 @@
 (define (probe name red start impossible #:known [known '()])
   (define-values (st outs cnt) (reference-output-set red start #:time-cap 45000))
   (define truth (sort (filter string? outs) string<?))
-  (define complete? (eq? st 'complete))
+  ;; ONE multi-target search over everything at once: every true output plus
+  ;; the impossible one -- the way the fuzzer uses it.
+  (define targets (append truth known (list impossible)))
+  (define verdicts (multi-witness-search red start targets))
   ;; (1) every output FULL found, plus every explicitly-known one, is producible
   (define all-producible
     (for/and ([o (in-list (append truth known))])
-      (eq? (witness-search red start o) 'producible)))
+      (eq? (hash-ref verdicts o #f) 'producible)))
   ;; (2) the impossible target is never a false witness (ideally a proof)
-  (define imp (witness-search red start impossible))
+  (define imp (hash-ref verdicts impossible #f))
   (define imp-ok (not (eq? imp 'producible)))
-  ;; (3) discovery is sound, and exact when FULL completed
-  (define disc (discovery-producible (discover-output-set red start truth)))
-  (define disc-sound (for/and ([o (in-list disc)]) (and (member o truth) #t)))
-  (define disc-exact (or (not complete?) (equal? disc truth)))
-  (define ok? (and all-producible imp-ok disc-sound disc-exact))
+  (define ok? (and all-producible imp-ok))
   (hash 'name name 'status st 'truth truth 'all-producible all-producible
-        'impossible imp 'imp-ok imp-ok 'disc disc
-        'disc-sound disc-sound 'disc-exact disc-exact 'ok? ok?))
+        'impossible imp 'imp-ok imp-ok 'ok? ok?))
 
 (define (print-result r)
   (printf "~a\n" (hash-ref r 'name))
   (printf "  FULL: ~a  outputs=~s\n" (hash-ref r 'status) (hash-ref r 'truth))
   (printf "  every output producible? ~a\n" (hash-ref r 'all-producible))
   (printf "  impossible target -> ~a  (not a false witness? ~a)\n" (hash-ref r 'impossible) (hash-ref r 'imp-ok))
-  (printf "  discovered=~s  sound? ~a  exact? ~a\n" (hash-ref r 'disc) (hash-ref r 'disc-sound) (hash-ref r 'disc-exact))
   (printf "  PASS? ~a\n\n" (hash-ref r 'ok?)))
 
 ;; worker prints "A", main prints "M"  (spawn? = use `spawn` vs eager application)

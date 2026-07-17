@@ -167,10 +167,19 @@ EOF
                 fut.await
             }
             Val::Task(h) => {
+                // JoinHandle::await -> Result<T, JoinError>, surfaced to the
+                // program as a struct {type, value} (matches the model's
+                // Ok/Err task-completion value).
                 let handle = h.lock().unwrap().take().expect("task consumed");
                 match handle.await {
-                    Ok(v) => v,
-                    Err(e) if e.is_cancelled() => Val::Unit,
+                    Ok(v) => Val::Struct(HashMap::from([
+                        ("type".to_string(), Val::Str("Ok".to_string())),
+                        ("value".to_string(), v),
+                    ])),
+                    Err(e) if e.is_cancelled() => Val::Struct(HashMap::from([
+                        ("type".to_string(), Val::Str("Err".to_string())),
+                        ("value".to_string(), Val::Unit),
+                    ])),
                     Err(e) => panic!("task failed: {}", e),
                 }
             }
@@ -187,8 +196,15 @@ EOF
                 fut.await
             }
             Val::Task(h) => {
+                // smol Task::await -> T; the model wraps a joined task's value
+                // as Ok(v), so surface the same struct {type, value}. (smol has
+                // no JoinError; cancellation is handled on the cancel path.)
                 let task = h.lock().unwrap().take().expect("task consumed");
-                task.await
+                let v = task.await;
+                Val::Struct(HashMap::from([
+                    ("type".to_string(), Val::Str("Ok".to_string())),
+                    ("value".to_string(), v),
+                ]))
             }
             other => other,
         }
@@ -303,7 +319,11 @@ EOF
     [(? string? s) (format "Val::Str(~v.to_string())" s)]
     [#true "Val::Bool(true)"]
     [#false "Val::Bool(false)"]
-    [(? symbol? x) (sanitize-var x)]
+    ;; Reads clone: a bare name is a MOVE in Rust, so a parameter passed to a
+    ;; call and then returned (or any twice-used variable) is E0382. Val is
+    ;; cheaply Clone (Arc'd innards); binding and assignment sites use
+    ;; sanitize-var directly and stay bare.
+    [(? symbol? x) (format "~a.clone()" (sanitize-var x))]
 
     ;; --- Core forms ---
     [`(void) "Val::Unit"]
@@ -542,12 +562,17 @@ EOF
   (define main-expr (emit '() e))
   (string-append
    (make-preamble) "\n"
+   ;; print! (not println!): a mid-poll worker can print AFTER block_on
+   ;; returns (the racy shutdown tail), and the model's output accumulator
+   ;; has no newline between the final result and such tail prints -- a
+   ;; println! newline would make byte-identical tails incomparable. Rust
+   ;; flushes stdout on clean exit, so the missing newline is harmless.
    (case (runtime)
      [(tokio)
-      (format "#[tokio::main]\nasync fn main() {\n    let result = ~a;\n    println!(\"{}\", result);\n}\n"
+      (format "#[tokio::main]\nasync fn main() {\n    let result = ~a;\n    print!(\"{}\", result);\n}\n"
               main-expr)]
      [(smol)
-      (format "fn main() {\n    smol::block_on(async {\n        let result = ~a;\n        println!(\"{}\", result);\n    })\n}\n"
+      (format "fn main() {\n    smol::block_on(async {\n        let result = ~a;\n        print!(\"{}\", result);\n    })\n}\n"
               main-expr)])))
 
 (define (compile-tokio e)
