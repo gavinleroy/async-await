@@ -185,21 +185,6 @@
 \NewDocumentCommand\Capit{m}{\text_titlecase_all:n {#1}}
 \ExplSyntaxOff
 
-\newif\ifworddebug
-\newif\ifsansterms
-
-\sanstermsfalse
-\worddebugfalse
-
-
-\newcommand{\glow}[1]{%
-  \ifworddebug
-    \ifmmode #1%                  % skip in math mode, avoids breakage
-    \else \colorbox{Apricot}{#1}%    pure colorbox: no tikz, survives \code/lstinline lines
-    \fi
-  \else #1\fi
-}
-
 % Edit these two if you want to tweak either scheme:
 \newcommand{\dimensionfmt}[1]{%
   \ifsansterms \textsf{\textsc{#1}}%   sans small caps = axis
@@ -210,8 +195,8 @@
   \else        \textsc{#1}%            serif italic = value
   \fi}
 
-\newcommand{\dimension}[1]{\glow{\dimensionfmt{#1}}}
-\newcommand{\designpoint}[1]{\glow{\designpointfmt{#1}}}
+\newcommand{\dimension}[1]{\textsc{#1}}
+\newcommand{\designpoint}[1]{\textsc{#1}}
 
 %%%%% TODO ends here
 

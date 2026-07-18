@@ -72,7 +72,10 @@ For languages with exceptions, we extend \lc with \code|try|/\code|catch| and \c
 
 We now describe the configuration of the shared async grammar, which can extend any base language. \Cref{fig:lasync:grammar} defines the shared grammar constructs that encode the async runtime building blocks discussed in \Cref{sec:designdims}. We will refer to this extension as the async platform, \lasync.
 
-We introduce the notion of an async \textit{frame}, $F$, written $\langle \ell,\,e\rangle$ which consists of an expression $e$, along with a frame label, $\ell$.\footnotemark A \textit{frame label}, $\ell$, is either the name of the \task this frame corresponds to, or \textit{sync} to denote a synchronous frame. A \textit{frame stack}, $FS$, is a list of frames --- essentially a thread. An empty frame stack is written $\epsilon$, and we write $F \circ FS$ to denote a frame stack whose head is $F$ and tail is $FS$. A \textit{process}, $P$, is a collection of frame stacks. We will use the syntax $P \uplus FS$ to select one frame stack in $P$ to run. A \textit{task queue}, $Q$, stores the async work waiting to be run; $Q$ comprises tuples that have a label and a continuation, $(\ell,\kappa)$. A \textit{signals queue}, $T$, stores async work that is waiting on \abbr{i/o} operations, the work will be rescheduled in the future at timestamp $t$, at the earliest. $T$ comprises tuples that have a time, a label, and a continuation, $(t,\ell,\kappa)$. We will use the same stack notation for $Q$ and $T$ as we do for $FS$. We will additonally write $Q \qpush (\ell,\,\kappa)$ to append to the end of the queue (applicable to both $Q$ and $T$).%
+We introduce the notion of an async \textit{frame}, $F$, written $\langle \ell,\,e\rangle$ which consists of an expression $e$, along with a frame label, $\ell$.\footnotemark A \textit{frame label}, $\ell$, is either the name of the \task this frame corresponds to, or \textit{sync} to denote a synchronous frame. A \textit{frame stack}, $FS$, is a list of frames --- essentially a thread. An empty frame stack is written $\epsilon$, and we write $F \circ FS$ to denote a frame stack whose head is $F$ and tail is $FS$. A \textit{process}, $P$, is a collection of frame stacks. We will use the syntax $P \uplus FS$ to select one frame stack in $P$ to run. A \textit{task queue}, $Q$, stores the async work waiting to be run; $Q$ comprises tuples that have a label and a continuation, $(\ell,\kappa)$.
+% A \textit{signals queue}, $T$, stores async work that is waiting on \abbr{i/o} operations, the work will be rescheduled in the future at timestamp $t$, at the earliest. $T$ comprises tuples that have a time, a label, and a continuation, $(t,\ell,\kappa)$.
+% We will use the same stack notation for $Q$ and $T$ as we do for $FS$. We will additonally write $Q \qpush (\ell,\,\kappa)$ to append to the end of the queue (applicable to both $Q$ and $T$).%
+We will use the same stack notation for $Q$ as we do for $FS$. We will additonally write $Q \qpush (\ell,\,\kappa)$ to append to the end of the queue.%
 \footnotetext{We use a labeled async frame to explicitly associate executing code with a task. An alternative formalism would be to delimit tasks using a labeled context. We these two options as equivalent and chose the former.}
 
 The async platform provides a few additional administrative instructions that we will describe here. The \sysapply{sys_block}{e} expression provides the barrier between synchronous code and asynchronous code. Languages may use a block expression to block a synchronous frame until the asynchronous expression has completed running. The block expression marks the runtime entry (e.g., creating a thread pool), and when it returns, the runtime exit (e.g., destroying the thread pool and runtime queues).
@@ -148,3 +151,83 @@ The \semrule{Schedule-Cancelled} rule for Asyncio/Trio are almost identical. Whe
 Where Asyncio and Trio diverge is cancellation \persistence. A peculiarity of Asyncio is the \transient \persistence of cancellation: after a cancelled \task is resumed with a cancellation signal, it is no longer marked as cancelled. Further async work can be done and a second cancellation signal will not be raised. Trio and Swift both have \persistent cancellation, so further async work in an exception handler would be resumed with another cancellation exception.\footnote{To perform asynchronous cleanup work, runtimes like Trio and Swift will provide cancellation \emph{shields}, which temporarily protect a \task against cancellation so that async work can finish.}
 
 The Rust runtimes, Tokio and Smol, do not provide cancellation \awareness. Cancelled \tasks are not rescheduled but deallocated: the continuation $\kappa$ is thrown away and the \task is set as failed by the expression $e_{\mathit{fail}}$.
+
+
+\subsection{A Case Study on Divergences}
+
+\begin{figure}[t]
+  \begin{subfigure}[t]{0.33\linewidth}
+    \begin{lstlisting}[language=Pseudo]
+async fn write_to_log():
+  print("A")
+  // simulate log write
+  await sleep(2)
+  print("B")
+
+async fn process_await():
+  task = spawn write_to_log()
+  // do other work ... 
+  await task
+
+async fn process_detach():
+  spawn write_to_log()
+  // do other work ...
+\end{lstlisting}
+  \caption{Two examples of functions that spawn a task to write data to a log, one that waits for the task, and another that doesn't.}
+  \label{fig:motivating-example-process}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.35\linewidth}
+    \begin{lstlisting}[language=Pseudo]
+async fn ex1():
+  await process_detach()
+
+async fn ex2():
+  task = spawn process_await()
+  await sleep(1)
+  task.cancel()
+
+async fn ex3():
+  task = spawn process_detach()
+  await sleep(1)
+  task.cancel()
+\end{lstlisting}
+  \cprotect\caption{Three examples of invocations of the processing functions. The latter two use \code|cancel| to try and prevent the \task from completing.}
+  \label{fig:motivating-example-invoke}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.28\linewidth}
+    \vspace{0pt}
+    \begin{tabular}{lcccc}
+    \toprule
+                 & \code|ex1| & \code|ex2|          & \code|ex3| \\
+    \midrule
+    Rust \\
+    ~~ Tokio     & AB         & AB                  & AB \\
+    ~~ Smol      & A          & $\varepsilon$       & $\varepsilon$       \\
+    Python \\
+    ~~ Asyncio   & AB         & $\varepsilon$       & AB \\
+    ~~ Trio      & AB         & A                   & AB \\
+    \CSharp      & A          & -                   & -     \\
+    \Js          & AB         & -                   & -     \\
+    Swift        & A          & A                   & A     \\
+    \bottomrule
+    \end{tabular}
+    \caption{A table of outcomes when running the programs translated from the pseudocode into different languages. $\varepsilon$ indicates no output. `-' indicates that a language does not provide a built-in \code{.cancel()} method.}
+    \label{fig:motivating-example-outcomes}
+  \end{subfigure}
+  \caption{An example of an asynchronous programming pattern that exhibits different behavior under seven modern async/await languages and runtimes.}
+  \label{fig:semantics-explained}
+\end{figure}
+
+In sum, we presented an illustrative subset of our formal model, constructed
+as a series of language extensions atop the core \lc
+(\Cref{fig:langs:lineage}). For each rule---\semrule{Async-App},
+\semrule{Spawn}, \semrule{Await}, and the cancellation
+rules---we marked where the language variants diverge, coloring each
+fragment by the design dimension it decides.
+\Cref{fig:semantics-explained} shows how these rules explain the divergent
+outcomes of \Cref{fig:motivating-example-outcomes}. The shared formal base
+localizes the differences between languages to a handful of rule fragments,
+and we hope it serves as a common vocabulary for discussing asynchrony
+across language communities.
