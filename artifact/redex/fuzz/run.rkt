@@ -197,13 +197,29 @@ EOF
 ;; artifact repeatedly; building once matters for the compiled backends
 ;; (dotnet/swiftc/cargo). Returns a list of run-results — a single failed
 ;; result when the one-time build fails.
+;;
+;; Reps run a few at a time (bounded green threads; the children are real OS
+;; processes): the samples are independent, and per-rep process startup
+;; would otherwise dominate the lane's wall clock at n=20 × 30 programs.
+(define rep-concurrency 3)
+
+(define (run-reps n go)
+  (define sem (make-semaphore rep-concurrency))
+  (define results (make-vector n #f))
+  (define ts (for/list ([i (in-range n)])
+               (thread (lambda ()
+                         (call-with-semaphore sem
+                           (lambda () (vector-set! results i (go))))))))
+  (for-each thread-wait ts)
+  (vector->list results))
+
 (define (compile-and-run-many lang e n #:timeout [timeout 30])
   (define (interpreted src-of ext runner)
     (define tmp (make-temporary-file (string-append "gen~a" ext)))
     (display-to-file (src-of e) tmp #:exists 'replace)
     (begin0
-      (for/list ([_ (in-range n)])
-        (run-command (format runner (path->string tmp)) #:timeout timeout))
+      (run-reps n (lambda ()
+                    (run-command (format runner (path->string tmp)) #:timeout timeout)))
       (delete-file tmp)))
 
   ;; build once (long timeout); on success run `exec` n times
@@ -212,8 +228,7 @@ EOF
     (begin0
       (if (and (not (eq? (run-result-exit-code build) 'timeout))
                (zero? (run-result-exit-code build)))
-          (for/list ([_ (in-range n)])
-            (run-command exec-cmd #:timeout timeout))
+          (run-reps n (lambda () (run-command exec-cmd #:timeout timeout)))
           (list build))
       (cleanup!)))
 
@@ -229,7 +244,10 @@ EOF
      (compiled
       (lambda () (run-command (format "dotnet build -v q '~a'" (path->string dir))
                               #:timeout 120))
-      (format "dotnet run --no-build --project '~a'" (path->string dir))
+      ;; exec the built DLL directly: `dotnet run --no-build` re-evaluates the
+      ;; project through MSBuild on EVERY rep (~1s each over n reps)
+      (format "dotnet '~a'"
+              (path->string (build-path dir "bin" "Debug" "net10.0" "generated.dll")))
       (lambda () (delete-directory/files dir)))]
 
     ['swift

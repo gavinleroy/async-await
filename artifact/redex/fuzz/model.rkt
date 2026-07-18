@@ -17,6 +17,8 @@
 
 (provide wrap-program
          canonicalize
+         canonicalize/timeless
+         canon-for-lang
          accumulator-value
          output-so-far
          observed-output
@@ -85,6 +87,33 @@
                       symbol<? #:key car))
      (list t σ* (rn Q) (rn T-sorted) (rn P))]
     [_ state]))
+
+;; Timeless canonical key: `canonicalize`, then the clock and every timer
+;; deadline zeroed. Sound because every model's sys/signal is FUSED: it
+;; delivers ANY pending timer regardless of the clock (parallel models at any
+;; state, serial models at loop quiescence), so two states differing only in
+;; time values reach exactly the same outputs — deadline values gate nothing,
+;; and generated programs never call os/time. Merging them collapses the
+;; per-clock-value twin states that clock advancement mints.
+;;
+;; SOUNDNESS DEPENDS ON both halves: (a) timer delivery ungated by the clock
+;; — under a due-gated sys/signal the clock-advancing os/block-wait step
+;; becomes a key-preserving self-loop and a seen-set keyed on this prunes
+;; the delivery path entirely; (b) no generated program observes os/time.
+;; If either changes, the affected language must move back to `canonicalize`
+;; (see `canon-for-lang`).
+(define (zero-timer e)
+  (if (and (pair? e) (real? (car e))) (cons 0 (cdr e)) e))
+
+(define (canonicalize/timeless state)
+  (match (canonicalize state)
+    [(list _t σ Q T P) (list 0 σ Q (map zero-timer T) P)]
+    [c c]))
+
+(define (canon-for-lang lang)
+  (if (memq lang '(asyncio trio javascript tokio smol swift csharp))
+      canonicalize/timeless
+      canonicalize))
 
 ;; ---------------------------------------------------------------------------
 ;; Observable output

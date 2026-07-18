@@ -122,12 +122,9 @@
 
    ;; FREE-RUNNING CLOCK: wall time advances while threads run (the block_on
    ;; thread can be OS-preempted while the executor thread and timers
-   ;; proceed) -- see the twin rule and rationale in tokio.rkt.
-   [-->
-    (t_0 σ Q ((t_a label_a v_a) ... (t_x label_x v_x) (t_b label_b v_b) ...) P)
-    (t_x σ Q ((t_a label_a v_a) ... (t_x label_x v_x) (t_b label_b v_b) ...) P)
-    (side-condition (< (term t_0) (term t_x)))
-    "os/clock"]
+   ;; proceed) -- covered by the base fused sys/signal (platform.rkt), which
+   ;; with serial? = #false delivers ANY pending timer at ANY state. See the
+   ;; rationale in tokio.rkt.
 
    [-->
     (t_0 σ Q_0 T ((thread F F_rs ...) ... (thread) FS_1 ...))
@@ -227,7 +224,7 @@
       (check-runtime-in-set compile-and-run-smol 'e results #:rust? #t)))
 
   ;; Model outputs checked against a REGEXP, runtime outputs against the
-  ;; observed set: under the free-running clock (os/clock) a program whose
+  ;; observed set: under the free-running clock (fused sys/signal) a program whose
   ;; output is bounded only by timing has an unbounded model set (at-least-n
   ;; sleeps can lag any amount), while real jitter stays small.
   (define-syntax-rule (smol-->>~ e px results)

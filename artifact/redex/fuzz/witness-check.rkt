@@ -40,13 +40,16 @@
 ;; lists targets the model definitely CAN produce (used for value outputs, which
 ;; the stdout-only enumerator cannot supply as ground truth). Returns a result
 ;; hash; `ok?` summarizes the hard (must-pass) properties.
-(define (probe name red start impossible #:known [known '()])
+(define (probe name red start impossible #:known [known '()] #:lang [lang #f])
   (define-values (st outs cnt) (reference-output-set red start #:time-cap 45000))
   (define truth (sort (filter string? outs) string<?))
   ;; ONE multi-target search over everything at once: every true output plus
-  ;; the impossible one -- the way the fuzzer uses it.
+  ;; the impossible one -- the way the fuzzer uses it. `#:lang` selects the
+  ;; search's canonical key (timeless for parallel models), so this gate also
+  ;; differentially validates the timeless key against the reference
+  ;; enumerator's timeful one.
   (define targets (append truth known (list impossible)))
-  (define verdicts (multi-witness-search red start targets))
+  (define verdicts (multi-witness-search red start targets #:lang lang))
   ;; (1) every output FULL found, plus every explicitly-known one, is producible
   (define all-producible
     (for/and ([o (in-list (append truth known))])
@@ -86,11 +89,11 @@
 (define value-prog '(os/block ((async/lambda () 42))))
 
 (define (battery)
-  (list (probe "tokio spawn-main" -->>tokio (wrap-program (spawn-main #t) 2) "ZZZ")
-        (probe "smol  spawn-main" -->>smol  (wrap-program (spawn-main #t) 2) "ZZZ")
-        (probe "js    spawn-main" -->>js    (wrap-program (spawn-main #f) 2) "ZZZ")
-        (probe "tokio race"       -->>tokio (wrap-program race 2)            "ZZZ")
-        (probe "tokio value=42"   -->>tokio (wrap-value value-prog 2)        99 #:known '(42))))
+  (list (probe "tokio spawn-main" -->>tokio (wrap-program (spawn-main #t) 2) "ZZZ" #:lang 'tokio)
+        (probe "smol  spawn-main" -->>smol  (wrap-program (spawn-main #t) 2) "ZZZ" #:lang 'smol)
+        (probe "js    spawn-main" -->>js    (wrap-program (spawn-main #f) 2) "ZZZ" #:lang 'javascript)
+        (probe "tokio race"       -->>tokio (wrap-program race 2)            "ZZZ" #:lang 'tokio)
+        (probe "tokio value=42"   -->>tokio (wrap-value value-prog 2)        99 #:known '(42) #:lang 'tokio)))
 
 (define (check-witness #:verbose? [verbose? #t])
   (define results (battery))

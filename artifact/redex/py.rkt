@@ -16,10 +16,11 @@
 
   (E ::= .... (await E))
   (M ::= .... (await M))
-  (G ::= .... (await G))
+  (G ::= .... (await G)))
 
-  #:binding-forms
-  (async/lambda (x ...) e #:refers-to (shadow x ...)))
+;; NO #:binding-forms: async/lambda elimination gensym-renames its
+;; parameters against the whole (store, body) itself -- see the rationale in
+;; lc.rkt.
 
 ;; -----------------------------------------------------------------------------
 ;; Operational Semantics
@@ -33,7 +34,10 @@
    [--> (σ_0 (in-hole E ((async/lambda (x ..._1) e_body) v ..._1)))
         (σ_1 (in-hole E (reset (begin (shift k k) e_subst))))
 
-        (where/error (x_fresh ...) (gensyms (σ e_body) (x ...)))
+        ;; freshness must include the STORE (σ_0, not the bare symbol σ):
+        ;; ext1 REPLACES on key collision, so a fresh name that collides with
+        ;; a live binding would silently corrupt it
+        (where/error (x_fresh ...) (gensyms (σ_0 e_body) (x ...)))
         (where/error σ_1 (ext σ_0 (x_fresh v) ...))
         (where/error e_subst (substitute* e_body (x x_fresh) ...))
         "async-app"]

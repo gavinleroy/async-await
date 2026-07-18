@@ -314,9 +314,12 @@
             ;; steps, so the clock may pass a due-but-undelivered timer -- that
             ;; is what lets a 3-step timer fire after a 4-step one (deadline
             ;; inversion, observed in real runtimes under scheduler jitter).
-            ;; This is the ONLY rule that advances time; every other rule is
-            ;; instantaneous in logical time (t_1 = t_0), so deadlines reflect
-            ;; wait time, not how much computation happened in between.
+            ;; Since sys/signal fused the clock advance into delivery, this
+            ;; rule is subsumed for output reachability (kept as the os/time
+            ;; story: waiting at quiescence is when a program OBSERVES time
+            ;; passing); every computation rule is instantaneous in logical
+            ;; time (t_1 = t_0), so deadlines reflect wait time, not how much
+            ;; computation happened in between.
             (where/error t_1 t_x)
             "os/block-wait"]
 
@@ -367,15 +370,23 @@
             (side-condition (not (eq? 'root (term label))))
             "sys/thread-pop-frame"]
 
-           ;; ANY due timer may fire (deadline <= now), not just the earliest:
-           ;; `os/io n` promises AT LEAST n steps, so among simultaneously-due
-           ;; timers the delivery order is unconstrained. Direct ellipsis match
-           ;; -- a rule may be nondeterministic where a metafunction (the old
-           ;; T:pop) must not be.
+           ;; ANY pending timer may fire, due or not, advancing the clock to
+           ;; its deadline (fused clock-advance + delivery). `os/io n`
+           ;; promises AT LEAST n steps, so delivery order among coexisting
+           ;; timers is unconstrained: the historical two-rule formulation
+           ;; (os/block-wait jumps the clock to ANY pending deadline, then a
+           ;; due-only sys/signal delivers) could always jump to the MAXIMUM
+           ;; pending deadline, making every timer simultaneously due -- so
+           ;; deadline VALUES never constrained the delivery order, only
+           ;; creation order (causality) did. Fusing the jump into delivery
+           ;; reaches exactly the same orders without materializing
+           ;; clock-only intermediate states, which differ in nothing
+           ;; observable and multiplied the fuzzer's search space. Direct
+           ;; ellipsis match -- a rule may be nondeterministic where a
+           ;; metafunction (the old T:pop) must not be.
            [-->
             (t_0 σ Q_0 ((t_a label_a v_a) (... ...) (t_d label v) (t_b label_b v_b) (... ...)) P)
             (t_1 σ Q_1 ((t_a label_a v_a) (... ...) (t_b label_b v_b) (... ...)) P)
-            (side-condition (<= (term t_d) (term t_0)))
             (where #false (task:cancelled? σ label))
             ;; SINGLE-THREADED: timers (macrotasks) wait until the call stack is
             ;; empty AND every microtask is drained (micro-before-macro + RTC).
@@ -383,7 +394,7 @@
              (or (not serial?)
                  (and (term (Q:empty Q_0)) (term (sys/idle? P)))))
             (where/error Q_1 (Q:push Q_0 (label v)))
-            (where/error t_1 t_0)
+            (where/error t_1 ,(max (term t_0) (term t_d)))
             "sys/signal"]))
 
         (~? (~@ (define red/exn/lang

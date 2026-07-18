@@ -283,7 +283,7 @@
 ;;     (let ([v (os/block (main))])
 ;;       (begin (print (string-append "|" (render v))) ""))))
 (define (generate-program lang
-                          #:helpers [nhelpers (add1 (rand 2))]
+                          #:helpers [nhelpers #f]
                           #:seed [seed #f])
   (define info (hash-ref language-table lang
                          (lambda () (error 'typegen "unknown language: ~a" lang))))
@@ -296,9 +296,13 @@
                                   (current-rng))]
                  [fresh-counter (make-hasheq)]
                  [trace-letters (box 0)])
+    ;; the helper-count draw must happen INSIDE the seeded region: as a
+    ;; default-argument expression it drew from the ambient generator
+    ;; before the parameterize, so `#:seed` never fully pinned the program
+    (define nh (or nhelpers (add1 (rand 2))))
     (define-values (helpers helper-terms)
       (for/fold ([hs '()] [terms '()] #:result (values (reverse hs) (reverse terms)))
-                ([_ (in-range nhelpers)])
+                ([_ (in-range nh)])
         (define-values (h term) (gen-helper info hs))
         (values (cons h hs) (cons term terms))))
 

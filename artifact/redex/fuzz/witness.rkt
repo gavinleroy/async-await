@@ -35,9 +35,10 @@
 (require redex/reduction-semantics
          racket/set
          racket/place
+         racket/match
          (only-in racket/string string-prefix?)
          (only-in racket/list remove-duplicates)
-         (only-in "model.rkt" canonicalize accumulator-value observed-output))
+         (only-in "model.rkt" canonicalize canon-for-lang accumulator-value observed-output))
 
 (provide multi-witness-search walk-battery)
 
@@ -46,7 +47,9 @@
 ;;
 ;; Successor lists are memoized, keyed on the canonical form of the state
 ;; (fuzz/model.rkt `canonicalize`: reachability-renamed, dead store entries
-;; dropped, T deadline-sorted). Reduction always runs on RAW states — the
+;; dropped, T deadline-sorted; `#:canon` selects `canonicalize/timeless` for
+;; the parallel models, whose fused delivery makes time values dead — see
+;; model.rkt). Reduction always runs on RAW states — the
 ;; canonical form is only a lookup key, never reduced, so rules whose
 ;; enabledness inspects the whole store syntactically (asyncio's weak-Q
 ;; `sys/gc`) see exactly the state the model built. Two raw states with the
@@ -64,9 +67,9 @@
 ;; later 'unreachable claim built on top of it.
 ;; ---------------------------------------------------------------------------
 
-(define (make-successors red [on-exn void])
+(define (make-successors red [on-exn void] #:canon [canon canonicalize])
   (define memo (make-hash)) ; canonical key -> (listof raw state)
-  (lambda (s #:key [key (canonicalize s)])
+  (lambda (s #:key [key (canon s)])
     (hash-ref! memo key
                (lambda ()
                  (define raw (with-handlers ([exn:fail? (lambda (e)
@@ -75,7 +78,7 @@
                                (apply-reduction-relation red s)))
                  (define reps (make-hash))
                  (for ([s* (in-list raw)])
-                   (hash-ref! reps (canonicalize s*) s*))
+                   (hash-ref! reps (canon s*) s*))
                  (hash-values reps)))))
 
 ;; ---------------------------------------------------------------------------
@@ -96,17 +99,49 @@
 ;; preemption), and several real outputs need exactly that — e.g. a wake
 ;; dispatched to a worker that then stalls across the whole of main's
 ;; completion. A uniform walk holds a thread still for k consecutive choices
-;; with probability ~2^-k; a third of walks instead pick one P slot up front
+;; with probability ~2^-k; a share of walks instead pick one P slot up front
 ;; and refuse to advance it whenever an alternative successor exists. Bias
 ;; only shapes SAMPLING — every path taken is still a real execution.
+;;
+;; PARKED-POOL BIAS: the other recurring real-schedule shape is the ROOT
+;; racing ahead of the whole pool — main prints and cancels spawned tasks
+;; before the scheduler's first poll of any of them (e.g. tokio "BA|0":
+;; cancel lands pre-poll, so a task's body never prints). Uniform walks must
+;; decline every dispatch for ~10 consecutive choices to see this. A share
+;; of walks instead refuse to touch ANY non-root P slot (no dispatch, no
+;; worker advance) while an alternative exists; system steps that leave P
+;; alone (timer delivery into Q, root progress) stay preferred.
+;;
+;; GREEDY-PROGRESS BIAS: the walk knows the exact output it wants, and the
+;; prefix filter already discards any successor that prints a WRONG next
+;; character — so a successor that lengthens the accumulator is always
+;; correct progress. A share of walks prefer such successors whenever one
+;; exists (uniform otherwise), turning long choreographed print sequences
+;; (e.g. swift "ECCCAAABBBDDD|15": thirteen prints in a specific
+;; interleaving) from an exponential stall-dance into a near-deterministic
+;; descent. Prints that must NOT happen (a cancelled task's tail) are still
+;; covered: the wrong-print successors were pruned, so greeding toward the
+;; next needed char never forces a forbidden one.
+;;
+;; CHUNK BIAS: real schedulers run each thread to its next suspension
+;; before switching (cooperative run-to-completion), so the runtime's
+;; DOMINANT output comes from exactly that schedule — which a uniform walk,
+;; weighting every interleaving equally, samples with vanishing
+;; probability (observed: smol "EACDB|81", the runtime's output on 20 of
+;; 20 runs, resisted 300s of tube walks and needed 232s to witness). A
+;; share of walks prefer successors that keep advancing the SAME P slot as
+;; the previous step while one exists, reproducing the run-to-completion
+;; shape; steps that advance no slot (timer delivery, dispatch) reset the
+;; preference.
 ;; ---------------------------------------------------------------------------
 
 ;; Did the transition s -> s* ADVANCE thread slot i? Filling an EMPTY slot
 ;; (dispatch) does not count — the laggard pattern is "work arrives at the
 ;; thread, then the OS doesn't run it", so dispatch must stay allowed or a
 ;; stalled worker could never have work to be stalled ON.
+(define (P-of st) (and (list? st) (= 5 (length st)) (list-ref st 4)))
+
 (define (advanced-thread? s s* i)
-  (define (P-of st) (and (list? st) (= 5 (length st)) (list-ref st 4)))
   (define P0 (P-of s))
   (define P1 (P-of s*))
   (and (list? P0) (list? P1) (= (length P0) (length P1))
@@ -115,12 +150,50 @@
          (and (not (equal? a b))
               (pair? a) (> (length a) 1))))) ; slot had a frame before the step
 
+;; Did the transition s -> s* touch any NON-ROOT P slot (dispatch into it or
+;; advance it)? The root slot (first — os/block lives there, and e.g. tokio's
+;; sys/schedule-main resumes main's continuation on it) is always exempt.
+(define (touched-pool? s s*)
+  (define P0 (P-of s))
+  (define P1 (P-of s*))
+  (and (list? P0) (list? P1) (= (length P0) (length P1)) (pair? P0)
+       (for/or ([a (in-list (cdr P0))] [b (in-list (cdr P1))])
+         (not (equal? a b)))))
+
+;; Index of the (single) P slot that changed in s -> s*, or #f if none did
+;; (a pure system step: timer delivery, gc) or the shape changed.
+(define (changed-slot s s*)
+  (define P0 (P-of s))
+  (define P1 (P-of s*))
+  (and (list? P0) (list? P1) (= (length P0) (length P1))
+       (for/first ([a (in-list P0)] [b (in-list P1)] [i (in-naturals)]
+                   #:unless (equal? a b))
+         i)))
+
+(define (q-labels st)
+  (define Q (and (list? st) (= 5 (length st)) (list-ref st 2)))
+  (if (list? Q)
+      (for/list ([e (in-list Q)] #:when (pair? e)) (car e))
+      '()))
+
 (define (run-walks! successors start unresolved resolve! deadline
                     #:tries [tries 400])
-  (define (prefix-ok? partial)
-    (or (not (string? partial))
-        (for/or ([t (in-mutable-set unresolved)])
-          (and (string? t) (string-prefix? t partial)))))
+  ;; Union pruning admits any prefix of any unresolved target, so a walk can
+  ;; drift between targets and commit to none. Later walks (once the easy
+  ;; targets have fallen) half the time FOCUS on one randomly chosen target:
+  ;; pruning against that singleton confines the walk to the target's own
+  ;; prefix tube, where the greedy bias descends almost deterministically.
+  (define (make-prefix-ok focus)
+    (lambda (partial)
+      (or (not (string? partial))
+          (if focus
+              (string-prefix? focus partial)
+              (for/or ([t (in-mutable-set unresolved)])
+                (and (string? t) (string-prefix? t partial)))))))
+  (define (pick-focus i)
+    (and (> i 50) (zero? (random 2))
+         (let ([ts (for/list ([t (in-mutable-set unresolved)] #:when (string? t)) t)])
+           (and (pair? ts) (list-ref ts (random (length ts)))))))
   (define nthreads
     (if (and (list? start) (= 5 (length start)) (list? (list-ref start 4)))
         (length (list-ref start 4))
@@ -138,15 +211,58 @@
     (when (and (< i tries)
                (not (set-empty? unresolved))
                (< (current-inexact-milliseconds) deadline))
-      ;; The laggard re-rolls every ~30 steps: witnesses can need SEQUENTIAL
+      ;; The bias re-rolls periodically: witnesses can need SEQUENTIAL
       ;; stalls of different threads (e.g. a worker stalled across main's
       ;; completion, then the root stalled while that worker's tail print
-      ;; lands), which a single per-walk laggard cannot express.
-      (define (roll-laggard)
-        (and (> nthreads 1) (zero? (random 3)) (random nthreads)))
-      (let loop ([s (if (or (< i 20) (zero? (random 2))) start (reservoir-pick))]
+      ;; lands), which a single per-walk bias cannot express. The period is
+      ;; per-walk random: some witnesses need one thread starved across a
+      ;; LONG stretch (~100 steps of everyone else's work), which a fixed
+      ;; short period re-rolls away mid-stretch. Roll: 1/4 unbiased, 1/4
+      ;; single-slot laggard, 1/4 parked pool, 1/4 greedy progress.
+      ;; A bias is a CONJUNCTION of three independently-sampled constraints
+      ;; — the resistant witnesses need conjunctions, which exclusive modes
+      ;; cannot sample (e.g. tokio "AAB|s7" needs a never-polled task HELD
+      ;; in Q for the whole run AND the root stalled across its siblings'
+      ;; first prints AND run-to-completion chunking in between):
+      ;;
+      ;;   hold — a queued task label whose entry may not leave Q (the
+      ;;     cancel family's core idiom: spawned, never polled, settled by a
+      ;;     late cancel; parking the whole pool cannot express it when the
+      ;;     SIBLINGS must run). Sampled from the current Q.
+      ;;   lag  — one P slot not to advance; the ROOT half the time (cancels
+      ;;     are root actions, and cancel-window outputs need the root
+      ;;     parked between its print and its cancel — a uniform pick gives
+      ;;     the root only 1/nthreads of the stalls).
+      ;;   pref — a successor preference: 'greedy (extend the accumulator),
+      ;;     'chunk (keep advancing the thread of the previous step —
+      ;;     run-to-completion, the real scheduler's dominant shape), 'pool
+      ;;     (touch no non-root slot), or none. Serial (single-slot) models
+      ;;     keep only the prefs that shape their timer/dispatch orderings.
+      ;;
+      ;; Each constraint falls back to the unconstrained candidate set when
+      ;; it would leave nothing, so conjunctions degrade gracefully.
+      (define (roll-laggard s)
+        (define hold (and (zero? (random 3))
+                          (let ([ls (q-labels s)])
+                            (and (pair? ls)
+                                 (list-ref ls (random (length ls)))))))
+        (define lag (and (> nthreads 1) (zero? (random 3))
+                         (if (zero? (random 2))
+                             0
+                             (add1 (random (sub1 nthreads))))))
+        (define pref (if (> nthreads 1)
+                         (case (random 4)
+                           [(0) #f] [(1) 'greedy] [(2) 'chunk] [(3) 'pool])
+                         (case (random 3)
+                           [(0) #f] [(1) 'greedy] [(2) 'chunk])))
+        (list hold lag pref))
+      (define reroll-period (+ 20 (random 130)))
+      (define prefix-ok? (make-prefix-ok (pick-focus i)))
+      (define s0 (if (or (< i 20) (zero? (random 2))) start (reservoir-pick)))
+      (let loop ([s s0]
                  [n 0]
-                 [laggard (roll-laggard)])
+                 [laggard (roll-laggard s0)]
+                 [last-slot #f])
         (cond
           [(or (> n 2500)
                (and (zero? (modulo n 25))
@@ -162,29 +278,54 @@
               (define ok (for/list ([s* (in-list succs)]
                                     #:when (prefix-ok? (accumulator-value s*)))
                            s*))
-              (define preferred
-                (if laggard
-                    (let ([still (for/list ([s* (in-list ok)]
-                                            #:unless (advanced-thread? s s* laggard))
-                                   s*)])
-                      (if (pair? still) still ok))
+              (define (narrow cands keep?)
+                (let ([kept (for/list ([s* (in-list cands)] #:when (keep? s*)) s*)])
+                  (if (pair? kept) kept cands)))
+              (match-define (list hold lag pref) (or laggard (list #f #f #f)))
+              (define c1
+                (if hold
+                    (narrow ok (lambda (s*)
+                                 (not (and (memq hold (q-labels s))
+                                           (not (memq hold (q-labels s*)))))))
                     ok))
+              (define c2
+                (if lag
+                    (narrow c1 (lambda (s*) (not (advanced-thread? s s* lag))))
+                    c1))
+              (define preferred
+                (case pref
+                  [(greedy)
+                   (let* ([len (lambda (st)
+                                 (define a (accumulator-value st))
+                                 (if (string? a) (string-length a) 0))]
+                          [here (len s)])
+                     (narrow c2 (lambda (s*) (> (len s*) here))))]
+                  [(chunk)
+                   (if last-slot
+                       (narrow c2 (lambda (s*) (eqv? (changed-slot s s*) last-slot)))
+                       c2)]
+                  [(pool)
+                   (narrow c2 (lambda (s*) (not (touched-pool? s s*))))]
+                  [else c2]))
               (when (pair? preferred)
                 (define s* (list-ref preferred (random (length preferred))))
                 (reservoir-note! s*)
                 (loop s* (add1 n)
-                      (if (zero? (modulo (add1 n) 30)) (roll-laggard) laggard)))])]))
+                      (if (zero? (modulo (add1 n) reroll-period)) (roll-laggard s*) laggard)
+                      (changed-slot s s*)))])]))
       (try (add1 i)))))
 
 ;; Standalone walk phase over a fresh memo — the unit of work a place worker
 ;; runs (witness-place.rkt). Returns the targets it witnessed before the
 ;; deadline. Only ever ADDS 'producible verdicts, so it needs no poisoning
 ;; bookkeeping: a truncated walk just fails to witness.
-(define (walk-battery red start targets walk-ms #:tries [tries 2000])
+(define (walk-battery red start targets walk-ms
+                      #:tries [tries 2000]
+                      #:canon [canon canonicalize])
   (define deadline (+ (current-inexact-milliseconds) walk-ms))
   (define unresolved (list->mutable-set (remove-duplicates targets)))
   (define found '())
-  (define successors (make-successors red))
+  (define successors (make-successors red #:canon canon))
   (run-walks! successors start unresolved
               (lambda (t) (set-remove! unresolved t) (set! found (cons t found)))
               deadline #:tries tries)
@@ -229,11 +370,17 @@
           (and (string? t) (string-prefix? t partial)))))
 
   (define poisoned? #f)
-  (define successors (make-successors red (lambda (_) (set! poisoned? #t))))
+  (define canon (canon-for-lang lang))
+  (define successors (make-successors red (lambda (_) (set! poisoned? #t))
+                                      #:canon canon))
 
   ;; Farm the walk phase out to the pool (non-blocking), then run it locally.
+  ;; Walks get 3/4 of the budget: every real runtime output lands as a walk
+  ;; find in practice (the classified stragglers included 190s walk finds),
+  ;; while the DFS quarter is only decisive for genuine mismatches — which
+  ;; are rare and can be re-proven offline with a dedicated budget.
   (define workers (if lang pool '()))
-  (define walk-ms (quotient time-cap-ms 2))
+  (define walk-ms (quotient (* 3 time-cap-ms) 4))
   (for ([pl (in-list workers)])
     (place-channel-put pl (vector lang start (set->list unresolved) walk-ms)))
 
@@ -258,7 +405,7 @@
                     (> (- (current-inexact-milliseconds) start-ms) time-cap-ms))
             (set! capped? #t)
             (stop (void)))
-          (define key (canonicalize s))
+          (define key (canon s))
           (unless (hash-has-key? seen key)
             (hash-set! seen key #t)
             (set! count (add1 count))

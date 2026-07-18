@@ -22,11 +22,11 @@
 
   (E ::= .... (await E))
   (M ::= .... (await M))
-  (G ::= .... (await G))
+  (G ::= .... (await G)))
 
-  #:binding-forms
-
-  (async/lambda (x ...) e #:refers-to (shadow x ...)))
+;; NO #:binding-forms: async/lambda elimination gensym-renames its
+;; parameters against the whole (store, body) itself -- see the rationale in
+;; lc.rkt.
 
 ;; -----------------------------------------------------------------------------
 ;; Operational Semantics
@@ -77,12 +77,9 @@
    C#
 
    ;; FREE-RUNNING CLOCK: wall time advances while thread-pool threads run --
-   ;; see the twin rule and rationale in tokio.rkt.
-   [-->
-    (t_0 σ Q ((t_a label_a v_a) ... (t_x label_x v_x) (t_b label_b v_b) ...) P)
-    (t_x σ Q ((t_a label_a v_a) ... (t_x label_x v_x) (t_b label_b v_b) ...) P)
-    (side-condition (< (term t_0) (term t_x)))
-    "os/clock"]
+   ;; covered by the base fused sys/signal (platform.rkt), which with
+   ;; serial? = #false delivers ANY pending timer at ANY state. See the
+   ;; rationale in tokio.rkt.
 
    ;; DESTRUCTION: terminated, the event loop can exit with tasks remaining in Q/T
    [-->

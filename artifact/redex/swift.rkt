@@ -24,11 +24,11 @@
 
   (E ::= .... (await E) (cancel E))
   (M ::= .... (await M) (cancel M))
-  (G ::= .... (await G) (cancel G))
+  (G ::= .... (await G) (cancel G)))
 
-  #:binding-forms
-
-  (async/lambda (x ...) e #:refers-to (shadow x ...)))
+;; NO #:binding-forms: async/lambda elimination gensym-renames its
+;; parameters against the whole (store, body) itself -- see the rationale in
+;; lc.rkt.
 
 ;; -----------------------------------------------------------------------------
 ;; Operational Semantics
@@ -109,14 +109,6 @@
     (where/error t_1 t_0)
     "os/io"]
 
-   ;; FREE-RUNNING CLOCK: wall time advances while pool threads run -- see
-   ;; the twin rule and rationale in tokio.rkt.
-   [-->
-    (t_0 σ Q ((t_a label_a v_a) ... (t_x label_x v_x) (t_b label_b v_b) ...) P)
-    (t_x σ Q ((t_a label_a v_a) ... (t_x label_x v_x) (t_b label_b v_b) ...) P)
-    (side-condition (< (term t_0) (term t_x)))
-    "os/clock"]
-
    ;; Swift cancellation is COOPERATIVE (flag-only): Task.cancel() sets
    ;; isCancelled -- observable via (cancelled?) -- and nothing else. Probed
    ;; against real Swift 6: an unstructured Task body runs even when cancelled
@@ -135,12 +127,15 @@
     (where/error t_1 t_0)
     "sys/schedule"]
 
+   ;; Same fused any-pending-timer delivery as the base sys/signal
+   ;; (platform.rkt), minus its cancelled guard: a cancelled task's timer
+   ;; still fires (flag-only cancellation, see above), and without this a
+   ;; cancelled sleeper would deadlock in T.
    [-->
     (t_0 σ Q_0 ((t_a label_a v_a) ... (t_d label v) (t_b label_b v_b) ...) P)
     (t_1 σ Q_1 ((t_a label_a v_a) ... (t_b label_b v_b) ...) P)
-    (side-condition (<= (term t_d) (term t_0)))
     (where/error Q_1 (Q:push Q_0 (label v)))
-    (where/error t_1 t_0)
+    (where/error t_1 ,(max (term t_0) (term t_d)))
     "sys/signal"]
 
    [-->

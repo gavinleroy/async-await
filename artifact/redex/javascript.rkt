@@ -24,11 +24,11 @@
 
   (E ::= .... (await E))
   (M ::= .... (await M))
-  (G ::= .... (await G))
+  (G ::= .... (await G)))
 
-  #:binding-forms
-
-  (async/lambda (x ...) e #:refers-to (shadow x ...)))
+;; NO #:binding-forms: async/lambda elimination gensym-renames its
+;; parameters against the whole (store, body) itself -- see the rationale in
+;; lc.rkt.
 
 ;; -----------------------------------------------------------------------------
 ;; Operational Semantics

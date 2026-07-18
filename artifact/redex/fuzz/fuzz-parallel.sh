@@ -3,8 +3,10 @@
 # language, with a per-run cache directory and live multiplexed status.
 #
 #   fuzz-parallel.sh [options]
-#     -s SEED     RNG seed            (default: random, printed)
-#     -n N        programs per lane   (default: 30)
+#     -s SEED     RNG seed            (default: random, printed; program i is
+#                 a pure function of (seed, lang, i), so pass the printed
+#                 seed back with -s to reproduce a run exactly)
+#     -n N        programs per lane   (default: 50)
 #     -r R        runtime runs        (default: 20)
 #     -l LANGS    space-separated lanes (default: all seven)
 #     -o DIR      cache root          (default: $FUZZ_CACHE or ./fuzz-cache)
@@ -16,7 +18,7 @@
 set -u
 
 SEED=$((RANDOM * 32768 + RANDOM))
-N=30; R=20
+N=50; R=20
 LANGS="asyncio javascript trio smol tokio csharp swift"
 ROOT="${FUZZ_CACHE:-fuzz-cache}"
 while getopts "s:n:r:l:o:" opt; do

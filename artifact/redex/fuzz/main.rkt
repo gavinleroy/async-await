@@ -71,12 +71,14 @@
 ;; a Redex step costs 40-80ms on these models, and deep interleavings need
 ;; thousands of steps to witness.
 ;;
-;; `search-workers` place workers per lane run extra walk batteries in
-;; parallel with independent RNG (fuzz/witness-place.rkt); 0 disables the
-;; pool. Each worker is a full OS thread running its own Redex instance.
+;; `search-workers` place workers per lane each run a whole program's
+;; multi-target search as one job (fuzz/witness-place.rkt), so several
+;; programs' searches proceed concurrently; 0 disables the pool (searches
+;; then run locally in sequence). Each worker is a full OS thread running
+;; its own Redex instance.
 (define witness-states (make-parameter 300000))
 (define witness-ms     (make-parameter 300000))
-(define search-workers (make-parameter 2))
+(define search-workers (make-parameter 3))
 
 ;; Lazily-created, lane-lifetime pool of walk workers (each loads every model,
 ;; a few seconds once per lane).
@@ -165,125 +167,288 @@
 
 (define (now-ms) (current-inexact-milliseconds))
 
-(define (fuzz-one lang st i)
-  (define t0 (now-ms))
-  (define p
-    (with-handlers ([exn:fail? (lambda (exn)
-                                 (when (verbose?)
-                                   (eprintf "  [~a] generation failed: ~a~n"
-                                            i (exn-message exn)))
-                                 #f)])
-      (generate-program lang)))
+;; The real-program stage of program i+1 (compile once + R runs, all
+;; subprocess-bound) runs on a green thread WHILE program i's witness search
+;; (racket-CPU-bound) runs — the two stages of adjacent programs overlap,
+;; one runtime job in flight at a time.
+(define (start-runtime lang p)
+  (and p
+       (let ([ch (make-channel)])
+         (thread
+          (lambda ()
+            (define t0 (now-ms))
+            (define r (with-handlers ([(lambda (_) #t) (lambda (e) (cons 'exn e))])
+                        (cons 'ok (compile-and-run-many lang (gen-program-annotated p)
+                                                        (runtime-runs)))))
+            (channel-put ch (list r (round (- (now-ms) t0))))))
+         ch)))
+
+(define (finish-runtime ch)
+  (match (channel-get ch)
+    [(list (cons 'ok results) ms) (values results ms)]
+    [(list (cons 'exn e) _) (raise e)]))
+
+;; Program generation draws from ITS OWN PRNG stream (see fuzz-language):
+;; the witness search's walks also call `random`, and their draw count is
+;; budget/timing-dependent — on a shared stream program i+1 depends on how
+;; long search i ran, and `--seed` pins nothing past the first program
+;; (observed: two same-seed runs agreed only on index 0). Searches are
+;; instead seeded deterministically per (seed, lang, index).
+(define (search-seed lang i)
+  (modulo (+ (language-seed (seed) lang) (* 7919 (add1 i)))
+          (sub1 (expt 2 31))))
+
+;; Everything a program's search stage needs, computed from its runtime batch.
+(struct search-ctx (i term start counts runtime-outs t-run) #:transparent)
+
+;; Stage 1: consume the runtime batch. Writes the terminal record for
+;; gen-fail / runtime-crash / runtime-timeout and returns #f; otherwise
+;; returns a `search-ctx` for the search stage.
+(define (prepare-program lang st i p results t-run)
   (cond
     [(not p)
      (bump! st 'gen-fail)
-     (write-record! lang (hasheq 'index i 'status "gen-fail"))]
+     (write-record! lang (hasheq 'index i 'status "gen-fail"))
+     #f]
     [else
      (define term (gen-program-term p))
-     (define (record! status counts verdicts ms-extra)
+     (define (record-simple! status)
        (write-record!
         lang
-        (hasheq 'index i
-                'status status
-                'term (format "~s" term)
-                'outputs (for/list ([o (in-list (hash-keys counts))])
-                           (hasheq 'out o
-                                   'count (hash-ref counts o)
-                                   'verdict (hash-ref verdicts o "unknown")))
-                'ms (hash-set ms-extra 'total (round (- (now-ms) t0))))))
+        (hasheq 'index i 'status status 'term (format "~s" term)
+                'outputs '()
+                'ms (hasheq 'runtime t-run 'total t-run))))
+     (define crash (findf (lambda (r)
+                            (and (not (eq? (run-result-exit-code r) 'timeout))
+                                 (not (zero? (run-result-exit-code r)))))
+                          results))
+     (define timeout (findf (lambda (r) (eq? (run-result-exit-code r) 'timeout))
+                            results))
+     (cond
+       [crash
+        (bump! st 'runtime-crash)
+        (record-simple! "runtime-crash")
+        (printf "  [~a] CRASH ~a~n" i (string-trim (run-result-stderr crash)))
+        (printf "       expr: ~s~n" term)
+        (flush-output)
+        #f]
+       [timeout
+        (bump! st 'runtime-timeout)
+        (record-simple! "runtime-timeout")
+        (printf "  [~a] runtime TIMEOUT~n" i)
+        (printf "       expr: ~s~n" term)
+        (flush-output)
+        #f]
+       [else
+        (define counts
+          (for/fold ([h (hash)]) ([r (in-list results)])
+            (hash-update h (string-trim (run-result-stdout r)) add1 0)))
+        (search-ctx i term (wrap-program term (threads-for lang))
+                    counts (hash-keys counts) t-run)])]))
 
-     ;; 1. the real program: build once, run R times, count distinct outputs
-     (let ()
-        (define t-run0 (now-ms))
-        (define results (compile-and-run-many lang (gen-program-annotated p)
-                                              (runtime-runs)))
-        (define t-run (round (- (now-ms) t-run0)))
-        (define crash (findf (lambda (r)
-                               (and (not (eq? (run-result-exit-code r) 'timeout))
-                                    (not (zero? (run-result-exit-code r)))))
-                             results))
-        (define timeout (findf (lambda (r) (eq? (run-result-exit-code r) 'timeout))
-                               results))
-        (cond
-          [crash
-           (bump! st 'runtime-crash)
-           (record! "runtime-crash" (hash) (hash) (hasheq 'runtime t-run))
-           (printf "  [~a] CRASH ~a~n" i (string-trim (run-result-stderr crash)))
-           (printf "       expr: ~s~n" term)
-           (flush-output)]
-          [timeout
-           (bump! st 'runtime-timeout)
-           (record! "runtime-timeout" (hash) (hash) (hasheq 'runtime t-run))
-           (printf "  [~a] runtime TIMEOUT~n" i)
-           (printf "       expr: ~s~n" term)
-           (flush-output)]
-          [else
-           (define counts
-             (for/fold ([h (hash)]) ([r (in-list results)])
-               (hash-update h (string-trim (run-result-stdout r)) add1 0)))
-           (define runtime-outs (hash-keys counts))
-
-           ;; 2. membership: ONE multi-target search for every distinct
-           ;;    runtime output. The walk phase resolves the common outputs in
-           ;;    milliseconds (it IS the model sampler, directed at exactly
-           ;;    the outputs reality produced); a single union-pruned DFS
-           ;;    proves any leftovers unreachable together (witness.rkt).
-           (define misses runtime-outs)
-           (define t-search0 (now-ms))
-           (define search-verdicts
-             (multi-witness-search (hash-ref witness-reducers lang)
-                                   (wrap-program term (threads-for lang))
-                                   misses
-                                   #:state-cap (witness-states)
-                                   #:time-cap  (witness-ms)
-                                   #:pool      (ensure-pool!)
-                                   #:lang      lang))
-           (define t-search (round (- (now-ms) t-search0)))
-           (define verdicts
-             (for/hash ([o (in-list runtime-outs)])
-               (values o (symbol->string
-                          (hash-ref search-verdicts o 'inconclusive)))))
-           (define confirmed
-             (for/list ([o (in-list misses)]
-                        #:when (eq? (hash-ref search-verdicts o #f) 'unreachable))
-               o))
-           (define unconfirmed
-             (for/list ([o (in-list misses)]
-                        #:when (eq? (hash-ref search-verdicts o #f) 'inconclusive))
-               o))
-           (define ms (hasheq 'runtime t-run 'search t-search))
-           (cond
-             [(pair? confirmed)
-              (bump! st 'mismatch)
-              (record! "mismatch" counts verdicts ms)
-              (printf "  [~a] MISMATCH: model cannot produce runtime output(s) ~s~n" i confirmed)
-              (when (pair? unconfirmed)
-                (printf "       (also unconfirmed within budget: ~s)~n" unconfirmed))
-              (printf "       expr: ~s~n" term)]
-             [(pair? unconfirmed)
-              (bump! st 'unconfirmed)
-              (record! "unconfirmed" counts verdicts ms)
-              (printf "  [~a] UNCONFIRMED: could not witness runtime output(s) ~s in the model within budget (~ams)~n"
-                      i unconfirmed (witness-ms))
-              (printf "       expr: ~s~n" term)]
-             [else
-              (bump! st 'pass)
-              (record! "pass" counts verdicts ms)
-              (printf "  [~a] pass: ~a output~a in ~as~n"
-                      i (length runtime-outs)
-                      (if (= 1 (length runtime-outs)) "" "s")
-                      (/ (round (/ (- (now-ms) t0) 100)) 10.0))])
-           (flush-output)]))]))
+;; Stage 2: fold the search's verdicts into the record, stats, and log line.
+(define (finish-program lang st ctx search-verdicts t-search)
+  (match-define (search-ctx i term _start counts runtime-outs t-run) ctx)
+  (define verdicts
+    (for/hash ([o (in-list runtime-outs)])
+      (values o (symbol->string (hash-ref search-verdicts o 'inconclusive)))))
+  (define confirmed
+    (for/list ([o (in-list runtime-outs)]
+               #:when (eq? (hash-ref search-verdicts o #f) 'unreachable))
+      o))
+  (define unconfirmed
+    (for/list ([o (in-list runtime-outs)]
+               #:when (eq? (hash-ref search-verdicts o #f) 'inconclusive))
+      o))
+  (define (record! status)
+    (write-record!
+     lang
+     (hasheq 'index i 'status status 'term (format "~s" term)
+             'outputs (for/list ([o (in-list (hash-keys counts))])
+                        (hasheq 'out o
+                                'count (hash-ref counts o)
+                                'verdict (hash-ref verdicts o "unknown")))
+             'ms (hasheq 'runtime t-run 'search t-search
+                         'total (+ t-run t-search)))))
+  (cond
+    [(pair? confirmed)
+     (bump! st 'mismatch)
+     (record! "mismatch")
+     (printf "  [~a] MISMATCH: model cannot produce runtime output(s) ~s~n" i confirmed)
+     (when (pair? unconfirmed)
+       (printf "       (also unconfirmed within budget: ~s)~n" unconfirmed))
+     (printf "       expr: ~s~n" term)]
+    [(pair? unconfirmed)
+     (bump! st 'unconfirmed)
+     (record! "unconfirmed")
+     (printf "  [~a] UNCONFIRMED: could not witness runtime output(s) ~s in the model within budget (~ams)~n"
+             i unconfirmed (witness-ms))
+     (printf "       expr: ~s~n" term)]
+    [else
+     (bump! st 'pass)
+     (record! "pass")
+     (printf "  [~a] pass: ~a output~a in ~as~n"
+             i (length runtime-outs)
+             (if (= 1 (length runtime-outs)) "" "s")
+             (/ (round (/ (+ t-run t-search) 100)) 10.0))])
+  (flush-output))
 
 
 (define (fuzz-language lang)
   (printf "--- ~a ---~n" lang)
   (flush-output)
-  (random-seed (language-seed (seed) lang))
   (define st (make-stats))
   (define t0 (now-ms))
-  (for ([i (in-range (count))])
-    (fuzz-one lang st i))
+  ;; generate the whole program stream first, each program from its own
+  ;; deterministic typegen seed — program i is a pure function of
+  ;; (--seed, lang, i), whatever any other stage's RNG does (typegen's
+  ;; `current-rng` is its own parameter; parameterizing the ambient
+  ;; generator around the call never reached it)
+  (define progs
+    (for/vector ([i (in-range (count))])
+      (with-handlers ([exn:fail? (lambda (exn)
+                                   (when (verbose?)
+                                     (eprintf "  [~a] generation failed: ~a~n"
+                                              i (exn-message exn)))
+                                   #f)])
+        (generate-program lang #:seed (search-seed lang i)))))
+  (define n (count))
+  ;; Search dispatch. With a place pool (`--search-workers`), each program's
+  ;; ENTIRE multi-target search runs as one job on a free place, so several
+  ;; programs' searches proceed concurrently — a slow lane's wall is a few
+  ;; hard programs, and whole-search jobs are what let those overlap (a
+  ;; hard search saturates its own process; extra walk helpers on the same
+  ;; targets were worth less than a second program's search). Without a
+  ;; pool, searches run locally in sequence.
+  (define pool (ensure-pool!))
+  (define free pool)
+  (define in-flight '()) ; (list place ctx t-submitted)
+  ;; TWO-PASS SEARCH (pool mode). Pass 1: each program's whole search runs
+  ;; as one 1-process job at a REDUCED budget — breadth: several programs
+  ;; concurrently, resolving the typical program in seconds. A program with
+  ;; leftover targets is NOT finalized; at lane end (pass 2) it gets a LOCAL
+  ;; search at the full budget with every (now idle) place running walk
+  ;; batteries for it — depth: the strongest configuration, reserved for the
+  ;; few programs that resist. This is escalation to a stronger setup, not a
+  ;; same-setup retry: pass 1 is one process on a busy machine, pass 2 is
+  ;; workers+1 processes on a drained one.
+  ;; 90s: the typical program resolves in seconds; a genuine resister is
+  ;; better served failing into the pooled pass 2 than grinding 1-process,
+  ;; but every escalation costs serialized lane-end time, so pass 1 gets
+  ;; enough rope to clear the merely-awkward programs itself.
+  (define pass1-ms (min (witness-ms) 90000))
+  (define escalations '()) ; (list ctx pass1-verdicts pass1-t) in arrival order
+  (define (unresolved-of ctx verdicts)
+    (for/list ([o (in-list (search-ctx-runtime-outs ctx))]
+               #:when (eq? (hash-ref verdicts o 'inconclusive) 'inconclusive))
+      o))
+  (define (drain-one!)
+    (match-define (cons (and e (list pl ctx t-sub)) msg)
+      (apply sync
+             (for/list ([e (in-list in-flight)])
+               (wrap-evt (car e) (lambda (msg) (cons e msg))))))
+    (set! in-flight (remq e in-flight))
+    (set! free (cons pl free))
+    (define v (for/hash ([kv (in-list msg)])
+                (values (car kv) (cadr kv))))
+    (define t (round (- (now-ms) t-sub)))
+    (if (pair? (unresolved-of ctx v))
+        (set! escalations (cons (list ctx v t) escalations))
+        (finish-program lang st ctx v t)))
+  (define (local-search ctx targets time-cap p00l)
+    (random-seed (search-seed lang (search-ctx-i ctx)))
+    (define t-s0 (now-ms))
+    (define v (multi-witness-search (hash-ref witness-reducers lang)
+                                    (search-ctx-start ctx)
+                                    targets
+                                    #:state-cap (witness-states)
+                                    #:time-cap  time-cap
+                                    #:pool      p00l
+                                    #:lang      lang))
+    (values v (round (- (now-ms) t-s0))))
+  (define (dispatch-search! ctx)
+    (cond
+      [(null? pool)
+       (define-values (v t)
+         (local-search ctx (search-ctx-runtime-outs ctx) (witness-ms) '()))
+       (finish-program lang st ctx v t)]
+      [else
+       (when (null? free) (drain-one!))
+       (define pl (car free))
+       (set! free (cdr free))
+       (place-channel-put pl (vector 'search lang
+                                     (search-ctx-start ctx)
+                                     (search-ctx-runtime-outs ctx)
+                                     pass1-ms (witness-states)
+                                     (search-seed lang (search-ctx-i ctx))))
+       (set! in-flight (cons (list pl ctx (now-ms)) in-flight))]))
+  (let loop ([i 0]
+             [cur (and (> n 0) (start-runtime lang (vector-ref progs 0)))])
+    (when (< i n)
+      (define p (vector-ref progs i))
+      (define-values (results t-run)
+        (if cur (finish-runtime cur) (values '() 0)))
+      ;; kick off i+1's runtime before i's search so they overlap
+      (define nxt (and (< (add1 i) n)
+                       (start-runtime lang (vector-ref progs (add1 i)))))
+      (define ctx (prepare-program lang st i p results t-run))
+      (when ctx (dispatch-search! ctx))
+      (loop (add1 i) nxt)))
+  (let drain () (unless (null? in-flight) (drain-one!) (drain)))
+  ;; Pass 2: resubmit each resister as a CONCURRENT full-budget job — the
+  ;; conjunction biases resolve the known-hard families in well under the
+  ;; budget at one process, and 3 concurrent escalations beat one 4-process
+  ;; escalation at a time. Anything that STILL resists gets the final tier:
+  ;; a local search with every idle place running walk batteries for it.
+  (define pass2 '()) ; (list ctx merged-verdicts total-t)
+  (set! in-flight '())
+  (set! free pool)
+  (for ([item (in-list (reverse escalations))])
+    (match-define (list ctx v1 t1) item)
+    (define unresolved (unresolved-of ctx v1))
+    (printf "  [~a] pass 2: ~a target(s) resisted the ~as job; full-budget job~n"
+            (search-ctx-i ctx) (length unresolved) (quotient pass1-ms 1000))
+    (flush-output)
+    (when (null? free)
+      ;; inline drain for pass 2: collect one reply, record for tier 3
+      (match-define (cons (and e (list pl ctx0 t-sub0 v0)) msg)
+        (apply sync (for/list ([e (in-list in-flight)])
+                      (wrap-evt (car e) (lambda (msg) (cons e msg))))))
+      (set! in-flight (remq e in-flight))
+      (set! free (cons pl free))
+      (define v* (for/fold ([h v0]) ([kv (in-list msg)])
+                   (hash-set h (car kv) (cadr kv))))
+      (set! pass2 (cons (list ctx0 v* (round (- (now-ms) t-sub0))) pass2)))
+    (define pl (car free))
+    (set! free (cdr free))
+    (place-channel-put pl (vector 'search lang (search-ctx-start ctx)
+                                  unresolved (witness-ms) (witness-states)
+                                  (add1 (search-seed lang (search-ctx-i ctx)))))
+    (set! in-flight (cons (list pl ctx (- (now-ms) t1) v1) in-flight)))
+  (let drain2 ()
+    (unless (null? in-flight)
+      (match-define (cons (and e (list pl ctx0 t-sub0 v0)) msg)
+        (apply sync (for/list ([e (in-list in-flight)])
+                      (wrap-evt (car e) (lambda (msg) (cons e msg))))))
+      (set! in-flight (remq e in-flight))
+      (set! free (cons pl free))
+      (define v* (for/fold ([h v0]) ([kv (in-list msg)])
+                   (hash-set h (car kv) (cadr kv))))
+      (set! pass2 (cons (list ctx0 v* (round (- (now-ms) t-sub0))) pass2))
+      (drain2)))
+  ;; Tier 3: local search, all places as walk helpers, for any survivor.
+  (for ([item (in-list (reverse pass2))])
+    (match-define (list ctx v2 t2) item)
+    (define unresolved (unresolved-of ctx v2))
+    (cond
+      [(null? unresolved) (finish-program lang st ctx v2 t2)]
+      [else
+       (printf "  [~a] tier 3: ~a target(s) resisted the full-budget job; pooled walk search~n"
+               (search-ctx-i ctx) (length unresolved))
+       (flush-output)
+       (define-values (v3 t3) (local-search ctx unresolved (witness-ms) pool))
+       (define merged (for/fold ([h v2]) ([(k val) (in-hash v3)]) (hash-set h k val)))
+       (finish-program lang st ctx merged (+ t2 t3))]))
   (when (out-dir)
     (call-with-output-file (build-path (out-dir) (format "~a-summary.json" lang))
       #:exists 'replace
@@ -333,7 +498,7 @@
     "Per-program multi-target search state budget (default: 300000)"
     (witness-states (string->number ws))]
    [("--search-workers") sw
-    "Parallel walk workers per lane, 0 disables the pool (default: 2)"
+    "Concurrent program searches per lane (places), 0 = local sequential (default: 3)"
     (search-workers (string->number sw))]
    [("--threads") t
     "Override worker threads in model (default: per-language)"

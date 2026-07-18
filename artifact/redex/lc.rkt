@@ -131,15 +131,17 @@
 
   (σ ::= ((x v) ...))
 
-  (x ::= variable-not-otherwise-mentioned)
+  (x ::= variable-not-otherwise-mentioned))
 
-  #:binding-forms
-
-  (lambda (x ...) e #:refers-to (shadow x ...))
-  (let ([x e] ...) e_body #:refers-to (shadow x ...))
-  (letrec ([x e #:refers-to x] ...)
-    e_body #:refers-to (shadow x ...))
-  (shift x e #:refers-to (shadow x)))
+;; NO #:binding-forms, deliberately. The evaluation rules below never rely on
+;; Redex's α-machinery: every binder elimination (app/let/letrec/shift)
+;; explicitly renames its bound names to `gensyms` fresh w.r.t. the whole
+;; (σ e) and stores values in σ, and `substitute*` (core.rkt) is defined on
+;; the empty REDEX language, so it always was plain uniform renaming — with a
+;; globally fresh target, renaming every occurrence (binder and use alike)
+;; cannot capture. Declaring binding forms bought only per-match freshening
+;; of bound names: ~62% of all reduction time, and it made rule firings mint
+;; α-twin successors that every state-space consumer then had to dedup.
 
 ;; -----------------------------------------------------------------------------
 ;; Operational Semantics

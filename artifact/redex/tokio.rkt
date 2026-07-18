@@ -84,22 +84,15 @@
    -->sys
    Tokio
 
-   ;; FREE-RUNNING CLOCK: wall time advances independently of thread progress
-   ;; -- a runnable thread can be OS-preempted while workers and timers
-   ;; proceed. The base os/block-wait only advances the clock at full
-   ;; quiescence (empty queue, root blocked, workers idle), which PROVABLY
-   ;; loses runtime outputs (fuzz seed 227726474 tokio[0]: "ABC|24" -- a
-   ;; timer firing before a runnable-but-stalled main's next print -- was
-   ;; enumeration-exhausted unreachable, yet the real runtime produced it).
-   ;; The clock may jump to ANY pending deadline at ANY state; sys/signal
-   ;; then delivers due timers. Serial event-loop models (asyncio/js/trio)
-   ;; keep the quiescent clock: their one thread cannot be preempted by the
-   ;; loop itself.
-   [-->
-    (t_0 σ Q ((t_a label_a v_a) ... (t_x label_x v_x) (t_b label_b v_b) ...) P)
-    (t_x σ Q ((t_a label_a v_a) ... (t_x label_x v_x) (t_b label_b v_b) ...) P)
-    (side-condition (< (term t_0) (term t_x)))
-    "os/clock"]
+   ;; FREE-RUNNING CLOCK: wall time advances independently of thread
+   ;; progress -- a runnable thread can be OS-preempted while workers and
+   ;; timers proceed. A quiescent-only clock PROVABLY loses runtime outputs
+   ;; here (fuzz seed 227726474 tokio[0]: "ABC|24" -- a timer firing before
+   ;; a runnable-but-stalled main's next print -- was enumeration-exhausted
+   ;; unreachable, yet the real runtime produced it). The base fused
+   ;; sys/signal (platform.rkt) covers this: with serial? = #false it
+   ;; delivers ANY pending timer at ANY state, clock advancing with the
+   ;; delivery -- no shadow needed.
 
    ;; ANY-ORDER DISPATCH: tokio's multi-threaded scheduler is work-stealing
    ;; (per-worker queues + LIFO slots + a global injector), so there is no
@@ -207,7 +200,7 @@
       (check-runtime-in-set compile-and-run-tokio 'e results #:rust? #t)))
 
   ;; Model outputs checked against a REGEXP, runtime outputs against the
-  ;; observed set: under the free-running clock (os/clock) a program whose
+  ;; observed set: under the free-running clock (fused sys/signal) a program whose
   ;; output is bounded only by timing has an unbounded model set (at-least-n
   ;; sleeps can lag any amount), while real jitter stays small.
   (define-syntax-rule (tokio-->>~ e px results)
