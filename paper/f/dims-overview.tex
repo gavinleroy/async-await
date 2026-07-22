@@ -33,11 +33,15 @@
 
 \DimSection{Start of Life}
 
+%% TODO: gavinleroy, where is the footnote going? I thought tablefootnote fixed this
 \DimRowTitle{Eagerness}{How to evaluate an async function application.} &
 \DimCell{lazy}{Evaluate to a coroutine without executing further.}{Python, Rust} &
-\DimCell{eager}{Evaluate in current thread, and schedule as task on await.}{\CSharp, \Js} &
-\DimCell{semi-eager}{Evaluate to task, and schedule task for execution.}{Swift} \\
+\DimCell{eager}{Evaluate in current thread, and schedule as task on await.}{\CSharp, \Js, Swift~(\emph{immediate})%
+% \tablefootnote{\label{note:swift-eagerness}Swift does not have a \emph{default} along the \Eagerness axis. Async applications can be both \eager and \seager depending on how the function is invoked.}%
+} &
+\DimCell{semi-eager}{Evaluate to task, and schedule task for execution.}{Swift~(\emph{async let})} \\
 \addlinespace[1ex]
+
 
 \DimRowTitle{Suspension}{Guarantees on whether await points suspend.} &
 \DimCell{static}{Await points guaranteed to suspend.}{\Js} &

@@ -36,7 +36,7 @@ The main argument for \transient cancellation is for \tasks to perform async res
 However, \transient cancellation has a greater risk for cancellation signals to go unnoticed. If one \task suppresses a cancellation signal, then all others in the graph may never become aware of the attempt.%
 % \footnotetext{\citeurlwith{https://docs.openssl.org/3.0/man3/SSL_shutdown/}{docs.openssl.org}}
 
-Runtimes with \persistent cancellation typically come with a cancellation shielding operator to allow for async cleanup. For example, the Python+Trio code in \Cref{fig:timeout-simple-trio} showed the \code|move_on_after| primitive which allows async cleanup code to temporarily ignore cancellation, while ensuring liveness by moving on after a fixed duration. 
+Runtimes with \persistent cancellation typically come with a cancellation shielding operator to allow for async cleanup. For example, the Python+Trio code in \Cref{fig:timeout-simple-trio} showed the \code|move_on_after| primitive that allows async cleanup code to temporarily ignore cancellation, while ensuring liveness by moving on after a fixed duration. 
 % This approach strikes a balance between resource management and exiting promptly (via the timeout).
 
 % The example in \Cref{fig:persistence:shield} (shown in Python, not pseudocode), the developer uses a shielded timeout to send a closing message on the socket without being immediately recancelled. 
