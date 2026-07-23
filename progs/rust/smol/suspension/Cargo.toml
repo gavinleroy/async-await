@@ -1,0 +1,9 @@
+[package]
+name = "suspension"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+easy-parallel = "3.3.1"
+rand = "0.10"
+smol = "2.0.2"

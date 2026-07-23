@@ -1,0 +1,15 @@
+/Users/gavinleroy/Dev/Misc/async/csharp/Handle/obj/Debug/net9.0/Handle.GeneratedMSBuildEditorConfig.editorconfig
+/Users/gavinleroy/Dev/Misc/async/csharp/Handle/obj/Debug/net9.0/Handle.AssemblyInfoInputs.cache
+/Users/gavinleroy/Dev/Misc/async/csharp/Handle/obj/Debug/net9.0/Handle.AssemblyInfo.cs
+/Users/gavinleroy/Dev/Misc/async/csharp/Handle/obj/Debug/net9.0/Handle.csproj.CoreCompileInputs.cache
+/Users/gavinleroy/Dev/Misc/async/csharp/Handle/obj/Debug/net9.0/Handle.sourcelink.json
+/Users/gavinleroy/Dev/Misc/async/csharp/Handle/bin/Debug/net9.0/Handle
+/Users/gavinleroy/Dev/Misc/async/csharp/Handle/bin/Debug/net9.0/Handle.deps.json
+/Users/gavinleroy/Dev/Misc/async/csharp/Handle/bin/Debug/net9.0/Handle.runtimeconfig.json
+/Users/gavinleroy/Dev/Misc/async/csharp/Handle/bin/Debug/net9.0/Handle.dll
+/Users/gavinleroy/Dev/Misc/async/csharp/Handle/bin/Debug/net9.0/Handle.pdb
+/Users/gavinleroy/Dev/Misc/async/csharp/Handle/obj/Debug/net9.0/Handle.dll
+/Users/gavinleroy/Dev/Misc/async/csharp/Handle/obj/Debug/net9.0/refint/Handle.dll
+/Users/gavinleroy/Dev/Misc/async/csharp/Handle/obj/Debug/net9.0/Handle.pdb
+/Users/gavinleroy/Dev/Misc/async/csharp/Handle/obj/Debug/net9.0/Handle.genruntimeconfig.cache
+/Users/gavinleroy/Dev/Misc/async/csharp/Handle/obj/Debug/net9.0/ref/Handle.dll

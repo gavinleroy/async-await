@@ -1,0 +1,15 @@
+/Users/gavinleroy/Dev/Prj/async/progs/csharp/Destruction/bin/Debug/net10.0/Destruction
+/Users/gavinleroy/Dev/Prj/async/progs/csharp/Destruction/bin/Debug/net10.0/Destruction.deps.json
+/Users/gavinleroy/Dev/Prj/async/progs/csharp/Destruction/bin/Debug/net10.0/Destruction.runtimeconfig.json
+/Users/gavinleroy/Dev/Prj/async/progs/csharp/Destruction/bin/Debug/net10.0/Destruction.dll
+/Users/gavinleroy/Dev/Prj/async/progs/csharp/Destruction/bin/Debug/net10.0/Destruction.pdb
+/Users/gavinleroy/Dev/Prj/async/progs/csharp/Destruction/obj/Debug/net10.0/Destruction.GeneratedMSBuildEditorConfig.editorconfig
+/Users/gavinleroy/Dev/Prj/async/progs/csharp/Destruction/obj/Debug/net10.0/Destruction.AssemblyInfoInputs.cache
+/Users/gavinleroy/Dev/Prj/async/progs/csharp/Destruction/obj/Debug/net10.0/Destruction.AssemblyInfo.cs
+/Users/gavinleroy/Dev/Prj/async/progs/csharp/Destruction/obj/Debug/net10.0/Destruction.csproj.CoreCompileInputs.cache
+/Users/gavinleroy/Dev/Prj/async/progs/csharp/Destruction/obj/Debug/net10.0/Destruction.sourcelink.json
+/Users/gavinleroy/Dev/Prj/async/progs/csharp/Destruction/obj/Debug/net10.0/Destruction.dll
+/Users/gavinleroy/Dev/Prj/async/progs/csharp/Destruction/obj/Debug/net10.0/refint/Destruction.dll
+/Users/gavinleroy/Dev/Prj/async/progs/csharp/Destruction/obj/Debug/net10.0/Destruction.pdb
+/Users/gavinleroy/Dev/Prj/async/progs/csharp/Destruction/obj/Debug/net10.0/Destruction.genruntimeconfig.cache
+/Users/gavinleroy/Dev/Prj/async/progs/csharp/Destruction/obj/Debug/net10.0/ref/Destruction.dll
