@@ -126,6 +126,33 @@
    ;; with serial? = #false delivers ANY pending timer at ANY state. See the
    ;; rationale in tokio.rkt.
 
+   ;; REACTOR COMPLETIONS BYPASS THE EXECUTOR FIFO. A delivered timer's
+   ;; wake thunk (io-wake shaped: settle the io task, wake its dependents)
+   ;; runs on smol's REACTOR thread in reality, not on the executor -- so a
+   ;; spawned-but-never-polled task sitting at the head of the executor
+   ;; queue cannot delay an io completion. The base FIFO head-pop forced
+   ;; exactly that: with Q = [unpolled-task, io-wake], main's wake-up could
+   ;; never run first, making cancel-before-first-poll outputs PROVABLY
+   ;; unreachable (found by the in-container fuzz, seed 270486700 smol[0]:
+   ;; runtime "D|s6" -- cancel landing before the executor's first poll --
+   ;; was exhaustion-proven unreachable, yet real smol on Linux produced
+   ;; it). Any-position pop for io-wake-shaped entries only; ordinary task
+   ;; entries keep the executor's real FIFO. Running the wake on the worker
+   ;; slot is an interleaving over-approximation of the separate reactor
+   ;; thread, the sound direction for the oracle (cf. sys/schedule-main).
+   ;; (the io-wake shape below is task:set-done!'s EXPANSION -- it is a
+   ;; macro, so the stored thunk carries the expanded set-box! pair)
+   [-->
+    (t_0 σ (any_qpre ... (label_io (name v_thunk (lambda (x_none) (begin x_none (begin (set-box! _ _) (set-box! _ "done")) (os/start-soon _))))) any_qpost ...) T
+         ((thread F F_rs ...) ... (thread) FS_1 ...))
+    (t_1 σ (any_qpre ... any_qpost ...) T
+         ((thread F F_rs ...) ...
+          (thread (label_io (v_thunk (void)))) FS_1 ...))
+
+    (where #false (task:cancelled? σ label_io))
+    (where/error t_1 t_0)
+    "sys/schedule-reactor"]
+
    [-->
     (t_0 σ Q_0 T ((thread F F_rs ...) ... (thread) FS_1 ...))
     (t_1 σ Q_1 T ((thread F F_rs ...) ... (thread
