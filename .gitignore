@@ -4,3 +4,5 @@ target/
 __pycache__/
 compiled/
 *.rkt~
+fuzz-cache/
+result
