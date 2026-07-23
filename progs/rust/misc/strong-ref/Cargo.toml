@@ -1,9 +1,0 @@
-[package]
-name = "strong-ref"
-version = "0.1.0"
-edition = "2024"
-
-[dependencies]
-smol = "2.0.0"
-async-channel = "2.5.0"
-async-dup = "1.2.4"
