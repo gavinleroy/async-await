@@ -60,12 +60,10 @@
         (t_0 σ Q T (FS_0 ... (thread (label (in-hole E (task:set-cancelled! v_task))) F ...) FS_1 ...))
         "cancel"]
 
-   ;; The entry future: block_on (the #[tokio::main] expansion) drives it
-   ;; INLINE on the calling thread, in parallel with the worker threads -- it
-   ;; never goes through the run queue (probed: entry and every resumption on
-   ;; ThreadId(1); workers elsewhere). Modeled by stacking the entry task's
-   ;; Ok-wrapping frame directly on the root thread; os/block-done unwraps
-   ;; it. No first-run cancellation hook: nothing can abort the entry.
+   ;; block_on (the #[tokio::main] expansion) drives the entry future inline
+   ;; on the calling thread, never via the run queue (probed: entry and every
+   ;; resumption on ThreadId(1)). Ok-wrapping frame stacked on root; no
+   ;; first-run cancel hook.
    [--> (t_0 σ_0 Q T ((thread (root (in-hole E (os/block (name v_coro (lambda (x) e)))))) FS ...))
         (t_1 σ_2 Q T ((thread (x_task (reset
                                        (begin
@@ -84,21 +82,14 @@
    -->sys
    Tokio
 
-   ;; FREE-RUNNING CLOCK: wall time advances independently of thread
-   ;; progress -- a runnable thread can be OS-preempted while workers and
-   ;; timers proceed. A quiescent-only clock PROVABLY loses runtime outputs
-   ;; here (fuzz seed 227726474 tokio[0]: "ABC|24" -- a timer firing before
-   ;; a runnable-but-stalled main's next print -- was enumeration-exhausted
-   ;; unreachable, yet the real runtime produced it). The base fused
-   ;; sys/signal (platform.rkt) covers this: with serial? = #false it
-   ;; delivers ANY pending timer at ANY state, clock advancing with the
-   ;; delivery -- no shadow needed.
+   ;; FREE-RUNNING CLOCK: wall time advances independently of thread progress;
+   ;; base fused sys/signal (serial? #f) delivers any pending timer at any state.
+   ;; A quiescent-only clock provably loses outputs: a timer firing before a
+   ;; runnable-but-stalled main's next print is real but model-unreachable.
 
-   ;; ANY-ORDER DISPATCH: tokio's multi-threaded scheduler is work-stealing
-   ;; (per-worker queues + LIFO slots + a global injector), so there is no
-   ;; cross-task FIFO guarantee. Dispatch pops an ARBITRARY ready thunk into
-   ;; an idle worker -- an over-approximation of the stealing structure,
-   ;; the sound direction for the membership oracle.
+   ;; ANY-ORDER DISPATCH: tokio's work-stealing scheduler gives no cross-task
+   ;; FIFO guarantee, so dispatch pops an arbitrary ready thunk into an idle
+   ;; worker -- an over-approximation, the sound direction for the oracle.
    [--> (t_0 σ (any_qpre ... (label_waiting v_thunk) any_qpost ...) T
              ((thread F F_rs ...) ... (thread) FS_1 ...))
         (t_1 σ (any_qpre ... any_qpost ...) T
@@ -109,11 +100,9 @@
         (where/error t_1 t_0)
         "sys/schedule"]
 
-   ;; B3: block_on resumptions -- the entry future is polled on the CALLING
-   ;; thread (probed: every resumption on ThreadId(1)), so main's queued
-   ;; wake-up resumes as a frame on the parked root, in parallel with the
-   ;; workers. Any-position pop: the waker targets the block_on thread
-   ;; directly, it does not queue behind worker dispatch.
+   ;; Entry-future resumptions run on the calling thread (probed: every
+   ;; resumption on ThreadId(1)), as a frame on the parked root. Any-position
+   ;; pop: the waker targets the block_on thread directly, not worker dispatch.
    [-->
     (t_0 σ (any_qpre ... (x_main v_thunk) any_qpost ...) T
          ((thread (root (in-hole E (os/block (name v_task (struct (self (ptr x_main)) any_field ...)))))) FS ...))
@@ -136,10 +125,9 @@
     (where/error t_1 t_0)
     "sys/schedule-cancelled"]
 
-   ;; A cancelled timer (ANY of them -- direct ellipsis match; the old
-   ;; T:pop-cancelled metafunction faulted with two cancelled timers pending)
-   ;; is drained from T and placed back on Q, where sys/schedule-cancelled
-   ;; settles it Err and wakes its dependents.
+   ;; A cancelled timer (any position) drains from T back onto Q, where
+   ;; sys/schedule-cancelled settles it Err. Direct ellipsis match: a
+   ;; metafunction here faults when two cancelled timers are pending.
    [--> (t_0 σ Q_0 (any_th ... (t_c label v) any_tt ...) P)
         (t_1 σ Q_1 (any_th ... any_tt ...) P)
 
@@ -148,12 +136,10 @@
         (where/error t_1 t_0)
         "sys/signal-cancel"]
 
-   ;; block_on returns the moment the entry future settles; the runtime then
-   ;; shuts down -- queued tasks and pending timers are dropped un-polled,
-   ;; but workers MID-POLL keep running, so their remaining prints can land
-   ;; after the root's final output (the racy shutdown tail observed in
-   ;; fuzzing). The (field value ...) unwrap removes the entry task's
-   ;; JoinHandle Ok wrapper.
+   ;; block_on returns when the entry settles: queued tasks and pending
+   ;; timers are dropped un-polled, but mid-poll workers keep running, so
+   ;; their prints can land after root's final output. The (field value ...)
+   ;; unwrap removes the entry task's JoinHandle Ok wrapper.
    [--> (t_0 σ Q T ((thread (root (in-hole E (os/block v_awaitable)))) FS ...))
         (t_1 σ () () ((thread (root (in-hole E (field value (task:get-result v_awaitable))))) FS ...))
         (where #true (task:is-task? v_awaitable))
@@ -199,10 +185,8 @@
                              #:extract-result program-output)))
       (check-runtime-in-set compile-and-run-tokio 'e results #:rust? #t)))
 
-  ;; Model outputs checked against a REGEXP, runtime outputs against the
-  ;; observed set: under the free-running clock (fused sys/signal) a program whose
-  ;; output is bounded only by timing has an unbounded model set (at-least-n
-  ;; sleeps can lag any amount), while real jitter stays small.
+  ;; Model outputs are checked via regexp: the free-running clock makes
+  ;; timing-bounded output sets unbounded, while real runtime jitter stays small.
   (define-syntax-rule (tokio-->>~ e px results)
     (begin
       (unit:check-true

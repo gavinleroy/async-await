@@ -8,11 +8,11 @@
 use std::future::Future;
 use std::time::Duration;
 
-pub async fn sleep(seconds: f64) {
-    tokio::time::sleep(Duration::from_secs_f64(seconds)).await;
+pub async fn sleep(seconds: u64) {
+    tokio::time::sleep(Duration::from_secs(seconds)).await;
 }
 
-pub async fn timeout<F: Future<Output = ()>>(seconds: f64, fut: F) {
+pub async fn timeout<F: Future<Output = ()>>(seconds: u64, fut: F) {
     tokio::select! {
         () = fut => {}
         () = sleep(seconds) => {}

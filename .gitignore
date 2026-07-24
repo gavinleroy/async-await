@@ -6,3 +6,4 @@ compiled/
 *.rkt~
 fuzz-cache/
 result
+*.log

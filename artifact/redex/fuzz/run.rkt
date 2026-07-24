@@ -131,18 +131,10 @@ EOF
 ;; ---------------------------------------------------------------------------
 ;; Rust — cargo (tokio / smol)
 ;;
-;; Fixed, fully pre-fetched environment: dependencies come from the
-;; Nix-vendored crate set (ASYNC_FUZZ_CARGO_CONFIG points crates-io at the
-;; store's vendor directory and sets [net] offline), version-pinned by the
-;; committed rust-template/Cargo.lock and built with --locked -- no network,
-;; no re-resolution. Every generated project shares one persistent
-;; per-language CARGO_TARGET_DIR, so the dependency tree compiles ONCE
-;; (debug profile); each program only rebuilds the single-file crate itself.
-;; Both languages use the template's union manifest (tokio + smol) -- the
-;; one the lockfile covers; the unused runtime costs one compile into the
-;; shared cache, after which it is free. Target dirs are per-language so
-;; concurrent tokio/smol fuzz lanes cannot clobber each other's
-;; debug/generated binary.
+;; Offline, pinned builds: ASYNC_FUZZ_CARGO_CONFIG points crates-io at the
+;; Nix-vendored sources, locked by the committed Cargo.lock (--locked). A
+;; persistent per-language CARGO_TARGET_DIR compiles dependencies once and
+;; keeps concurrent tokio/smol lanes from clobbering each other's binary.
 ;; ---------------------------------------------------------------------------
 
 (define-runtime-path rust-template-dir "rust-template")
@@ -195,14 +187,10 @@ EOF
 ;; Multi-run execution: compile once, run n times
 ;; ---------------------------------------------------------------------------
 
-;; Nondeterministic programs are sampled by running the same compiled
-;; artifact repeatedly; building once matters for the compiled backends
-;; (dotnet/swiftc/cargo). Returns a list of run-results — a single failed
-;; result when the one-time build fails.
-;;
-;; Reps run a few at a time (bounded green threads; the children are real OS
-;; processes): the samples are independent, and per-rep process startup
-;; would otherwise dominate the lane's wall clock at n=20 × 30 programs.
+;; Sample nondeterministic programs by running one compiled artifact
+;; repeatedly (building once matters for dotnet/swiftc/cargo); returns
+;; run-results, or a single failed result when the build fails. Reps run a few
+;; at a time: samples are independent and serial startup dominates wall clock.
 (define rep-concurrency 3)
 
 (define (run-reps n go)
@@ -215,21 +203,10 @@ EOF
   (for-each thread-wait ts)
   (vector->list results))
 
-;; The SOURCE-level half: given real-language source text for `lang`, build
-;; it the same way the fuzzer builds generated programs (same temp-project
-;; shapes, pinned toolchains, vendored crates) and run it n times. Also the
-;; entry point for the figure programs (fuzz/figs.rkt), which are stored as
-;; plain source files.
-;;
-;; `#:lib` optionally bundles a shared support file (the figure programs'
-;; per-language `timeout` library) into the build, placed where each
-;; language's toolchain picks it up: `figlib.<ext>` next to an interpreted
-;; main (python import / node require by relative path), an extra source
-;; file in the C#/Swift compilation, `src/figlib.rs` for Rust (the program
-;; declares `mod figlib;`).
-;;
-;; `#:run-args` are appended (quoted) to every rep's run command — how the
-;; figure programs select which `ex` to run, one fresh process per ex.
+;; Build real-language source for `lang` exactly as the fuzzer builds
+;; generated programs, and run it n times; entry point for the figure programs
+;; (fuzz/figs.rkt). `#:lib` bundles a figlib.<ext> support file where each
+;; toolchain picks it up; `#:run-args` are appended to every rep's run command.
 (define (run-source-many lang src n
                          #:timeout [timeout 30]
                          #:lib [lib #f]

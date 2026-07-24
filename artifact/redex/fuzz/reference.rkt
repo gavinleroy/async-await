@@ -1,28 +1,10 @@
 #lang racket/base
 
 ;; -----------------------------------------------------------------------------
-;; Reference output-set enumerator — the trusted oracle for differential testing.
-;;
-;; This is NOT used in the fuzzer's hot path. The fuzzer decides membership with
-;; the directed witness search (witness.rkt); this module is the deliberately
-;; simple, obviously-correct algorithm that the witness search is validated
-;; AGAINST (fuzz/witness-check.rkt): a second implementation, by exhaustion, to
-;; check the clever one on the small programs where both can run.
-;;
-;; `reference-output-set` drives the non-collapsing relation `-->>lang` (the
-;; language modules' variant that exposes every successor, rather than the
-;; sampler's `-->lang`, which collapses each system run to one random successor)
-;; over the whole reachable state graph and collects every terminal's output.
-;; Two things keep it tractable:
-;;   - canonicalize (model.rkt) dedups states modulo alpha-renaming, store
-;;     ordering, and timer-queue order;
-;;   - run-to-decision collapses deterministic (single-successor) runs, so a
-;;     thread's synchronous chunk counts as one step.
-;;
-;; It exhausts a *given program's* output set, and so terminates only for
-;; low-concurrency programs: a few genuinely-concurrent workers produce
-;; hundreds–thousands of inequivalent interleavings (see FUZZ.md). That is fine
-;; for its job — the witness search only needs checking on the small cases.
+;; Reference output-set enumerator: the deliberately simple oracle the witness
+;; search is validated against (witness-check.rkt); not in the fuzzer's hot
+;; path. Drives the non-collapsing -->>lang over the whole reachable graph and
+;; collects every terminal's output; tractable only for low-concurrency programs.
 ;; -----------------------------------------------------------------------------
 
 (require redex/reduction-semantics
@@ -51,13 +33,10 @@
       [(or (pair? (cdr succs)) (<= fuel 0)) (cons 'branch s)]
       [else (loop (car succs) (sub1 fuel))])))
 
-;; Enumerate the COMPLETE output set reachable from machine state `start` under
-;; the non-collapsing reduction `red` (a -->>lang).
-;;
-;; Returns (values status outputs count):
-;;   status  : 'complete | 'capped | 'timed-out
-;;   outputs : list of distinct terminal stdout strings
-;;   count   : number of distinct decision states explored
+;; Enumerate the complete output set reachable from `start` under the
+;; non-collapsing `red`. Returns (values status outputs count): status is
+;; 'complete | 'capped | 'timed-out, outputs the distinct terminal stdout
+;; strings, count the distinct decision states explored.
 (define (reference-output-set red start
                               #:state-cap [state-cap 200000]
                               #:time-cap  [time-cap-ms 60000])

@@ -20,23 +20,14 @@
           overlays = [ rust-overlay.overlays.default ];
         };
 
-        # --- Pinned versions (from paper) ---
-
         rust-toolchain = pkgs.rust-bin.stable."1.92.0".default;
 
         python = pkgs.python314.withPackages (ps: [
           ps.trio # 0.33
         ]);
 
-        # --- Vendored Rust dependencies (tokio + smol) ---
-        #
-        # The lockfile lives with the template manifest in
-        # redex/fuzz/rust-template; regenerate it there with
-        # `cargo generate-lockfile` after changing pinned versions.
-        # Generated programs build with `cargo --offline` against this
-        # vendor directory (see ASYNC_FUZZ_CARGO_CONFIG in fuzz/run.rkt).
         rust-vendor = pkgs.rustPlatform.importCargoLock {
-          lockFile = ./redex/fuzz/rust-template/Cargo.lock;
+          lockFile = ./artifact/redex/fuzz/rust-template/Cargo.lock;
         };
 
         cargo-offline-config = pkgs.writeText "cargo-config.toml" ''
@@ -53,7 +44,7 @@
         model = pkgs.stdenv.mkDerivation {
           pname = "models";
           version = "0.1.0";
-          src = pkgs.lib.cleanSource ./redex;
+          src = pkgs.lib.cleanSource ./artifact/redex;
           nativeBuildInputs = [ pkgs.racket ];
 
           buildPhase = ''
@@ -63,9 +54,8 @@
             raco make fuzz/main.rkt fuzz/figs.rkt
           '';
 
-          # Module tests need the real runtimes (python/node/cargo/swiftc/
-          # dotnet) and spawn processes; they run in the dev shell, not the
-          # nix sandbox.
+          # Module tests need the real runtimes
+          # (Swift, Rust, etc) and spawn processes
           doCheck = false;
 
           installPhase = ''
@@ -84,10 +74,6 @@
           pkgs.gawk
         ];
 
-        # `nix run .#fuzz` (also the default): the full fuzz endpoint — all
-        # lanes in parallel against the precompiled models, one cache
-        # directory per run (default ./fuzz-cache), live status on the
-        # terminal. See redex/fuzz/fuzz-parallel.sh for flags.
         fuzz = pkgs.writeShellApplication {
           name = "fuzz";
           runtimeInputs = toolchains;
@@ -105,17 +91,12 @@
           '';
         };
 
-        # `nix run .#figs`: run every paper-figure program (figs/<n>/<lane>)
-        # through the same harness the fuzzer uses for generated programs,
-        # printing one markdown table per figure. Args pass through
-        # (`-r N`, or an alternate figs directory).
         figs = pkgs.writeShellApplication {
           name = "figs";
           runtimeInputs = toolchains;
           runtimeEnv = {
             ASYNC_FUZZ_CARGO_CONFIG = cargo-offline-config;
-            # default figure-program directory; a positional argument overrides
-            FIGS_DIR = ./figs;
+            FIGS_DIR = ./artifact/figs;
           };
           text = ''
             unset DEVELOPER_DIR SDKROOT
@@ -123,9 +104,6 @@
           '';
         };
 
-        # `nix run .#run-tests`: every model's hand-written test suite (each
-        # async test also compiles and runs the REAL program), followed by
-        # the witness-search differential gate.
         run-tests = pkgs.writeShellApplication {
           name = "run-tests";
           runtimeInputs = toolchains;
@@ -140,13 +118,12 @@
           '';
         };
 
-        # --- Docker image, built by nix (linux only: the image closure is
-        # linux ELF). Swift 6 is not in nixpkgs, so the official swift.org
-        # image is the BASE (pinned by digest, per-arch content hash) and
-        # the nix closure — toolchains, precompiled models, the fuzz and
-        # run-tests commands, the source tree at /artifact — is layered on
-        # top. The nix store paths carry their own glibc, so they coexist
-        # with the Ubuntu base untouched.
+        # Swift 6 is not in nixpkgs, so the official swift.org
+        # image is the BASE and the nix closure toolchains,
+        # precompiled models, the fuzz and run-tests commands,
+        # the source tree at /artifact — is layered on top.
+        # The nix store paths carry their own glibc, so they
+        # coexist with the Ubuntu base untouched.
         swift-base = pkgs.dockerTools.pullImage {
           imageName = "swift";
           imageDigest = "sha256:f0bfe313779a0bb99db87f97c88ea6ada014aa6b3359f9c5583bf70b0b721217";
@@ -163,32 +140,30 @@
 
         artifact-src = pkgs.runCommand "artifact-src" { } ''
           mkdir -p $out/artifact
-          cp -r ${pkgs.lib.cleanSource ./.}/. $out/artifact/
+          cp -r ${pkgs.lib.cleanSource ./artifact}/. $out/artifact/
         '';
 
         image = pkgs.dockerTools.buildLayeredImage {
           name = "async-models-artifact";
           tag = "latest";
           fromImage = swift-base;
-          contents =
-            toolchains
-            ++ [
-              fuzz
-              run-tests
-              figs
-              model
-              artifact-src
-              pkgs.bashInteractive
-              pkgs.coreutils
-              pkgs.gnugrep
-              pkgs.gnused
-              pkgs.findutils
-              pkgs.which
-              pkgs.procps
-              # rustc needs a C linker (`cc`); the swift base ships clang
-              # for Swift but no cc
-              pkgs.stdenv.cc
-            ];
+          contents = toolchains ++ [
+            fuzz
+            run-tests
+            figs
+            model
+            artifact-src
+            pkgs.bashInteractive
+            pkgs.coreutils
+            pkgs.gnugrep
+            pkgs.gnused
+            pkgs.findutils
+            pkgs.which
+            pkgs.procps
+            # rustc needs a C linker (`cc`); the swift base ships clang
+            # for Swift but no cc
+            pkgs.stdenv.cc
+          ];
           config = {
             Cmd = [
               "/bin/bash"
@@ -208,26 +183,13 @@
           };
         };
 
-        # `nix run .#image` ≡ (1) obtain the docker image for THIS
-        # machine's architecture, (2) run it in docker — with the container
-        # runtime itself supplied by nix, so a user with only Nix needs
-        # nothing else: the docker CLI comes from nixpkgs, and on macOS
-        # colima provides the Linux VM + docker daemon. (The primary
-        # distribution channel is CI-built per-arch images pushed to a
-        # registry; this is the self-contained fallback.)
-        #
-        # The image is resolved at RUNTIME, never interpolated — that would
-        # make the Linux image a build dependency of the runner, which a
-        # darwin host cannot satisfy: first try the nix-built image for the
-        # matching linux system (native on Linux; macOS with a Linux
-        # builder), else `docker build` with docker/Dockerfile (Docker runs
-        # Linux internally everywhere, targeting the host arch).
         linuxSystem = builtins.replaceStrings [ "darwin" ] [ "linux" ] system;
         image-runner = pkgs.writeShellApplication {
           name = "artifact-image";
-          runtimeInputs =
-            [ pkgs.docker ]
-            ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isDarwin [ pkgs.colima ];
+          runtimeInputs = [
+            pkgs.docker
+          ]
+          ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isDarwin [ pkgs.colima ];
           text = ''
             tag=async-models-artifact:latest
 
@@ -253,27 +215,75 @@
             else
               echo "note: cannot nix-build the ${linuxSystem} image on this host" >&2
               echo "      (no Linux builder); building with docker instead" >&2
-              docker build -t "$tag" -f ${self}/docker/Dockerfile ${self}
+              docker build -t "$tag" -f ${self}/artifact/docker/Dockerfile ${self}
             fi
             exec docker run --rm -it "$tag"
           '';
         };
+
+        #  -------------------------------------------------------------------
+        # Paper
+
+        texEnv = pkgs.texlive.combine {
+          inherit (pkgs.texlive)
+            scheme-medium
+            latexmk
+            collection-latexextra
+            collection-fontsextra
+            acmart
+            libertine
+            libertinus
+            libertinus-fonts
+            newtx
+            inconsolata
+            ;
+        };
+
+        buildLuaScript = pkgs.writeShellScriptBin "build-lua" ''
+          mkdir -p build
+          exec ${texEnv}/bin/latexmk -pdflua -view=none -outdir=build main.tex "$@"
+        '';
+
+        buildScript = pkgs.writeShellScriptBin "build" ''
+          mkdir -p build
+          exec ${texEnv}/bin/latexmk -pdf -view=none -outdir=build main.tex "$@"
+        '';
+
+        watchScript = pkgs.writeShellScriptBin "watch" ''
+          mkdir -p build
+          exec ${texEnv}/bin/latexmk -pvc -pdf -view=none -interaction=nonstopmode -outdir=build main.tex "$@"
+        '';
+
+        paper = pkgs.stdenv.mkDerivation {
+          pname = "async-await-paper";
+          version = "0.1.0";
+          src = ./paper;
+          nativeBuildInputs = [ texEnv ];
+          buildPhase = ''
+            export HOME=$TMPDIR
+            latexmk -pdf -view=none -interaction=nonstopmode -outdir=build main.tex
+          '';
+          installPhase = ''
+            mkdir -p $out
+            cp build/main.pdf $out/main.pdf
+          '';
+        };
       in
       {
-        packages =
-          {
-            default = fuzz;
-            inherit
-              fuzz
-              model
-              run-tests
-              figs
-              image-runner
-              ;
-          }
-          // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
-            inherit image;
-          };
+        packages = {
+          default = paper;
+          inherit
+            paper
+            fuzz
+            model
+            run-tests
+            figs
+            image-runner
+            ;
+        }
+        // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
+          inherit image;
+        };
 
         apps.image = {
           type = "app";
@@ -308,6 +318,20 @@
             echo "  rustc:   $(rustc --version)"
             echo "  swift:   $(swiftc --version 2>/dev/null | head -1 || echo '(system swiftc unavailable)')"
           '';
+        };
+
+        devShells.paper = pkgs.mkShell {
+          buildInputs = [
+            pkgs.skimpdf
+            texEnv
+            buildLuaScript
+            buildScript
+            watchScript
+            pkgs.python3
+          ];
+          # Needed for lualatex font resolution.
+          OSFONTDIR = "${texEnv}/share/texmf/fonts/";
+          PYTHON = pkgs.python3;
         };
       }
     );

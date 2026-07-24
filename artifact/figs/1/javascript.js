@@ -18,13 +18,13 @@ const GRACE = parseFloat(process.env.GRACE ?? "3");
 async function write_to_log() {
   console.log("A");
   // simulate log write
-  await sleep(0.2);
+  await sleep(2);
   console.log("B");
 }
 
 async function process_await() {
   const task = write_to_log(); // spawn: the eager call starts the task
-  // do other work ...
+  await sleep(0); // do other work ...
   await task;
 }
 
@@ -38,11 +38,11 @@ async function ex1() {
 }
 
 async function ex2() {
-  await timeout(0.1, process_await);
+  await timeout(1, process_await);
 }
 
 async function ex3() {
-  await timeout(0.1, process_detach);
+  await timeout(1, process_detach);
 }
 
 async function main(f) {

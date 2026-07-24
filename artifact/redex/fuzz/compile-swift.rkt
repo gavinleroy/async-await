@@ -1,7 +1,7 @@
 #lang racket/base
 
 ;; -----------------------------------------------------------------------------
-;; Swift backend.
+;; Swift backend — STRUCTURED concurrency.
 ;;
 ;; Input is a fully type-annotated program (every node is `(: e τ)`, lambdas
 ;; carry their function type). Emission is type-directed: each node is
@@ -11,18 +11,22 @@
 ;; with `any Sendable` plus a safe `as?`, only at throw/catch boundaries.
 ;;
 ;; Semantic mapping (Swift is "eager": calling an async function starts it):
-;;   async/lambda            -> @Sendable (A...) async throws -> R closure
-;;   (f a...)  : (Task R)    -> Task<R, Error> { try await f(a...) }  (eager)
-;;   (await t) / (os/block t): (t).value
-;;   (os/io d v): (Task τ)   -> Task<τ, Error> { sleep(d); v }
-;;   (cancel t): (Task τ)    -> __cancel(t)  (cancels, returns the task)
-;;   (cancelled?)            -> Task.isCancelled
-;; All functions compile to `async throws` closures (a sync `lambda` body may
-;; still `await`, e.g. a recursive loop), so sync applications are awaited
-;; inline and async applications are wrapped in an eager `Task`.
+;;   async/lambda              -> @Sendable (A...) async throws -> R closure
+;;   (let ([t (f a...)]) ...)  -> async let t = f(a...)
+;;   (await t)                 -> try await t
+;;   (await (f a...))          -> try await f(a...)       (inline)
+;;   (await (os/io d v))       -> direct inline Task.sleep; cancellation
+;;                                raises Err("cancelled")
+;;   (timeout d (f a...))      -> __timeout(d) { try await f(a...) }
+;;   (cancelled?)              -> Task.isCancelled
 ;;
-;; `try`/`await` are placed exactly where an effect occurs (see `fx`), so the
-;; output compiles warning-free.
+;; No per-task cancel and no task handle object: tasks are async-let children
+;; (uncancellable individually), and the only cancellation source is timeout,
+;; whose deadline delivers task-tree cancellation via a group cancelAll.
+;; Destruct and extent are the compiler's own async-let semantics. Async-let
+;; bindings cannot be captured by nested closures, so task-let chains flatten
+;; into a single closure (emit-async-lets); typegen guarantees the shape.
+;; `try`/`await` are placed exactly where an effect occurs (see `fx`).
 ;; -----------------------------------------------------------------------------
 
 (require racket/match
@@ -36,7 +40,7 @@
 // Compile with: swiftc -swift-version 6 -parse-as-library FILE.swift
 import Foundation
 
-struct Err: Error { let value: any Sendable }
+struct Err: Error, Sendable { let value: any Sendable }
 
 final class Box<T>: @unchecked Sendable {
     var value: T
@@ -45,9 +49,52 @@ final class Box<T>: @unchecked Sendable {
 
 func __throw<T>(_ v: any Sendable) throws -> T { throw Err(value: v) }
 
-func __cancel<T>(_ t: Task<T, Error>) -> Task<T, Error> { t.cancel(); return t }
-
 func __print(_ s: String) { print(s, terminator: "") }
+
+enum __TO<T: Sendable>: Sendable {
+    case body(T)
+    case bodyErr(Err)
+    case timer
+}
+
+// The paper's timeout primitive: run `body` as a cancellable child racing a
+// deadline timer; on expiry, cancelAll delivers native task-tree
+// cancellation (flags the subtree; sleeps abort; the body keeps running
+// cooperatively). The outcome is SETTLEMENT-BASED: whatever the body settles
+// with decides — a body that died of cancellation raises Err("cancelled"), a
+// body that completed despite the flag returns its value.
+func __timeout<T: Sendable>(_ d: Int, _ body: @escaping @Sendable () async throws -> T) async throws -> T {
+    return try await withTaskGroup(of: __TO<T>.self) { g in
+        g.addTask {
+            do { return .body(try await body()) }
+            catch is CancellationError { return .bodyErr(Err(value: "cancelled")) }
+            catch let e as Err { return .bodyErr(e) }
+            catch { return .bodyErr(Err(value: "error")) }
+        }
+        g.addTask {
+            try? await Task.sleep(nanoseconds: UInt64(d) * 100_000_000)
+            return .timer
+        }
+        var out: __TO<T>? = nil
+        for await msg in g {
+            switch msg {
+            case .timer: g.cancelAll()
+            default: out = msg; g.cancelAll()
+            }
+        }
+        return out!
+    }.get()
+}
+
+extension __TO {
+    func get() throws -> T {
+        switch self {
+        case .body(let v): return v
+        case .bodyErr(let e): throw e
+        case .timer: fatalError("timeout: body never settled")
+        }
+    }
+}
 
 EOF
 )
@@ -103,7 +150,9 @@ EOF
     [`(async-> ,args ,ret) (fn-type args ret)]
     [`(List ,t) (format "[~a]" (type->swift t))]
     [`(Box ,t) (format "Box<~a>" (type->swift t))]
-    [`(Task ,t) (format "Task<~a, Error>" (type->swift t))]
+    ;; Task values have no first-class Swift rendering: tasks are async-let
+    ;; bindings (emit-let) or timeout bodies, both consumed structurally.
+    [`(Task ,t) (error 'compile-swift "task type escaped structural position: (Task ~s)" t)]
     [_ (error 'compile-swift "no Swift type for: ~s" t)]))
 
 ;; All functions compile to async throws @Sendable closures.
@@ -156,13 +205,15 @@ EOF
   (match form
     [(? number?) pure] [(? string?) pure] [(? boolean?) pure] [(? symbol?) pure]
     [`(void) pure] [`(ptr ,_) pure] [`(cancelled?) pure] [`(os/time) pure]
-    [`(os/io ,_ ,_) pure]                  ; Task { } construction is pure
+    ;; __io spawn is pure; operands are evaluated at the call site (E-contexts
+    ;; force them to values before the io starts), so their effects surface
+    [`(os/io ,d ,v) (fx-or (fx d) (fx v))]
     [(or `(await ,_) `(os/block ,_)) (cons #t #t)]
+    [`(timeout ,_ ,_) (cons #t #t)]
     [`(throw ,_) (cons #t #f)]
     [`(throw-in ,_ ,_) (cons #t #f)]
     [`(err ,_) (cons #t #f)]
     [`(catch ,_ ,_) (cons #t #t)]          ; handler may rethrow; body awaits
-    [`(cancel ,t) (fx t)]
     [`(ok ,e) (fx e)]
     [`(if ,c ,t ,f) (fx-or (fx c) (fx t) (fx f))]
     [`(when ,c ,es ...) (fx-or* (cons c es))]
@@ -190,7 +241,7 @@ EOF
     ;; application
     [`(,f ,args ...)
      (match (ann-type f)
-       [`(async-> ,_ ,_) pure]             ; Task { } construction is pure
+       [`(async-> ,_ ,_) pure]             ; __spawn is a sync call
        [`(-> ,_ ,_) (cons #t #t)])]        ; awaits the async closure
     [_ (error 'compile-swift "fx: unsupported form: ~s" form)]))
 
@@ -257,12 +308,10 @@ EOF
     [`(print ,e) (format "__print(~a)" (emit e))]
 
     ;; --- Async ---
-    [(or `(await ,t) `(os/block ,t)) (format "try await (~a).value" (emit t))]
+    [(or `(await ,t) `(os/block ,t)) (emit-await t ty)]
+    [`(timeout ,d ,t) (emit-timeout d t ty)]
     [`(os/io ,d ,v)
-     (match-define `(Task ,vt) ty)
-     (format "Task<~a, Error> { try await Task.sleep(nanoseconds: UInt64(~a) * 100_000_000); return ~a }"
-             (type->swift vt) (emit d) (emit v))]
-    [`(cancel ,t) (format "__cancel(~a)" (emit t))]
+     (error 'compile-swift "os/io outside an await position: ~s" form)]
     [`(cancelled?) "Task.isCancelled"]
     [`(os/time) "Int(Date().timeIntervalSince1970 * 1000)"]
 
@@ -312,6 +361,40 @@ EOF
 
     [_ (error 'compile-swift "unsupported form: ~s" form)]))
 
+;; An application whose operator is annotated at async-> (an eager spawn).
+(define (async-app? form)
+  (match form
+    [`(,f ,_ ...)
+     (and (pair? f)
+          (memq (car f) '(: typed-lambda typed-async-lambda))
+          (match (ann-type f) [`(async-> ,_ ,_) #t] [_ #f]))]
+    [_ #f]))
+
+;; Awaiting is structural: an async-let binding awaits by name; an awaited
+;; os/io is a DIRECT inline sleep (cancellation surfaces as Err("cancelled"),
+;; the model's payload); an awaited application runs inline on the current
+;; task (the model's spawn+immediate-await orderings over-approximate this).
+(define (emit-await t ty)
+  (match t
+    [`(: ,(? symbol? x) (Task ,_)) (format "try await ~a" (sanitize-var x))]
+    [`(: (os/io ,d ,v) (Task ,_))
+     (format "try await { () async throws -> ~a in do { try await Task.sleep(nanoseconds: UInt64(~a) * 100_000_000) } catch { throw Err(value: \"cancelled\") }; return ~a }()"
+             (type->swift ty) (emit d) (emit v))]
+    [`(: ,(? async-app? form) (Task ,_))
+     (match-define `(,f ,args ...) form)
+     (format "try await ~a(~a)" (emit f) (string-join (map emit args) ", "))]
+    [_ (error 'compile-swift "await of unsupported task shape: ~s" t)]))
+
+;; (timeout d (f a...)) — the call becomes __timeout's group child, so the
+;; deadline's cancelAll reaches it natively; settlement decides the outcome.
+(define (emit-timeout d t ty)
+  (match t
+    [`(: ,(? async-app? form) (Task ,_))
+     (match-define `(,f ,args ...) form)
+     (format "try await __timeout(~a) { try await ~a(~a) }"
+             (emit d) (emit f) (string-join (map emit args) ", "))]
+    [_ (error 'compile-swift "timeout of a non-application: ~s" t)]))
+
 (define (emit-binop op es identity)
   (match es
     ['() identity]
@@ -321,15 +404,60 @@ EOF
 ;; `let` and `let*` both compile to a sequence of Swift `let` bindings. A
 ;; type-checked `let` never has a clause whose rhs refers to a sibling (rhss
 ;; are typed in the outer scope), so sequential bindings preserve its meaning.
+(define (task-app-clause? c)
+  (match (cadr c)
+    [`(: ,form (Task ,_)) (async-app? form)]
+    [_ #f]))
+
 (define (emit-let cs body ty)
-  (define f (fx-or (fx-or* (map cadr cs)) (fx body)))
-  (define binds
-    (string-join
-     (for/list ([c (in-list cs)])
-       (match-define (list x rhs) c)
-       (format "let ~a: ~a = ~a" (sanitize-var x) (type->swift (ann-type rhs)) (emit rhs)))
-     "; "))
-  (iife ty f (format "~a; return ~a" binds (emit body))))
+  (cond
+    [(and (pair? cs) (andmap task-app-clause? cs))
+     (emit-async-lets cs body ty)]
+    [else
+     (define f (fx-or (fx-or* (map cadr cs)) (fx body)))
+     (define binds
+       (string-join
+        (for/list ([c (in-list cs)])
+          (match-define (list x rhs) c)
+          (format "let ~a: ~a = ~a" (sanitize-var x) (type->swift (ann-type rhs)) (emit rhs)))
+        "; "))
+     (iife ty f (format "~a; return ~a" binds (emit body)))]))
+
+;; Task bindings become literal `async let`s. Swift forbids capturing an
+;; async-let binding in a nested closure, so the whole chain — every chained
+;; task-let plus the final (flat) begin body — is flattened into ONE closure:
+;; bindings, then statements, then the return. Typegen guarantees this shape
+;; (bindings followed by a flat begin with task mentions at top level).
+(define (emit-async-lets cs body ty)
+  (let gather ([acc (reverse cs)] [b body])
+    (match b
+      [`(: (let ([,x ,rhs]) ,inner) ,_)
+       #:when (task-app-clause? (list x rhs))
+       (gather (cons (list x rhs) acc) inner)]
+      [`(: (let* ([,x ,rhs]) ,inner) ,_)
+       #:when (task-app-clause? (list x rhs))
+       (gather (cons (list x rhs) acc) inner)]
+      [_
+       (define binds (reverse acc))
+       (define bind-code
+         (string-join
+          (for/list ([c (in-list binds)])
+            (match-define (list x rhs) c)
+            (match-define `(: (,f ,args ...) ,_) rhs)
+            (format "async let ~a = ~a(~a)"
+                    (sanitize-var x) (emit f) (string-join (map emit args) ", ")))
+          "; "))
+       (define-values (stmt-code ret-code)
+         (match b
+           [`(: (begin ,es ..2) ,_)
+            (values (string-join (map discard-stmt (drop-right es 1)) "; ")
+                    (emit (last es)))]
+           [`(: (begin ,e) ,_) (values #f (emit e))]
+           [_ (values #f (emit b))]))
+       (iife ty (cons #t #t)
+             (if stmt-code
+                 (format "~a; ~a; return ~a" bind-code stmt-code ret-code)
+                 (format "~a; return ~a" bind-code ret-code)))])))
 
 ;; `letrec` binds (possibly mutually recursive) functions; emit them as nested
 ;; Swift funcs so they can reference themselves and each other.
@@ -390,11 +518,10 @@ EOF
    (type->swift ty) (emit handler) (emit body) th-swift dflt dflt))
 
 (define (emit-app f args ty)
-  (define fcode (emit f))
-  (define argcode (string-join (map emit args) ", "))
   (match (ann-type f)
-    [`(async-> ,_ ,R)
-     ;; eager task: starts running, awaited later via .value
-     (format "Task<~a, Error> { try await ~a(~a) }" (type->swift R) fcode argcode)]
+    [`(async-> ,_ ,_)
+     ;; spawns are consumed structurally by async-let bindings, await, or
+     ;; timeout — a bare async application has no honest rendering
+     (error 'compile-swift "async application outside async-let/await/timeout")]
     [`(-> ,_ ,_)
-     (format "try await ~a(~a)" fcode argcode)]))
+     (format "try await ~a(~a)" (emit f) (string-join (map emit args) ", "))]))

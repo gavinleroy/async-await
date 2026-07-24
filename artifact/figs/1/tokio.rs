@@ -10,33 +10,36 @@
 //              its own ex's section.
 //
 // Predicted: ex1 `AB` (the grace keeps the runtime alive past the detached
-// task's sleep), ex2 `AB` (the timeout drops process_await at 0.1 s, but
+// task's sleep), ex2 `AB` (the timeout drops process_await at 1 s, but
 // the inner spawned task runs detached to completion), ex3 `AB` (same).
 
 mod figlib;
 
 use figlib::{sleep, timeout};
 
-fn grace() -> f64 {
-    std::env::var("GRACE").ok().and_then(|s| s.parse().ok()).unwrap_or(3.0)
+fn grace() -> u64 {
+    std::env::var("GRACE")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(3)
 }
 
 async fn write_to_log() {
     println!("A");
     // simulate log write
-    sleep(0.2).await;
+    sleep(2).await;
     println!("B");
 }
 
 async fn process_await() {
     let task = tokio::spawn(write_to_log()); // spawn
-    // do other work ...
+    sleep(0).await; // do other work ...
     let _ = task.await;
 }
 
 async fn process_detach() {
     tokio::spawn(write_to_log()); // spawn, handle dropped, task keeps running
-    sleep(0.0).await; // do other work ...
+    sleep(0).await; // do other work ...
 }
 
 async fn ex1() {
@@ -44,11 +47,11 @@ async fn ex1() {
 }
 
 async fn ex2() {
-    timeout(0.1, process_await()).await;
+    timeout(1, process_await()).await;
 }
 
 async fn ex3() {
-    timeout(0.1, process_detach()).await;
+    timeout(1, process_detach()).await;
 }
 
 #[tokio::main]

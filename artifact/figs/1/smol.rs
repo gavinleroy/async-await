@@ -18,25 +18,28 @@ mod figlib;
 
 use figlib::{sleep, timeout};
 
-fn grace() -> f64 {
-    std::env::var("GRACE").ok().and_then(|s| s.parse().ok()).unwrap_or(3.0)
+fn grace() -> u64 {
+    std::env::var("GRACE")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(3)
 }
 
 async fn write_to_log() {
     println!("A");
     // simulate log write
-    sleep(0.2).await;
+    sleep(2).await;
     println!("B");
 }
 
 async fn process_ignore() {
     let _ = smol::spawn(write_to_log()); // spawn, handle dropped: cancels
-    sleep(0.0).await; // do other work ...
+    sleep(0).await; // do other work ...
 }
 
 async fn process_await() {
     let task = smol::spawn(write_to_log()); // spawn
-    // do other work ...
+    sleep(0).await; // do other work ...
     let _ = task.await;
 }
 
@@ -45,11 +48,11 @@ async fn ex1() {
 }
 
 async fn ex2() {
-    timeout(0.1, process_await()).await;
+    timeout(1, process_await()).await;
 }
 
 async fn ex3() {
-    timeout(0.1, process_ignore()).await;
+    timeout(1, process_ignore()).await;
 }
 
 fn main() {

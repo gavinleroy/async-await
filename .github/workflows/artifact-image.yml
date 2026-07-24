@@ -1,6 +1,4 @@
-# Build the artifact's Docker images for both architectures (native runners,
-# no emulation), smoke-validate each by running the in-image fuzzer, push
-# them to GHCR, and stitch a multi-arch manifest.
+# Build the artifact's Docker images and push them to GHCR
 #
 # Native arm64 runners (ubuntu-24.04-arm) are free for PUBLIC repositories.
 # Release-tarball note: the images exceed GitHub's 2 GB per-release-asset
@@ -32,9 +30,6 @@ jobs:
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
-
-      # The image closure + tarball need more than the runner's free disk;
-      # drop the large preinstalled toolchains we don't use.
       - name: Free disk space
         run: |
           sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc \
@@ -44,12 +39,9 @@ jobs:
       - uses: DeterminateSystems/nix-installer-action@v16
 
       - name: Build image with nix
-        run: nix build -L ./artifact#image
+        run: nix build -L .#image
 
-      - name: Load and smoke-test
-        # `fuzz -n 1 -r 2` runs the whole pipeline once per lane inside the
-        # image — a real end-to-end validation on this architecture. A
-        # genuine model mismatch found here fails the job by design.
+      - name: Load and quick test
         run: |
           docker load < result
           docker run --rm async-models-artifact:latest fuzz -n 1 -r 2

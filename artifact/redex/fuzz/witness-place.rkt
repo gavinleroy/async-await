@@ -1,26 +1,11 @@
 #lang racket/base
 
 ;; -----------------------------------------------------------------------------
-;; Place worker for the witness search.
-;;
-;; One worker = one OS-level Racket place that loads every model and then loops
-;; on its channel. Two job kinds:
-;;
-;;   (vector lang start targets walk-ms)
-;;     one `walk-battery` (fuzz/witness.rkt); replies with the targets
-;;     witnessed. Workers only ever report found witnesses, so results merge
-;;     into any search without soundness bookkeeping.
-;;
-;;   (vector 'search lang start targets time-ms state-cap rng-seed)
-;;     one COMPLETE `multi-witness-search`; replies with (list (list target
-;;     verdict) ...). This is the endpoint's unit of parallelism: a lane runs
-;;     several programs' searches concurrently on its pool instead of one
-;;     search at a time — the slow lanes' wall is dominated by a few hard
-;;     programs, and whole-search jobs let them overlap. `rng-seed` pins the
-;;     walk RNG per (seed, lang, index) for reproducibility.
-;;
-;; Send 'quit to shut a worker down. The first message a worker receives is
-;; its pool index, used to decorrelate sibling RNG streams for walk jobs.
+;; Place worker for the witness search: one Racket place loads every model and
+;; loops on its channel. A (vector lang ...) job runs one walk-battery; a
+;; (vector 'search ...) job runs one complete multi-witness-search (the unit
+;; of parallelism; rng-seed pins the walk RNG). 'quit stops; the first message
+;; is the pool index (decorrelates sibling RNG streams).
 ;; -----------------------------------------------------------------------------
 
 (require racket/place

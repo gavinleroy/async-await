@@ -3,12 +3,8 @@
 ;; -----------------------------------------------------------------------------
 ;; Model state: building machine states from surface programs, a canonical
 ;; dedup key for states, and reading the observable output from a state.
-;;
-;; This is the layer shared by the two model-output strategies — the sound
-;; reference enumerator (reference.rkt) and the directed witness search
-;; (witness.rkt).
-;; They differ only in HOW they explore the reachable state graph, never in how
-;; a state is constructed, compared, or observed; that common ground lives here.
+;; Shared by the reference enumerator (reference.rkt) and the directed witness
+;; search (witness.rkt), which differ only in how they explore the state graph.
 ;; -----------------------------------------------------------------------------
 
 (require racket/match
@@ -25,12 +21,9 @@
          program-output)
 
 ;; ---------------------------------------------------------------------------
-;; Wrapping a surface program into a machine state
-;;
-;; The enumerators work on raw surface programs (no `trace-stdout`), so we wrap
-;; the program to capture its printed output: a single `stdout` cell, a `print`
-;; that appends to it, and a root thread that finally returns the accumulated
-;; string. `nthreads` empty worker slots model the runtime's thread pool.
+;; Wrapping a surface program into a machine state: a `stdout` cell, a `print`
+;; that appends to it, a root thread that returns the accumulated string, and
+;; `nthreads` empty worker slots for the runtime's thread pool.
 ;; ---------------------------------------------------------------------------
 
 (define (wrap-for-model e)
@@ -43,16 +36,10 @@
                 ,@(make-list nthreads '(thread)))))
 
 ;; ---------------------------------------------------------------------------
-;; Canonical dedup key: rename heap names by reachability order from the control
-;; state, drop unreachable store entries, sort the store, and order the timer
-;; queue T by deadline.
-;;
-;; T-sort: a timer entry is `(time task thunk)`. `sys/signal` may fire ANY due
-;; timer and `os/block-wait` may jump the clock to ANY pending deadline
-;; (`os/io n` = at least n steps), so the LIST ORDER of T never affects the
-;; reduction — only the times do. Stable-sorting T by time is therefore sound
-;; and merges states that differ only in the order independent timers were
-;; inserted.
+;; Canonical dedup key: rename heap names by reachability order, drop
+;; unreachable store entries, sort the store, and sort T by deadline. T-sort
+;; is sound: any pending timer may fire (os/io n = at least n steps), so T's
+;; list order never affects reduction -- only the times do.
 ;; ---------------------------------------------------------------------------
 
 (define (timer-time e) (if (and (pair? e) (real? (car e))) (car e) -inf.0))
@@ -88,20 +75,10 @@
      (list t σ* (rn Q) (rn T-sorted) (rn P))]
     [_ state]))
 
-;; Timeless canonical key: `canonicalize`, then the clock and every timer
-;; deadline zeroed. Sound because every model's sys/signal is FUSED: it
-;; delivers ANY pending timer regardless of the clock (parallel models at any
-;; state, serial models at loop quiescence), so two states differing only in
-;; time values reach exactly the same outputs — deadline values gate nothing,
-;; and generated programs never call os/time. Merging them collapses the
-;; per-clock-value twin states that clock advancement mints.
-;;
-;; SOUNDNESS DEPENDS ON both halves: (a) timer delivery ungated by the clock
-;; — under a due-gated sys/signal the clock-advancing os/block-wait step
-;; becomes a key-preserving self-loop and a seen-set keyed on this prunes
-;; the delivery path entirely; (b) no generated program observes os/time.
-;; If either changes, the affected language must move back to `canonicalize`
-;; (see `canon-for-lang`).
+;; Timeless key: `canonicalize`, then clock and deadlines zeroed. Sound only
+;; because (a) every model's fused sys/signal delivers any pending timer
+;; regardless of the clock, and (b) generated programs never observe os/time.
+;; If either changes, move the language back to `canonicalize` (canon-for-lang).
 (define (zero-timer e)
   (if (and (pair? e) (real? (car e))) (cons 0 (cdr e)) e))
 
@@ -116,14 +93,9 @@
       canonicalize))
 
 ;; ---------------------------------------------------------------------------
-;; Observable output
-;;
-;; `wrap-for-model` binds the only `print` as
-;;   (lambda (s) (set! ACC (string-append ACC s)))
-;; so we locate the accumulator cell ACC by that closure's shape and read its
-;; value — the output produced SO FAR, which is a prefix of the final output
-;; because printing only ever appends. `accumulator-value` returns #f when there
-;; is no such cell (a program with no `print`, or before the binding exists);
+;; Observable output: locate the print accumulator cell by its closure shape
+;; and read the output SO FAR (printing only appends, so it is a prefix of the
+;; final output). `accumulator-value` is #f when there is no such cell;
 ;; `output-so-far` normalizes that to "".
 ;; ---------------------------------------------------------------------------
 
@@ -150,14 +122,10 @@
 (define (output-so-far state)
   (or (accumulator-value state) ""))
 
-;; The OBSERVED output of a TERMINAL state: what the real process's stdout
-;; shows at exit — everything printed by the time every thread finished.
-;; The root's return value is instead a SNAPSHOT of the accumulator taken at
-;; the root's own last step: a worker's tail print (real behavior — a
-;; mid-poll worker finishing after block_on returns; observed 2/20 runs on
-;; tokio) lands after that read and is invisible through the root value.
-;; Falls back to the root value for programs with no print accumulator
-;; (value-returning programs).
+;; Observed output of a terminal state: everything printed once every thread
+;; finished (the process's stdout at exit). The root's return value is only a
+;; snapshot at the root's last step -- a mid-poll worker's tail print (probed:
+;; real tokio) lands after that read. Root value fallback when no accumulator.
 (define (observed-output state)
   (define acc (accumulator-value state))
   (if (string? acc) acc (program-output state)))

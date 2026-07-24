@@ -133,15 +133,10 @@
 
   (x ::= variable-not-otherwise-mentioned))
 
-;; NO #:binding-forms, deliberately. The evaluation rules below never rely on
-;; Redex's α-machinery: every binder elimination (app/let/letrec/shift)
-;; explicitly renames its bound names to `gensyms` fresh w.r.t. the whole
-;; (σ e) and stores values in σ, and `substitute*` (core.rkt) is defined on
-;; the empty REDEX language, so it always was plain uniform renaming — with a
-;; globally fresh target, renaming every occurrence (binder and use alike)
-;; cannot capture. Declaring binding forms bought only per-match freshening
-;; of bound names: ~62% of all reduction time, and it made rule firings mint
-;; α-twin successors that every state-space consumer then had to dedup.
+;; NO #:binding-forms, deliberately: every binder elimination gensym-renames
+;; its bound names fresh w.r.t. the whole (σ e) and substitute* is uniform
+;; renaming, so a globally fresh target cannot capture. Binding forms bought
+;; only per-match freshening: ~62% of reduction time, plus α-twin successors.
 
 ;; -----------------------------------------------------------------------------
 ;; Operational Semantics

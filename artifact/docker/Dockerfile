@@ -13,8 +13,8 @@
 # split as the native setup, where swiftc comes from the system Xcode and
 # the flake's shellHook clears DEVELOPER_DIR/SDKROOT (a no-op on Linux).
 #
-# Build (from the artifact/ directory, so the flake is the build context):
-#   docker build -t async-models-artifact -f docker/Dockerfile .
+# Build (from the REPOSITORY ROOT — the flake lives there):
+#   docker build -t async-models-artifact -f artifact/docker/Dockerfile .
 # Run:
 #   docker run -it async-models-artifact
 # The build ends with a 1-program-per-lane fuzz smoke across all 7 runtimes;
@@ -50,9 +50,10 @@ RUN mkdir -p ~/.config/nix \
  && printf 'experimental-features = nix-command flakes\nsandbox = false\n' \
       > ~/.config/nix/nix.conf
 
-# The artifact source. .dockerignore excludes caches/results.
-COPY --chown=artifact:artifact . /home/artifact/artifact
-WORKDIR /home/artifact/artifact
+# The repository (root flake + artifact/; .dockerignore excludes the paper
+# and caches/results).
+COPY --chown=artifact:artifact . /home/artifact/repo
+WORKDIR /home/artifact/repo
 
 # Realize the flake at build time so the image is self-contained offline:
 #  - .#fuzz builds the model derivation (raco make -> compiled/*.zo) and
@@ -76,5 +77,8 @@ RUN nix develop --command bash -c 'swiftc --version && dotnet --version && rustc
 RUN fuzz -n 1 -r 2 \
  || { echo '=== lane logs ==='; tail -n 40 fuzz-cache/*/*.log; exit 1; } \
  && rm -rf fuzz-cache
+
+# Evaluators land where the models live (redex/, figs/).
+WORKDIR /home/artifact/repo/artifact
 
 CMD ["bash", "-l"]

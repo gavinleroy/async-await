@@ -1,6 +1,0 @@
-fuzz-cache/
-result
-redex/compiled/
-redex/fuzz/compiled/
-docker/
-.dockerignore

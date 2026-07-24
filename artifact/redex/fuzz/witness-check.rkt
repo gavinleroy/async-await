@@ -1,23 +1,11 @@
 #lang racket/base
 
 ;; -----------------------------------------------------------------------------
-;; Differential gate for the directed witness search (fuzz/witness.rkt).
-;;
-;; The multi-target witness search must agree with the ground truth —
-;; `reference-output-set`, the exhaustive reference enumerator — wherever the
-;; two can be compared:
-;;
-;;   - every output FULL found must be 'producible        (no false 'unreachable),
-;;   - a clearly-impossible target must NOT be 'producible (no false witness),
-;;     even when searched TOGETHER with the producible ones (exercising the
-;;     union prune and its mid-search shrinking).
-;;
-;; For programs too large for FULL to finish, we still require every output FULL
-;; DID find to be 'producible: the witness search must never lose a real output.
-;;
-;; A non-string (value) output is exercised too, to cover the unpruned path.
-;;
-;; Run:  racket fuzz/witness-check.rkt        (or via `raco test`)
+;; Differential gate: the directed witness search must agree with the
+;; exhaustive reference-output-set wherever both run -- every output FULL
+;; found must be 'producible, and an impossible target searched together with
+;; the producible ones must never be. A value output covers the unpruned path.
+;; Run: racket fuzz/witness-check.rkt (or via `raco test`).
 ;; -----------------------------------------------------------------------------
 
 (require (only-in racket/list make-list)
@@ -30,9 +18,8 @@
 
 (provide check-witness)
 
-;; A machine state whose root runs `e` directly (no stdout capture), so the
-;; output is `e`'s value rather than an accumulated string — the convention for
-;; value-returning programs.
+;; A machine state whose root runs `e` directly (no stdout capture): the
+;; output is `e`'s value -- the convention for value-returning programs.
 (define (wrap-value e nthreads)
   `(0 () () () ((thread (root ,e)) ,@(make-list nthreads '(thread)))))
 
@@ -43,11 +30,9 @@
 (define (probe name red start impossible #:known [known '()] #:lang [lang #f])
   (define-values (st outs cnt) (reference-output-set red start #:time-cap 45000))
   (define truth (sort (filter string? outs) string<?))
-  ;; ONE multi-target search over everything at once: every true output plus
-  ;; the impossible one -- the way the fuzzer uses it. `#:lang` selects the
-  ;; search's canonical key (timeless for parallel models), so this gate also
-  ;; differentially validates the timeless key against the reference
-  ;; enumerator's timeful one.
+  ;; One multi-target search over every true output plus the impossible one --
+  ;; as the fuzzer uses it. `#:lang` selects the canonical key, so this also
+  ;; validates the timeless key against the reference's timeful one.
   (define targets (append truth known (list impossible)))
   (define verdicts (multi-witness-search red start targets #:lang lang))
   ;; (1) every output FULL found, plus every explicitly-known one, is producible

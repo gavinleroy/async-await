@@ -21,13 +21,13 @@ import Foundation
 func writeToLog() async throws {
     print("A")
     // simulate log write
-    try await sleep(0.2)
+    try await sleep(2)
     print("B")
 }
 
 func processAwait() async throws {
     async let task: Void = writeToLog()  // spawn
-    // do other work ...
+    try await sleep(0)  // do other work ...
     try await task
 }
 
@@ -42,11 +42,11 @@ func ex1() async throws {
 }
 
 func ex2() async throws {
-    await timeout(0.1) { try await processAwait() }
+    await timeout(1) { try await processAwait() }
 }
 
 func ex3() async throws {
-    await timeout(0.1) { try await processDetach() }
+    await timeout(1) { try await processDetach() }
 }
 
 @main

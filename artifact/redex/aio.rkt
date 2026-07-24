@@ -14,12 +14,10 @@
   #:with-base-lang Py
   #:with-base-reduction -->py
   #:single-threaded
-  ;; No #:serial-dispatch: run-to-completion is structural -- ready thunks run
-  ;; as frames stacked on the root thread (see sys/schedule below), so nothing
-  ;; can dispatch while a callback is mid-run. And asyncio has no
-  ;; micro-before-macro priority: call_soon callbacks and due timer callbacks
-  ;; feed the same FIFO ready deque, so sys/signal must NOT wait for an idle
-  ;; loop (a due timer is queued while an earlier callback still runs).
+  ;; No #:serial-dispatch: run-to-completion is already structural (ready
+  ;; thunks run as frames on the root thread; see sys/schedule), and asyncio
+  ;; has no micro-before-macro priority -- timers and call_soon callbacks feed
+  ;; the same FIFO deque, so sys/signal must not wait for an idle loop.
   (e ::= .... (spawn e) (cancel e))
   (E ::= .... (spawn E) (cancel E))
   (M ::= .... (spawn M) (cancel M))
@@ -75,13 +73,9 @@
         (t_0 σ Q T (FS_0 ... (thread (label (in-hole E (task:set-cancelled! v_task))) F ...) FS_1 ...))
         "cancel"]
 
-   ;; The entry coroutine: asyncio.run wraps it in a task and the ONE thread
-   ;; immediately starts driving it -- run_until_complete never returns to the
-   ;; scheduler first, so anything already in Q runs strictly after main's
-   ;; first suspension. Modeled by stacking the task's wrapper frame directly
-   ;; on the root thread (contrast spawn, which pushes to the BACK of Q). No
-   ;; (begin none ...) first-run hook here: nothing can cancel the entry task
-   ;; before its first step.
+   ;; asyncio.run drives the entry task inline on the one thread: anything
+   ;; already in Q runs strictly after main's first suspension. Wrapper frame
+   ;; stacked on root; no first-run cancel hook (nothing can cancel the entry).
    [--> (t_0 σ_0 Q T ((thread (root (in-hole E (os/block (name v_coro (lambda (x) e)))))) FS ...))
         (t_1 σ_2 Q T ((thread (x_task (reset
                                        (begin
@@ -101,13 +95,10 @@
    -->sys/exn
    AsyncIO
 
-   ;; SINGLE-THREADED: the event loop IS the root thread. run_until_complete
-   ;; executes ready callbacks on the calling thread, so dispatch (these two
-   ;; rules shadow the platform's, which require an empty worker slot) pops the
-   ;; ready queue and runs the thunk as a frame stacked on the parked root.
-   ;; The pattern is the idle gate: while a callback frame sits on top of
-   ;; root, or before os/block-coro has started the entry task (is-task?
-   ;; fails on the coroutine), neither rule can fire.
+   ;; SINGLE-THREADED: the event loop is the root thread. These two rules
+   ;; shadow the platform dispatch: pop the ready queue and run the thunk as a
+   ;; frame on the parked root -- the pattern is the idle gate (no dispatch
+   ;; while a callback frame sits atop root).
    [-->
     (t_0 σ Q_0 T ((thread (root (in-hole E (os/block v_task)))) FS ...))
     (t_1 σ Q_1 T ((thread (label_waiting (v_thunk (void)))
@@ -155,13 +146,10 @@
         (where/error t_1 t_0)
         "os/block-cancel"]
 
-   ;; PROPAGATION: log. asyncio.run returns the entry task's value; an
-   ;; exception in a task that was never awaited does NOT propagate into user
-   ;; code -- the loop reports it out-of-band ("Task exception was never
-   ;; retrieved", on stderr), a channel outside the model's observables.
-   ;; Equivalently: a reraise caught immediately at the runtime boundary. If
-   ;; main itself failed, task:get-result rethrows its error, which IS what
-   ;; asyncio.run does.
+   ;; PROPAGATION: log. An exception in a never-awaited task does not reach
+   ;; user code -- the loop reports it on stderr, outside the model's
+   ;; observables. If main itself failed, task:get-result rethrows, which is
+   ;; what asyncio.run does.
    [--> (t_0 σ () () ((thread (root (in-hole E (os/block v_task)))) FS ...))
         (t_1 σ () () ((thread (root (in-hole E (task:get-result v_task)))) FS ...))
 
@@ -248,10 +236,8 @@
      (os/block (main)))
    42)
 
-  ;; PROPAGATION: log -- an unretrieved task exception never reaches user
-  ;; code (the root catch stays empty) and asyncio.run returns main's value.
-  ;; The loop's "Task exception was never retrieved" report is stderr-only,
-  ;; outside the model's observables.
+  ;; PROPAGATION: log -- the unretrieved task exception never reaches user
+  ;; code; asyncio.run returns main's value (the report is stderr-only).
   (aio-->>=
    (let* ([exn (async/lambda ()
                  (throw "whoops"))]
@@ -307,10 +293,8 @@
      (os/block (main)))
    '("cancelled"))
 
-  ;; The task is cancelled before its first step (main runs inline ahead of
-  ;; anything create_task queued), so the cancellation is raised at the
-  ;; coroutine's entry: work's catch never engages and 42 is unreachable.
-  ;; Matches real asyncio, which raises CancelledError out of asyncio.run.
+  ;; Cancelled before its first step, so the cancellation is raised at the
+  ;; coroutine's entry: work's catch never engages. Matches real asyncio.
   (aio-->>∈
    (let* ([work (async/lambda ()
                   (catch (lambda (e) 42)

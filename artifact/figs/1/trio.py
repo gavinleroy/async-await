@@ -24,14 +24,14 @@ from figlib import sleep, timeout
 async def write_to_log():
     print("A")
     # simulate log write
-    await sleep(0.2)
+    await sleep(2)
     print("B")
 
 
 async def process_await():
     async with trio.open_nursery() as nursery:
         nursery.start_soon(write_to_log)
-        # do other work ...
+        await sleep(0)  # do other work ...
         # (the nursery awaits the task at scope end)
 
 
@@ -47,11 +47,11 @@ async def ex1():
 
 
 async def ex2():
-    await timeout(0.1, process_await)
+    await timeout(1, process_await)
 
 
 async def ex3():
-    await timeout(0.1, process_detach)
+    await timeout(1, process_detach)
 
 
 async def main(f):

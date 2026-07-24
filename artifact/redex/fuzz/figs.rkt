@@ -3,20 +3,13 @@
 ;; -----------------------------------------------------------------------------
 ;; Figure-program runner: `nix run .#figs` (or `racket fuzz/figs.rkt FIGS-DIR`).
 ;;
-;; The figs/ directory holds one subdirectory per program-bearing paper
-;; figure, each containing one plain source file per language, named after
-;; its fuzz lane (asyncio.py, trio.py, javascript.js, csharp.cs,
-;; swift.swift, tokio.rs, smol.rs). Every file is run R times through the
-;; SAME harness the fuzzer uses for generated programs (fuzz/run.rkt
-;; `run-source-many`: identical temp-project shapes, pinned toolchains,
-;; vendored crates), and the distinct outputs are reported — one markdown
-;; table per figure, languages as rows, ready for reviewers to inspect.
-;;
-;; A program's printed lines are collapsed to a letter sequence ("A\nB\n" →
-;; "AB"; empty output shown as ε). Nondeterministic figures (e.g. the
-;; Eagerness figure's semi-eager Swift) show every distinct output with its
-;; count. Placeholder files containing "TODO: paste" are reported as `todo`
-;; and not run.
+;; figs/<n>/ holds one source file per lane (asyncio.py, tokio.rs, ...) for
+;; paper figure n. Each file runs R times through the fuzzer's own harness
+;; (run-source-many: same temp-project shapes, pinned toolchains) and the
+;; distinct outputs print as one markdown table per figure, lanes as rows.
+;; Printed lines collapse to a letter sequence ("A\nB\n" → "AB", empty = ε);
+;; nondeterministic programs show each distinct output with its count; files
+;; containing "TODO: paste" report as `todo` and are not run.
 ;; -----------------------------------------------------------------------------
 
 (require racket/match
@@ -119,21 +112,26 @@
 (define (substring* s n)
   (if (<= (string-length s) n) s (substring s 0 n)))
 
-;; Figure directories are the NUMERIC subdirectories; anything else
-;; (e.g. lib/) is support material. `fig-filter` (figure numbers) narrows
-;; the selection.
+;; Figure directories are ANY subdirectories of the figs root except lib/
+;; (support material). `fig-filter` (directory names) narrows the
+;; selection. Numeric names sort first in numeric order, the rest
+;; alphabetically after them.
+(define (figure-name p) (path->string (file-name-from-path p)))
+
 (define (figure-dirs root)
+  (define (sort-key p)
+    (define n (figure-name p))
+    (cons (or (string->number n) +inf.0) n))
   (sort (for/list ([p (in-list (directory-list root #:build? #t))]
                    #:when (directory-exists? p)
-                   #:when (let ([n (string->number
-                                    (path->string (file-name-from-path p)))])
-                            (and n
-                                 (or (null? (fig-filter))
-                                     (member n (fig-filter))))))
+                   #:when (not (equal? (figure-name p) "lib"))
+                   #:when (or (null? (fig-filter))
+                              (member (figure-name p) (fig-filter))))
           p)
-        <
-        #:key (lambda (p)
-                (string->number (path->string (file-name-from-path p))))))
+        (lambda (a b)
+          (match-define (cons na sa) (sort-key a))
+          (match-define (cons nb sb) (sort-key b))
+          (if (= na nb) (string<? sa sb) (< na nb)))))
 
 (define (lane-files dir)
   (define by-lane
@@ -148,9 +146,10 @@
 
 (module+ main
   (define dir-arg (make-parameter #f))
-  ;; Positional arguments are comma-separated FILTERS, classified by shape:
-  ;; numeric tokens select figures, name tokens select languages. So
-  ;; `figs 1 csharp`, `figs 1,4 csharp,tokio`, and `figs csharp` all work.
+  ;; Positional arguments are comma-separated FILTERS: tokens naming a
+  ;; subdirectory of the figs root select figures, `exN` tokens select
+  ;; exs, and lane names select languages. So `figs 1 csharp`,
+  ;; `figs 1,1-dev csharp,tokio`, and `figs csharp ex2` all work.
   (define filter-args
     (command-line
      #:program "figs"
@@ -166,7 +165,12 @@
         (error 'figs "no figs directory: pass --dir or set FIGS_DIR")))
   (define tokens
     (append-map (lambda (a) (string-split a ",")) filter-args))
-  (fig-filter (filter-map string->number tokens))
+  (define subdirs
+    (for/list ([p (in-list (directory-list figs-root))]
+               #:when (directory-exists? (build-path figs-root p))
+               #:unless (equal? (path->string p) "lib"))
+      (path->string p)))
+  (fig-filter (filter (lambda (t) (member t subdirs)) tokens))
   (ex-filter
    (filter-map (lambda (t)
                  (define m (regexp-match #rx"^ex([0-9]+)$" t))
@@ -174,11 +178,12 @@
                tokens))
   (lang-filter
    (for/list ([t (in-list tokens)]
-              #:unless (string->number t)
+              #:unless (member t subdirs)
               #:unless (regexp-match? #rx"^ex[0-9]+$" t))
      (define lane (string->symbol t))
      (unless (memq lane lane-order)
-       (error 'figs "unknown language ~a (known: ~a)" t lane-order))
+       (error 'figs "unknown figure/language ~a (figures: ~a; languages: ~a)"
+              t subdirs lane-order))
      lane))
 
   (for ([dir (in-list (figure-dirs figs-root))])

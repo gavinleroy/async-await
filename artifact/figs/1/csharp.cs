@@ -28,7 +28,7 @@ class Program
     static async Task ProcessAwait()
     {
         var task = WriteToLog(); // spawn: the eager call starts the task
-        // do other work ...
+        await Figlib.Sleep(0); // do other work ...
         await task;
     }
 

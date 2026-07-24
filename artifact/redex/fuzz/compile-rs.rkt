@@ -562,11 +562,10 @@ EOF
   (define main-expr (emit '() e))
   (string-append
    (make-preamble) "\n"
-   ;; print! (not println!): a mid-poll worker can print AFTER block_on
-   ;; returns (the racy shutdown tail), and the model's output accumulator
-   ;; has no newline between the final result and such tail prints -- a
-   ;; println! newline would make byte-identical tails incomparable. Rust
-   ;; flushes stdout on clean exit, so the missing newline is harmless.
+   ;; print! (not println!): a mid-poll worker can print after block_on
+   ;; returns, and the model's accumulator has no newline before such tail
+   ;; prints -- a println! newline would make byte-identical tails
+   ;; incomparable. Rust flushes stdout on clean exit.
    (case (runtime)
      [(tokio)
       (format "#[tokio::main]\nasync fn main() {\n    let result = ~a;\n    print!(\"{}\", result);\n}\n"

@@ -12,19 +12,16 @@
 
 (struct nondeterministic exn:fail:user (prog results))
 
-;; Extract the root thread's value from a final program state. Language
-;; modules also get a macro-generated copy; this generic one serves
-;; clients (e.g. fuzz/main.rkt) that work across languages.
+;; Extract the root thread's value from a final program state. Generic copy
+;; for cross-language clients; language modules get a macro-generated one.
 (define (program-output p)
   (match p
     [`(,_t ,_H ,_Q ,_T ((thread (root ,v)) ,_ ...)) v]
     [_ p]))
 
-;; Reduce the `term` using `rule`.
-;;
-;; If `max-steps` is provided the reduction will be capped at that many times, otherwise, it could loop forever
-;; If the reduction is `deterministic?` a form that reduces to multiple results is considered an error; a `nondeterministic` exception is thrown.
-;; The function `α-equiv?` is used to filter programs that are alpha equivalent. By default syntactic equivalence `equal?` is used.
+;; Reduce `term` using `rule`. `max-steps` caps the reduction (else it may
+;; loop forever); `deterministic?` raises `nondeterministic` on multiple
+;; results; `α-equiv?` filters alpha-equivalent programs (default `equal?`).
 (define (reduce rule
                 term
                 #:interval [interval 500 #;milliseconds]
@@ -61,9 +58,8 @@
     body
     #true))
 
-;; A testing help that asserts, after each evaluation of `term` using the reduction relation `rule`, the value
-;; extracted from the result using `extract` is tested for membership in results using `equiv?`. A maximum of
-;; `iterations` iterations are performed.
+;; Assert that each of `iterations` evaluations of `term` under `rule`
+;; extracts (via `extract`) a member of `results` under `equiv?`.
 (define (evaluates-in-set rule
                           term
                           results
@@ -98,12 +94,9 @@
         grammar-rule:expr ...
         (~optional (~seq #:binding-forms bf:expr ...)))
      ;; #:single-threaded -> synchronous code runs unbounded (an infinite loop
-     ;;   blocks the runtime). #:serial-dispatch -> the scheduler dispatches like
-     ;;   a real event loop (run-to-completion, microtasks before macrotasks),
-     ;;   making the runtime deterministic. They are independent: trio is
-     ;;   #:single-threaded but NOT #:serial-dispatch, because its structured-
-     ;;   concurrency cancellation deadlocks under serial dispatch (a trio-model
-     ;;   issue to resolve separately).
+     ;; blocks the runtime). #:serial-dispatch -> real-event-loop dispatch
+     ;; (run-to-completion, micro before macro). Independent: trio is the
+     ;; first without the second (its cancellation deadlocks under serial).
      #:with single? (if (attribute single-threaded?) #'#t #'#f)
      #:with serial? (if (attribute serial-dispatch?) #'#t #'#f)
      (with-unhygenic
@@ -142,9 +135,8 @@
                      )
       #'
       (begin
-        ;; The systems language `SysLang` is the base lambda calculus, either LC or LC+Exn,
-        ;; extended with a multithreaded platform. There are also the OmniScient hooks:
-        ;; `os/block`, `os/time`, `os/io`, and `os/start-later`.
+        ;; SysLang: the base lambda calculus (LC or LC+Exn) extended with a
+        ;; multithreaded platform and the OmniScient os/* hooks.
         (define-extended-language
          SysLang
          BaseLang
@@ -178,22 +170,10 @@
 
         (define-extended-language Lang SysLang grammar-rule ... (~? (~@ #:binding-forms bf ...)))
 
-        ;; Given a reduction relation `red` and a `term`, evalaute the term many times
-        ;; using the provided relation. If the term is `det?`, reducing to multiple
-        ;; forms is considered an error, if not, a random reduction is chosen and continued with.
-        ;;
-        ;; We want to use non-deterministic reductions with the threaded model. The goal is *not*
-        ;; to model fine-grained memory access, so we take larger steps as a regular system would.
-        ;; Decisions are then made when as async/lambda or await form is reached in one of the threads.
-        ;;
-        ;; The step cap must be > 1: synchronous code (and the system's scheduling
-        ;; chunk) runs atomically up to the next async decision point. A cap of 1
-        ;; interleaves at every micro-step, which splits `await`'s
-        ;; check-then-register across steps and loses wakeups (a completed task
-        ;; can fire its waiters between the `task:is-completed?` read and the
-        ;; `task:add-self-as-dependent!` registration). 50 is a coarse bound that
-        ;; lets a thread reach its next async point in one step for the programs
-        ;; we generate.
+        ;; Nondeterministic big steps: threads run atomically to the next async
+        ;; decision point, not per micro-step. The cap must be > 1 -- a cap of
+        ;; 1 splits await's check-then-register and loses wakeups (waiters can
+        ;; fire between the is-completed? read and registration); 50 suffices.
         (define big-step-max-steps 50)
         (define (big-step red term #:deterministic? [det? #true] #:allow-infinity? [inf? #f])
           (with-handlers ([nondeterministic? (lambda (e) 'stuck)])
@@ -309,17 +289,10 @@
             (where #true (task:is-task? v_awaitable))
             (where #false (task:settled? σ v_awaitable))
             (side-condition (< (term t_0) (term t_x)))
-            ;; LOGICAL TIME: jump the clock to ANY pending deadline rather than
-            ;; crawling +1. `os/io n` means the timer fires after AT LEAST n
-            ;; steps, so the clock may pass a due-but-undelivered timer -- that
-            ;; is what lets a 3-step timer fire after a 4-step one (deadline
-            ;; inversion, observed in real runtimes under scheduler jitter).
-            ;; Since sys/signal fused the clock advance into delivery, this
-            ;; rule is subsumed for output reachability (kept as the os/time
-            ;; story: waiting at quiescence is when a program OBSERVES time
-            ;; passing); every computation rule is instantaneous in logical
-            ;; time (t_1 = t_0), so deadlines reflect wait time, not how much
-            ;; computation happened in between.
+            ;; LOGICAL TIME: jump the clock to any pending deadline -- os/io n
+            ;; fires after AT LEAST n steps, so deadline inversion is allowed.
+            ;; The fused sys/signal subsumes this for outputs; kept so os/time
+            ;; observes time passing while waiting at quiescence.
             (where/error t_1 t_x)
             "os/block-wait"]
 
@@ -370,20 +343,11 @@
             (side-condition (not (eq? 'root (term label))))
             "sys/thread-pop-frame"]
 
-           ;; ANY pending timer may fire, due or not, advancing the clock to
-           ;; its deadline (fused clock-advance + delivery). `os/io n`
-           ;; promises AT LEAST n steps, so delivery order among coexisting
-           ;; timers is unconstrained: the historical two-rule formulation
-           ;; (os/block-wait jumps the clock to ANY pending deadline, then a
-           ;; due-only sys/signal delivers) could always jump to the MAXIMUM
-           ;; pending deadline, making every timer simultaneously due -- so
-           ;; deadline VALUES never constrained the delivery order, only
-           ;; creation order (causality) did. Fusing the jump into delivery
-           ;; reaches exactly the same orders without materializing
-           ;; clock-only intermediate states, which differ in nothing
-           ;; observable and multiplied the fuzzer's search space. Direct
-           ;; ellipsis match -- a rule may be nondeterministic where a
-           ;; metafunction (the old T:pop) must not be.
+           ;; Any pending timer may fire, due or not, the clock advancing to
+           ;; its deadline (fused advance + delivery). os/io n promises AT
+           ;; LEAST n steps, so only causality constrains delivery order, and
+           ;; fusing skips unobservable clock-only states. Direct ellipsis
+           ;; match: a metafunction here could not be nondeterministic.
            [-->
             (t_0 σ Q_0 ((t_a label_a v_a) (... ...) (t_d label v) (t_b label_b v_b) (... ...)) P)
             (t_1 σ Q_1 ((t_a label_a v_a) (... ...) (t_b label_b v_b) (... ...)) P)
@@ -433,11 +397,9 @@
                       (where/error t_1 t_0)
                       "sys/schedule-cancelled"]
 
-                    ;; ANY cancelled timer may drain (direct ellipsis match on T:
-                    ;; a rule may be nondeterministic; the old T:pop-cancelled
-                    ;; METAFUNCTION faulted -- "matched 3 different ways, 2
-                    ;; different results" -- whenever two cancelled timers were
-                    ;; pending, since metafunctions must be functions).
+                    ;; Any cancelled timer may drain. Direct ellipsis match: a
+                    ;; metafunction here faults when two cancelled timers are
+                    ;; pending (metafunctions must be functions).
                     [-->
                       (t_0 σ Q_0 (any_th (... ...) (t_c label v) any_tt (... ...)) P)
                       (t_1 σ Q_1 (any_th (... ...) any_tt (... ...)) P)
@@ -749,8 +711,7 @@
         (define-metafunction Lang
           task:cancel-dependencies : x -> e
           [(task:cancel-dependencies x)
-           (cancel x)
-           #;(lib:for-each (lambda (t) (cancel (unbox t)))
+           (lib:for-each (lambda (t) (task:set-cancelled! (unbox t)))
              (unbox (field children x)))])
 
         (define-metafunction Lang
@@ -778,12 +739,10 @@
         ;;;;
         ;; Queue/Signals metafunctions
 
-        ;; #true iff no thread is runnable: each thread is either an empty worker
-        ;; slot or the root parked on an (os/block <task>) it is still waiting
-        ;; for. Gates the scheduler in single-threaded runtimes so dispatch
-        ;; matches a real event loop (run-to-completion + microtasks before
-        ;; macrotasks). A worker mid-job has a reducible top frame, so it falls
-        ;; through to #false and the scheduler waits.
+        ;; #true iff no thread is runnable: every thread is an empty worker
+        ;; slot or the root parked on an (os/block <task>). Gates dispatch in
+        ;; serial-dispatch runtimes; a mid-job worker has a reducible top
+        ;; frame, so it falls through to #false.
         (define-metafunction Lang
           sys/idle? : (FS (... ...)) -> boolean
           [(sys/idle? ()) #true]

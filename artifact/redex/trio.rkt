@@ -14,10 +14,10 @@
   #:with-base-lang Py
   #:with-base-reduction -->py
   #:single-threaded
-  (e ::= .... (spawn e) (cancel e))
-  (E ::= .... (spawn E) (cancel E))
-  (M ::= .... (spawn M) (cancel M))
-  (G ::= .... (spawn G) (cancel G)))
+  (e ::= .... (spawn e) (timeout e e))
+  (E ::= .... (spawn E) (timeout E e) (timeout v E))
+  (M ::= .... (spawn M) (timeout M e) (timeout v M))
+  (G ::= .... (spawn G) (timeout G e) (timeout v G)))
 
 ;; -----------------------------------------------------------------------------
 ;; Operational Semantics
@@ -65,10 +65,26 @@
         (where/error t_1 t_0)
         "await-task"]
 
-   [--> (t_0 σ Q T (FS_0 ... (thread (label (in-hole E (cancel v_task))) F ...) FS_1 ...))
-        (t_0 σ Q T (FS_0 ... (thread (label (in-hole E (task:set-cancelled! v_task))) F ...) FS_1 ...))
+   ;; timeout = await-with-deadline: the deadline timer flags the child
+   ;; (spawned in the E-hole); delivery is at the child's checkpoints via
+   ;; sys/schedule-cancelled. Trio has no per-task cancel -- scopes only.
+   [--> (t_0 σ Q T_0 (FS_0 ... (thread (label (in-hole E (timeout v_d v_task))) F ...) FS_1 ...))
+        (t_1 σ Q T_1 (FS_0 ... (thread (label (in-hole E (await v_task))) F ...) FS_1 ...))
 
-        "cancel"]
+        (where #true (task:is-task? v_task))
+        (where/error (struct [self (ptr x_self)] _ ...) v_task)
+        (where/error t_deadline ,(+ (term t_0) (term v_d)))
+        ;; catch-armored like the io thunks: a timer for an already-flagged
+        ;; child is throw-in'd at dispatch; the catch absorbs it (the flag
+        ;; is already set, so skipping set-cancelled! is correct)
+        (where/error T_1 (T:push T_0 (t_deadline x_self
+                                       (lambda (none)
+                                         (begin (catch (lambda (e) (void))
+                                                       (begin none
+                                                              (task:set-cancelled! v_task)))
+                                                (void))))))
+        (where/error t_1 t_0)
+        "timeout"]
 
    ;; The entry coroutine: trio.run starts the initial task immediately on the
    ;; calling thread -- nothing queued by the root prefix runs until main's
@@ -187,7 +203,8 @@
 
    [--> (t_0 σ Q T ((thread (root (in-hole E (os/block v_task)))) FS ...))
         (t_1 σ Q T ((thread (root (in-hole E (begin
-                                               (cancel x_0 x_1 ...)
+                                               (task:set-cancelled! x_0)
+                                               (task:set-cancelled! x_1) ...
                                                (os/block v_task))))) FS ...))
 
         (where #true (task:settled? σ v_task))
@@ -292,6 +309,9 @@
   ;; lambda emits `await` in a sync Python def -- a SyntaxError. Awaiting the
   ;; recursive call is semantically neutral in both the model and Python
   ;; (awaiting a bare coroutine drives it inline; not a checkpoint).
+  ;; TIMEOUT: the deadline flags the worker's scope; delivery is at its next
+  ;; CHECKPOINT (throw-in at resume -- trio semantics), raising into the
+  ;; catch. A worker that finishes before delivery returns normally.
   (trio-->>∈
    (trace-stdout (print)
      (let* ([worker (async/lambda ()
@@ -302,11 +322,8 @@
                                            (await (loop (+ 1 i))))))])
                         (await (loop 0))))]
             [main (async/lambda ()
-                    (let ([w (spawn (worker))])
-                      (begin (await (os/io 1 (void)))
-                             (cancel w)
-                             (catch (lambda (e) (print "C"))
-                                    (await w)))))])
+                    (catch (lambda (e) (print "C"))
+                           (begin (timeout 1 (spawn (worker))) (void))))])
        (os/block (main))))
    '("C" "AC" "AAC" "AAAC" "AAA"))
 

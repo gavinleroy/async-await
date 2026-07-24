@@ -160,11 +160,8 @@ EOF
 
     ;; Model delays are logical units ordered by deadline, not durations.
     ;; 20ms per unit (matching the python backends) keeps that ordering
-    ;; robust against timer jitter: node's setTimeout has ~1ms wheel
-    ;; granularity, so 1-unit-apart deadlines emitted as raw milliseconds
-    ;; can invert under load (observed: a 2ms timer firing between two 1ms
-    ;; timers), producing runtime orderings the model's exact logical clock
-    ;; correctly rejects.
+    ;; robust: raw-millisecond deadlines 1 apart can invert under node's ~1ms
+    ;; timer wheel (probed: a 2ms timer fired between two 1ms timers).
     [`(os/io ,delay ,val)
      (format "(await new Promise(r => setTimeout(() => r(~a), (~a) * 20)))"
              (emit val) (emit delay))]

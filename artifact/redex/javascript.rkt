@@ -26,9 +26,8 @@
   (M ::= .... (await M))
   (G ::= .... (await G)))
 
-;; NO #:binding-forms: async/lambda elimination gensym-renames its
-;; parameters against the whole (store, body) itself -- see the rationale in
-;; lc.rkt.
+;; No #:binding-forms: async/lambda elimination gensym-renames its parameters
+;; against the whole (store, body); rationale in lc.rkt.
 
 ;; -----------------------------------------------------------------------------
 ;; Operational Semantics
@@ -61,11 +60,10 @@
 
    [--> (t_0 σ Q T (FS_0 ... (thread (label (in-hole E (await v_awaitable))) F ...) FS_1 ...))
         (t_1 σ Q T (FS_0 ... (thread (label (in-hole E
-                                                     ;; SUSPENSION: static, always suspend (yield to the
-                                                     ;; microtask queue). A *settled* task will never drain
-                                                     ;; its waiters again, so schedule the continuation
-                                                     ;; directly; otherwise park it in the task's waiters to
-                                                     ;; be drained when it completes.
+                                                     ;; SUSPENSION: static, always yield to the microtask
+                                                     ;; queue. A settled task never drains its waiters
+                                                     ;; again, so schedule the continuation directly;
+                                                     ;; otherwise park it in the task's waiters.
                                                      (shift k
                                                             (if (task:is-completed? v_awaitable)
                                                                 (os/start-soon
@@ -84,16 +82,10 @@
    Js
    ;; DESTRUCTION: awaited (the default for the platform)
 
-   ;; SINGLE-THREADED: the event loop IS the root thread. This shadows the
-   ;; platform sys/schedule (which dispatches into an empty worker slot --
-   ;; a phantom second thread): the next microtask runs as a frame stacked
-   ;; on the parked root, so run-to-completion is structural -- while a
-   ;; frame sits on top of root this pattern cannot match. #:serial-dispatch
-   ;; stays: its sys/signal gate (macrotasks wait for an empty stack AND a
-   ;; drained microtask queue) is real JS loop semantics, verified against
-   ;; node (two same-deadline timers: microtasks drain between the timer
-   ;; callbacks). No cancelled variant: JS has no cancel, task:cancelled?
-   ;; is never true.
+   ;; SINGLE-THREADED: the event loop is the root thread -- the next microtask
+   ;; runs as a frame on the parked root; run-to-completion is structural.
+   ;; #:serial-dispatch stays, verified against node (microtasks drain between
+   ;; same-deadline timer callbacks). No cancelled variant: JS has no cancel.
    [-->
     (t_0 σ Q_0 T ((thread (root (in-hole E (os/block v_task)))) FS ...))
     (t_1 σ Q_1 T ((thread (label_waiting (v_thunk (void)))
@@ -201,12 +193,9 @@
    "AA")
 
   ;; The recursive loop must be an async/lambda: `await` in a sync lambda is
-  ;; not valid JS (ReferenceError at runtime). And since `await` ALWAYS yields
-  ;; to the microtask queue -- even on a settled promise -- the two workers
-  ;; interleave one print per drain round after main's synchronous prefix:
-  ;; "CABABAB" (node: 30/30; model enumeration: single final state, same).
-  ;; The old sync-loop expectation "AAABBBC" encoded await-on-ready running
-  ;; synchronously, which is not JS semantics.
+  ;; not valid JS. Since `await` always yields to the microtask queue -- even
+  ;; on a settled promise -- the workers interleave one print per drain round
+  ;; after main's synchronous prefix: "CABABAB" (probed: node agrees).
   (js-->>=
    (trace-stdout (print)
      (let* ([get-truth (async/lambda () #true)]
