@@ -67,7 +67,6 @@ async def timeout(
     secs
   ):
     return await f()
-  return None
 \end{lstlisting}
   \cprotect\caption{Python+Trio using its first-class construct for timeout. Unlike other languages sampled, Python+Trio does not provide a racing primitive. The timed-out computation is cancelled.}
   \label{fig:timeout-simple-trio}
