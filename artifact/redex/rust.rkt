@@ -17,9 +17,8 @@
   (E ::= .... (await E))
   (M ::= .... (await M)))
 
-;; NO #:binding-forms: async/lambda elimination gensym-renames its
-;; parameters against the whole (store, body) itself -- see the rationale in
-;; lc.rkt.
+;; No #:binding-forms: async/lambda elimination gensym-renames its parameters
+;; against the whole (store, body); rationale in lc.rkt.
 
 ;; -----------------------------------------------------------------------------
 ;; Operational Semantics
@@ -33,9 +32,8 @@
    [--> (σ_0 (in-hole E ((async/lambda (x ..._1) e_body) v ..._1)))
         (σ_1 (in-hole E (reset (begin (shift x_k x_k) e_subst))))
 
-        ;; freshness must include the STORE (σ_0, not the bare symbol σ):
-        ;; ext1 REPLACES on key collision, so a fresh name that collides with
-        ;; a live binding would silently corrupt it
+        ;; freshness must include the store σ_0: ext1 replaces on key
+        ;; collision, so a colliding fresh name would corrupt a live binding
         (where/error (x_fresh ...) (gensyms (σ_0 e_body) (x ...)))
         (where/error σ_1 (ext σ_0 (x_fresh v) ...))
         (where/error e_subst (substitute* e_body (x x_fresh) ...))

@@ -52,6 +52,11 @@
 (define verbose?      (make-parameter #f))
 (define selected      (make-parameter #f))
 (define seed          (make-parameter #f)) ; #f until chosen; always set before fuzzing
+(define random-seed?  (make-parameter #f))
+
+;; Fixed default: every run generates the same programs unless --seed or
+;; --random-seed says otherwise, so artifact evaluators all see one corpus.
+(define default-seed 12345)
 (define out-dir       (make-parameter #f)) ; run cache directory (JSONL + summaries)
 
 ;; Per-language RNG seed. Each language re-seeds from this base before generating
@@ -486,8 +491,11 @@
     "Run cache directory: per-lane JSONL records and summaries are written here"
     (out-dir dir)]
    [("--seed") s
-    "RNG seed for reproducible program generation (default: a fresh one, printed)"
+    "RNG seed for program generation (default: 12345, fixed)"
     (seed (string->number s))]
+   [("--random-seed")
+    "Use a fresh random seed (printed) instead of the fixed default"
+    (random-seed? #t)]
    [("-r" "--runtime-runs") r
     "Real-program runs per program (default: 50)"
     (runtime-runs (string->number r))]
@@ -523,7 +531,8 @@
 
   ;; Always run with a definite seed, and print it, so every run is reproducible:
   ;; re-run with `--seed <printed>` to regenerate the exact same programs.
-  (unless (seed) (seed (random 1000000007)))
+  (unless (seed)
+    (seed (if (random-seed?) (random 1000000007) default-seed)))
 
   (when (out-dir)
     (make-directory* (out-dir)))

@@ -68,50 +68,38 @@ EOF
    preamble-common
    #<<EOF
 
+# Result/event plumbing only — trio cancels scopes, never tasks, so the only
+# cancellation source is __timeout.
 class _TrioTask:
     def __init__(self):
         self._event = trio.Event()
         self._result = self._error = None
-        self._scope = None
-        self._cancel_requested = False
 
-    # Task-extent structured concurrency, mirroring the model: one CancelScope
-    # per task (individual cancellation) enclosing one nursery (children
-    # spawned anywhere during this task's execution live at most as long as
-    # the task, and the task completes only after they do -- the model's
-    # task:await-dependencies at task end). _current_nursery is set in the
-    # task's OWN context: start_soon copies the spawner's context, so the
-    # assignment cannot leak back into the spawner.
+    # Task-extent structured concurrency, mirroring the model: one nursery
+    # per task (children spawned anywhere during this task's execution live
+    # at most as long as the task, and the task completes only after they do
+    # -- the model's task:await-dependencies at task end). _current_nursery
+    # is set in the task's OWN context: start_soon copies the spawner's
+    # context, so the assignment cannot leak back into the spawner.
     async def _run(self, coro):
-        with trio.CancelScope() as scope:
-            self._scope = scope
-            # cancel() arrived before the task's first step: cancel the scope
-            # now, so the body runs exactly to its first checkpoint (trio
-            # guarantees a started task reaches its first checkpoint).
-            if self._cancel_requested:
-                scope.cancel()
-            try:
-                async with trio.open_nursery() as nursery:
-                    _current_nursery.set(nursery)
-                    self._result = await coro
-            except BaseException as e:
-                # nurseries wrap exceptions in ExceptionGroup; unwrap
-                # singletons so awaiters see the original error, matching the
-                # model's task:set-failed! payload.
-                while (isinstance(e, BaseExceptionGroup)
-                       and len(e.exceptions) == 1):
-                    e = e.exceptions[0]
-                self._error = e
-            self._event.set()
+        try:
+            async with trio.open_nursery() as nursery:
+                _current_nursery.set(nursery)
+                self._result = await coro
+        except BaseException as e:
+            # nurseries wrap exceptions in ExceptionGroup; unwrap
+            # singletons so awaiters see the original error, matching the
+            # model's task:set-failed! payload.
+            while (isinstance(e, BaseExceptionGroup)
+                   and len(e.exceptions) == 1):
+                e = e.exceptions[0]
+            self._error = e
+        self._event.set()
 
     async def wait(self):
         await self._event.wait()
         if self._error: raise self._error
         return self._result
-
-    def cancel(self):
-        self._cancel_requested = True
-        if self._scope: self._scope.cancel()
 
 _current_nursery = contextvars.ContextVar('_current_nursery')
 
@@ -129,6 +117,20 @@ async def __await_task(t):
 async def __io(delay, val):
     await trio.sleep(delay * 0.02)
     return val
+
+# The deadline scope encloses a FRESH nursery hosting the timed task, so the
+# child's own spawns live inside the scope and expiry cancels the whole
+# subtree (the model's ancestor-walk flag). Running the coroutine inline
+# would leave its spawns in the CALLER's nursery, outside the scope.
+async def __timeout(d, coro):
+    task = _TrioTask()
+    try:
+        with trio.fail_after(d * 0.02):
+            async with trio.open_nursery() as n:
+                n.start_soon(task._run, coro)
+            return await task.wait()
+    except trio.TooSlowError:
+        raise Exception("cancelled")
 
 EOF
 ))
@@ -331,7 +333,7 @@ EOF
     [`(os/start-later ,_time ,_label ,e)
      (emit e)]
 
-    ;; --- Spawn / Cancel ---
+    ;; --- Spawn / Cancel / Timeout ---
     [`(spawn ,e)
      (case (runtime)
        [(asyncio) (format "asyncio.create_task(~a)" (emit e))]
@@ -339,6 +341,17 @@ EOF
 
     [`(cancel ,e)
      (format "(~a).cancel()" (emit e))]
+
+    ;; trio: the timed coroutine becomes a task inside __timeout's scoped
+    ;; nursery (see the preamble). Only the (timeout d (spawn coro)) shape is
+    ;; generated; the spawn node may arrive annotation-wrapped.
+    [`(timeout ,d ,inner)
+     (define coro
+       (match inner
+         [`(spawn ,c) c]
+         [`(: (spawn ,c) ,_) c]
+         [_ (error 'compile-py "timeout of a non-spawn shape: ~s" inner)]))
+     (format "(await __timeout(~a, ~a))" (emit d) (emit coro))]
 
     ;; --- Exceptions ---
     [`(throw ,e)

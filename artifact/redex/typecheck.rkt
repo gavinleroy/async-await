@@ -30,8 +30,7 @@
 (define (reset!) (set! counter 0))
 
 ;; When #true, awaiting a spawned JoinHandle yields a Result struct
-;; {type:String, value:τ} (Rust's JoinHandle::await -> Result<T, JoinError>);
-;; otherwise it yields τ directly (every other runtime). Set by type-check.
+;; {type:String, value:τ} (Rust); otherwise τ directly. Set by type-check.
 (define current-rust? (make-parameter #f))
 
 (define (resolve t)
@@ -202,11 +201,10 @@
     [`(letrec (,clauses ...) ,body)
      (define xs (map car clauses))
      (define rhss (map cadr clauses))
-     ;; Seed each binding's type from the rhs's syntactic shape *before*
-     ;; inferring the body, so a recursive self-call sees the right arrow.
-     ;; Without this an `async/lambda` that calls itself is pinned to a sync
-     ;; `->` by the application rule and then clashes with its `async->`
-     ;; definition (recursive async functions would fail to type-check).
+     ;; Seed each binding's type from the rhs's syntactic shape before
+     ;; inferring, so a recursive self-call sees the right arrow: otherwise a
+     ;; self-calling async/lambda is pinned to a sync -> by the application
+     ;; rule and clashes with its async-> definition.
      (define x-types
        (for/list ([rhs (in-list rhss)])
          (match rhs
@@ -452,6 +450,16 @@
         (define elem (fresh!))
         (unify! t `(Task ,elem))
         (values `(await ,a) elem)])]
+
+    ;; The paper's timeout primitive (swift): await-with-deadline — blocks
+    ;; until the task settles; raises "cancelled" if it died of the deadline.
+    [`(timeout ,d ,e)
+     (define-values (da dt) (infer env d))
+     (unify! dt 'Int)
+     (define-values (a t) (infer env e))
+     (define elem (fresh!))
+     (unify! t `(Task ,elem))
+     (values `(timeout ,da ,a) elem)]
 
     ;; `spawn` turns a coroutine into a task handle. Under #:rust? the handle is
     ;; a JoinHandle (await → Result); otherwise it is an ordinary task.

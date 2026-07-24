@@ -5,6 +5,7 @@
          racket/format
          racket/match
          racket/runtime-path
+         (only-in racket/string string-join)
          "compile-js.rkt"
          "compile-py.rkt"
          "compile-cs.rkt"
@@ -19,7 +20,8 @@
          compile-and-run-swift
          compile-and-run-tokio
          compile-and-run-smol
-         compile-and-run-many)
+         compile-and-run-many
+         run-source-many)
 
 (struct run-result (exit-code stdout stderr) #:transparent)
 
@@ -129,18 +131,10 @@ EOF
 ;; ---------------------------------------------------------------------------
 ;; Rust — cargo (tokio / smol)
 ;;
-;; Fixed, fully pre-fetched environment: dependencies come from the
-;; Nix-vendored crate set (ASYNC_FUZZ_CARGO_CONFIG points crates-io at the
-;; store's vendor directory and sets [net] offline), version-pinned by the
-;; committed rust-template/Cargo.lock and built with --locked -- no network,
-;; no re-resolution. Every generated project shares one persistent
-;; per-language CARGO_TARGET_DIR, so the dependency tree compiles ONCE
-;; (debug profile); each program only rebuilds the single-file crate itself.
-;; Both languages use the template's union manifest (tokio + smol) -- the
-;; one the lockfile covers; the unused runtime costs one compile into the
-;; shared cache, after which it is free. Target dirs are per-language so
-;; concurrent tokio/smol fuzz lanes cannot clobber each other's
-;; debug/generated binary.
+;; Offline, pinned builds: ASYNC_FUZZ_CARGO_CONFIG points crates-io at the
+;; Nix-vendored sources, locked by the committed Cargo.lock (--locked). A
+;; persistent per-language CARGO_TARGET_DIR compiles dependencies once and
+;; keeps concurrent tokio/smol lanes from clobbering each other's binary.
 ;; ---------------------------------------------------------------------------
 
 (define-runtime-path rust-template-dir "rust-template")
@@ -193,14 +187,10 @@ EOF
 ;; Multi-run execution: compile once, run n times
 ;; ---------------------------------------------------------------------------
 
-;; Nondeterministic programs are sampled by running the same compiled
-;; artifact repeatedly; building once matters for the compiled backends
-;; (dotnet/swiftc/cargo). Returns a list of run-results — a single failed
-;; result when the one-time build fails.
-;;
-;; Reps run a few at a time (bounded green threads; the children are real OS
-;; processes): the samples are independent, and per-rep process startup
-;; would otherwise dominate the lane's wall clock at n=20 × 30 programs.
+;; Sample nondeterministic programs by running one compiled artifact
+;; repeatedly (building once matters for dotnet/swiftc/cargo); returns
+;; run-results, or a single failed result when the build fails. Reps run a few
+;; at a time: samples are independent and serial startup dominates wall clock.
 (define rep-concurrency 3)
 
 (define (run-reps n go)
@@ -213,14 +203,39 @@ EOF
   (for-each thread-wait ts)
   (vector->list results))
 
-(define (compile-and-run-many lang e n #:timeout [timeout 30])
-  (define (interpreted src-of ext runner)
-    (define tmp (make-temporary-file (string-append "gen~a" ext)))
-    (display-to-file (src-of e) tmp #:exists 'replace)
-    (begin0
+;; Build real-language source for `lang` exactly as the fuzzer builds
+;; generated programs, and run it n times; entry point for the figure programs
+;; (fuzz/figs.rkt). `#:lib` bundles a figlib.<ext> support file where each
+;; toolchain picks it up; `#:run-args` are appended to every rep's run command.
+(define (run-source-many lang src n
+                         #:timeout [timeout 30]
+                         #:lib [lib #f]
+                         #:run-args [run-args '()])
+  (define args-suffix
+    (if (null? run-args)
+        ""
+        (string-append " " (string-join (for/list ([a (in-list run-args)])
+                                          (format "'~a'" a))
+                                        " "))))
+  (define (interpreted ext runner)
+    (define (go path)
       (run-reps n (lambda ()
-                    (run-command (format runner (path->string tmp)) #:timeout timeout)))
-      (delete-file tmp)))
+                    (run-command (string-append (format runner (path->string path))
+                                                args-suffix)
+                                 #:timeout timeout))))
+    (cond
+      [lib
+       (define dir (make-temp-dir))
+       (define main (build-path dir (string-append "main" ext)))
+       (display-to-file src main)
+       (display-to-file lib (build-path dir (string-append "figlib" ext)))
+       (begin0 (go main)
+         (delete-directory/files dir))]
+      [else
+       (define tmp (make-temporary-file (string-append "gen~a" ext)))
+       (display-to-file src tmp #:exists 'replace)
+       (begin0 (go tmp)
+         (delete-file tmp))]))
 
   ;; build once (long timeout); on success run `exec` n times
   (define (compiled setup! exec-cmd cleanup!)
@@ -228,19 +243,23 @@ EOF
     (begin0
       (if (and (not (eq? (run-result-exit-code build) 'timeout))
                (zero? (run-result-exit-code build)))
-          (run-reps n (lambda () (run-command exec-cmd #:timeout timeout)))
+          (run-reps n (lambda ()
+                        (run-command (string-append exec-cmd args-suffix)
+                                     #:timeout timeout)))
           (list build))
       (cleanup!)))
 
   (match lang
-    ['asyncio    (interpreted compile-asyncio ".py" "python3 '~a'")]
-    ['trio       (interpreted compile-trio    ".py" "python3 '~a'")]
-    ['javascript (interpreted compile-js      ".js" "node '~a'")]
+    ['asyncio    (interpreted ".py" "python3 '~a'")]
+    ['trio       (interpreted ".py" "python3 '~a'")]
+    ['javascript (interpreted ".js" "node '~a'")]
 
     ['csharp
      (define dir (make-temp-dir))
      (display-to-file csproj-content (build-path dir "generated.csproj") #:exists 'replace)
-     (display-to-file (compile-cs e) (build-path dir "Program.cs") #:exists 'replace)
+     (display-to-file src (build-path dir "Program.cs") #:exists 'replace)
+     (when lib
+       (display-to-file lib (build-path dir "Figlib.cs") #:exists 'replace))
      (compiled
       (lambda () (run-command (format "dotnet build -v q '~a'" (path->string dir))
                               #:timeout 120))
@@ -253,22 +272,40 @@ EOF
     ['swift
      (define dir (make-temp-dir))
      (define src-file (build-path dir "main.swift"))
+     (define lib-file (build-path dir "figlib.swift"))
      (define bin-file (build-path dir "main"))
-     (display-to-file (compile-swift e) src-file)
+     (display-to-file src src-file)
+     (when lib (display-to-file lib lib-file))
      (compiled
-      (lambda () (run-command (format "swiftc -swift-version 6 -parse-as-library '~a' -o '~a'"
+      (lambda () (run-command (format "swiftc -swift-version 6 -parse-as-library~a '~a' -o '~a'"
+                                      (if lib (format " '~a'" (path->string lib-file)) "")
                                       (path->string src-file) (path->string bin-file))
                               #:timeout 120))
       (format "'~a'" (path->string bin-file))
       (lambda () (delete-directory/files dir)))]
 
     [(or 'tokio 'smol)
-     (define-values (dir cargo-config)
-       (make-rust-project ((if (eq? lang 'tokio) compile-tokio compile-smol) e)))
+     (define-values (dir cargo-config) (make-rust-project src))
+     (when lib
+       (display-to-file lib (build-path dir "src" "figlib.rs")))
      (compiled
       (lambda () (run-command (rust-build-cmd dir lang cargo-config)
                               #:timeout 300))
       (format "'~a'" (path->string (rust-bin lang)))
       (lambda () (delete-directory/files dir)))]
 
+    [_ (error 'run-source-many "unknown language: ~a" lang)]))
+
+(define (compiler-for lang)
+  (match lang
+    ['asyncio    compile-asyncio]
+    ['trio       compile-trio]
+    ['javascript compile-js]
+    ['csharp     compile-cs]
+    ['swift      compile-swift]
+    ['tokio      compile-tokio]
+    ['smol       compile-smol]
     [_ (error 'compile-and-run-many "unknown language: ~a" lang)]))
+
+(define (compile-and-run-many lang e n #:timeout [timeout 30])
+  (run-source-many lang ((compiler-for lang) e) n #:timeout timeout))

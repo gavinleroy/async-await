@@ -24,9 +24,8 @@
   (M ::= .... (await M))
   (G ::= .... (await G)))
 
-;; NO #:binding-forms: async/lambda elimination gensym-renames its
-;; parameters against the whole (store, body) itself -- see the rationale in
-;; lc.rkt.
+;; No #:binding-forms: async/lambda elimination gensym-renames its parameters
+;; against the whole (store, body); rationale in lc.rkt.
 
 ;; -----------------------------------------------------------------------------
 ;; Operational Semantics
@@ -76,10 +75,8 @@
    -->sys/exn
    C#
 
-   ;; FREE-RUNNING CLOCK: wall time advances while thread-pool threads run --
-   ;; covered by the base fused sys/signal (platform.rkt), which with
-   ;; serial? = #false delivers ANY pending timer at ANY state. See the
-   ;; rationale in tokio.rkt.
+   ;; FREE-RUNNING CLOCK: base fused sys/signal (serial? #f) delivers any
+   ;; pending timer at any state. Rationale in tokio.rkt.
 
    ;; DESTRUCTION: terminated, the event loop can exit with tasks remaining in Q/T
    [-->

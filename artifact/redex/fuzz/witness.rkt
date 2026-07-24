@@ -37,7 +37,7 @@
          racket/place
          racket/match
          (only-in racket/string string-prefix?)
-         (only-in racket/list remove-duplicates)
+         (only-in racket/list remove-duplicates partition make-list)
          (only-in "model.rkt" canonicalize canon-for-lang accumulator-value observed-output))
 
 (provide multi-witness-search walk-battery)
@@ -67,19 +67,37 @@
 ;; later 'unreachable claim built on top of it.
 ;; ---------------------------------------------------------------------------
 
+;; DETERMINISTIC-SPINE COLLAPSING: a single-successor state cannot branch,
+;; so chasing straight through it loses no reachable terminal. The search
+;; then sees one state per scheduler choice instead of one per micro-step.
+;; Output only appends along a chain, so end-of-chain prefix pruning is
+;; exactly as sound as per-link pruning.
+(define spine-fuel 300)
+
 (define (make-successors red [on-exn void] #:canon [canon canonicalize])
-  (define memo (make-hash)) ; canonical key -> (listof raw state)
+  (define memo (make-hash)) ; canonical key -> (listof collapsed state)
+  (define (raw-succs s)
+    (with-handlers ([exn:fail? (lambda (e) (on-exn e) '())])
+      (apply-reduction-relation red s)))
+  (define (dedup raw)
+    (define reps (make-hash))
+    (for ([s* (in-list raw)])
+      (hash-ref! reps (canon s*) s*))
+    (hash-values reps))
+  (define (chase s fuel)
+    (define raw (raw-succs s))
+    (cond
+      [(null? raw) s]
+      [(zero? fuel) s]
+      [(null? (cdr raw)) (chase (car raw) (sub1 fuel))]
+      [else
+       (define uniq (dedup raw))
+       (if (null? (cdr uniq)) (chase (car uniq) (sub1 fuel)) s)]))
   (lambda (s #:key [key (canon s)])
     (hash-ref! memo key
                (lambda ()
-                 (define raw (with-handlers ([exn:fail? (lambda (e)
-                                                          (on-exn e)
-                                                          '())])
-                               (apply-reduction-relation red s)))
-                 (define reps (make-hash))
-                 (for ([s* (in-list raw)])
-                   (hash-ref! reps (canon s*) s*))
-                 (hash-values reps)))))
+                 (map (lambda (s*) (chase s* spine-fuel))
+                      (dedup (raw-succs s)))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Walk engine: SET-pruned random walks. A state survives if its output so far
@@ -373,6 +391,57 @@
   (define canon (canon-for-lang lang))
   (define successors (make-successors red (lambda (_) (set! poisoned? #t))
                                       #:canon canon))
+
+  ;; Phase 0: thread ladder. A witness using at most k worker slots is a
+  ;; witness for the full configuration (slots are symmetric; extras idle),
+  ;; and the reduced spaces are orders of magnitude smaller. POSITIVE
+  ;; verdicts only: exhausting a reduced space proves nothing about the
+  ;; full one, so no negative verdict is recorded here.
+  (define (reduce-worker-slots k)
+    (match start
+      [(list t σ Q T P)
+       (define-values (empties rest)
+         (partition (lambda (th) (equal? th '(thread))) P))
+       (and (> (length empties) k)
+            (list t σ Q T (append rest (make-list k '(thread)))))]
+      [_ #f]))
+  (define (ladder-dfs! start-k deadline)
+    (define seen (make-hash))
+    (define count 0)
+    (let/ec stop
+      (define (dfs s)
+        (when (prefix-of-some? (accumulator-value s))
+          (when (or (>= count state-cap)
+                    (> (current-inexact-milliseconds) deadline))
+            (stop (void)))
+          (define key (canon s))
+          (unless (hash-has-key? seen key)
+            (hash-set! seen key #t)
+            (set! count (add1 count))
+            (define succs (successors s #:key key))
+            (cond
+              [(null? succs)
+               (define o (observed-output s))
+               (when (set-member? unresolved o)
+                 (resolve! o)
+                 (when (set-empty? unresolved) (stop (void))))]
+              [else (for ([s* (in-list succs)]) (dfs s*))]))))
+      (dfs start-k)))
+  ;; k=1 gets the larger slice (its states are ~10x cheaper to expand than
+  ;; full width); k=2 covers outputs that need real parallelism.
+  (define (ladder-slice k)
+    (if (= k 1)
+        (min 120000 (quotient time-cap-ms 2))
+        (min 30000 (quotient time-cap-ms 6))))
+  ;; Configs already at ≤1 worker slot cannot be reduced: run the k=1 DFS on
+  ;; the FULL start instead — for single-worker lanes this is the entire
+  ;; space, and it is the only exhaustive phase those lanes get.
+  (for ([k (in-list '(1 2))])
+    (unless (set-empty? unresolved)
+      (define start-k (or (reduce-worker-slots k)
+                          (and (= k 1) start)))
+      (when start-k
+        (ladder-dfs! start-k (+ (current-inexact-milliseconds) (ladder-slice k))))))
 
   ;; Farm the walk phase out to the pool (non-blocking), then run it locally.
   ;; Walks get 3/4 of the budget: every real runtime output lands as a walk

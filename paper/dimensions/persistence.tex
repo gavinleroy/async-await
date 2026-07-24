@@ -1,7 +1,7 @@
 \subsubsection{\Persistence}
 \label{ssec:designdims:persistence}
 
-One final element of cancellation is its \Persistence: when a task is cancelled, does the cancellation request persist (e.g., subsequent async work is also marked as cancelled), or is cancellation requested once? We will describe these options as \emph{\persistent} cancellation and \emph{\transient} cancellation. The \persistence dimension is important for cancel \aware languages, because on cancellation a \task may perform additional async work.
+One final element of cancellation is its \Persistence: when a task is cancelled, does the cancellation request persist (e.g., subsequent async work is also marked as cancelled), or is cancellation requested once? We will describe these options as \persistent cancellation and \transient cancellation. The \persistence dimension is important for cancel \aware languages, because on cancellation a \task may perform additional async work.
 
 Swift and Python+Trio use \persistent cancellation. Swift and Trio both implement a cancellation flag shared amongst a task graph, and that flag is permanently active once set. Swift's flag is part of its public \abbr{api}, while Trio's flag is an implementation detail. Consequently, if an async computation ignores its cancellation, then subsequent awaits may again raise a cancellation exception; for both Swift and Trio any subsequent await point may result in a cancellation exception.
 

@@ -16,15 +16,15 @@
   (e ::= ....
      (async/lambda (x_!_ ...) e)
      (await e)
-     (cancel e)
+     (timeout e e)
      (cancelled?))
 
   (v ::= ....
      (async/lambda (x_!_ ...) e))
 
-  (E ::= .... (await E) (cancel E))
-  (M ::= .... (await M) (cancel M))
-  (G ::= .... (await G) (cancel G)))
+  (E ::= .... (await E) (timeout E e) (timeout v E))
+  (M ::= .... (await M) (timeout M e) (timeout v M))
+  (G ::= .... (await G) (timeout G e) (timeout v G)))
 
 ;; NO #:binding-forms: async/lambda elimination gensym-renames its
 ;; parameters against the whole (store, body) itself -- see the rationale in
@@ -42,7 +42,6 @@
    [--> (t_0 σ_0 Q_0 T (FS_0 ... (thread (label (in-hole E ((async/lambda (x ..._1) e_body) v ..._1))) F ...) FS_1 ...))
         (t_1 σ_2 Q_1 T (FS_0 ... (thread (label (in-hole E x_task)) F ...) FS_1 ...))
 
-        ;; XXX: tie to spawning context
         (where/error (σ_1 x_task v_task) (task:allocate-dependency σ_0 label))
         (where/error (x_fresh ...) (gensyms (σ_1 e_body) (x ...)))
         (where/error σ_2 (ext σ_1 (x_task v_task) (x_fresh v) ...))
@@ -54,9 +53,10 @@
                                                          (catch (lambda (v_err)
                                                                   (task:set-failed! x_task v_err))
                                                                 (task:set-done! x_task e_subst))
-                                                         ;; XXX: cancel on destruction
+                                                         ;; DESTRUCTION: cancelled -- children still pending at
+                                                         ;; scope exit are flagged (async-let semantics)
                                                          (task:cancel-dependencies x_task)
-                                                         ;; XXX: dynamic-extent enforcement
+                                                         ;; EXTENT: task-scoped -- completion waits on children
                                                          (task:wait-on-dependencies x_task)
                                                          (os/start-soon (task:get-dependents x_task)))))))))
         (where/error t_1 t_0)
@@ -74,10 +74,22 @@
         (where/error t_1 t_0)
         "await"]
 
-   [--> (t_0 σ Q T (FS_0 ... (thread (label (in-hole E (cancel v_task))) F ...) FS_1 ...))
-        (t_0 σ Q T (FS_0 ... (thread (label (in-hole E (task:set-cancelled! v_task))) F ...) FS_1 ...))
+   ;; timeout = await-with-deadline: the deadline timer flags the child
+   ;; (spawned in the E-hole). Settlement decides: a flagged child's sleeps
+   ;; abort and fail it with "cancelled" (re-raised by the await); a child
+   ;; that completes despite the flag returns its value. The only
+   ;; cancellation source -- tasks have no cancel handle.
+   [--> (t_0 σ Q T_0 (FS_0 ... (thread (label (in-hole E (timeout v_d v_task))) F ...) FS_1 ...))
+        (t_1 σ Q T_1 (FS_0 ... (thread (label (in-hole E (await v_task))) F ...) FS_1 ...))
 
-        "cancel"]
+        (where #true (task:is-task? v_task))
+        (where/error (struct [self (ptr x_self)] _ ...) v_task)
+        (where/error t_deadline ,(+ (term t_0) (term v_d)))
+        (where/error T_1 (T:push T_0 (t_deadline x_self (lambda (none)
+                                                          (begin none
+                                                                 (task:set-cancelled! v_task))))))
+        (where/error t_1 t_0)
+        "timeout"]
 
    [--> (t_0 σ Q T (FS_0 ... (thread (label (in-hole E (cancelled?))) F ...) FS_1 ...))
         (t_0 σ Q T (FS_0 ... (thread (label (in-hole E (task:cancelled? σ label))) F ...) FS_1 ...))
@@ -90,6 +102,10 @@
    -->sys/exn
    Swift
 
+   ;; The sleep implementation honors the cancellation convention: after
+   ;; waking (due timer, or resumed early by sys/signal-cancel) it checks
+   ;; (cancelled?) -- evaluated in the io frame, so the ancestor walk covers
+   ;; the whole task subtree -- and raises "cancelled" instead of returning.
    [-->
     (t_0 σ_0 Q T (FS_0 ... (thread (label (in-hole E (os/io t v))) F ...) FS_1 ...))
     (t_1 σ_2 Q T (FS_0 ... (thread
@@ -98,26 +114,23 @@
                                                   (lambda (none)
                                                     (begin (catch (lambda (e) (task:set-failed! x_io e))
                                                                   (begin none
-                                                                         (task:set-done! x_io v)))
+                                                                         (if (cancelled?)
+                                                                             (throw "cancelled")
+                                                                             (task:set-done! x_io v))))
                                                            (os/start-soon (task:get-dependents x_io))))))
                             (label (in-hole E x_io)) F ...)
                   FS_1 ...))
 
-    ;; XXX: add dependency edge
     (where/error (σ_1 x_io v_task) (task:allocate-dependency σ_0 label))
     (where/error σ_2 (ext1 σ_1 (x_io v_task)))
     (where/error t_1 t_0)
     "os/io"]
 
-   ;; Swift cancellation is COOPERATIVE (flag-only): Task.cancel() sets
-   ;; isCancelled -- observable via (cancelled?) -- and nothing else. Probed
-   ;; against real Swift 6: an unstructured Task body runs even when cancelled
-   ;; before its first dispatch, and resumes normally after an emitter-style
-   ;; inner io Task (unstructured Tasks do not inherit cancellation); its
-   ;; awaiter receives the value, no throw. The exn-platform base instead
-   ;; throw-ins "cancelled" at dispatch of a cancelled task's work; shadow
-   ;; that machinery out: dispatch is unguarded, and the cancelled-dispatch /
-   ;; cancelled-timer-drain rules never fire.
+   ;; COOPERATIVE cancellation: a timeout deadline only sets a flag
+   ;; (task:cancelled? walks parents, so children observe an ancestor's
+   ;; flag). Nothing is injected at dispatch -- a flagged body still runs --
+   ;; so the base cancelled-dispatch rule stays disabled; only os/io's
+   ;; post-wake check delivers (below).
    [-->
     (t_0 σ Q_0 T ((thread F F_rs ...) ... (thread) FS_1 ...))
     (t_1 σ Q_1 T ((thread F F_rs ...) ...
@@ -127,13 +140,12 @@
     (where/error t_1 t_0)
     "sys/schedule"]
 
-   ;; Same fused any-pending-timer delivery as the base sys/signal
-   ;; (platform.rkt), minus its cancelled guard: a cancelled task's timer
-   ;; still fires (flag-only cancellation, see above), and without this a
-   ;; cancelled sleeper would deadlock in T.
+   ;; Fused any-pending-timer delivery as the base sys/signal (platform.rkt),
+   ;; restricted to uncancelled owners; sys/signal-cancel handles the rest.
    [-->
     (t_0 σ Q_0 ((t_a label_a v_a) ... (t_d label v) (t_b label_b v_b) ...) P)
     (t_1 σ Q_1 ((t_a label_a v_a) ... (t_b label_b v_b) ...) P)
+    (where #false (task:cancelled? σ label))
     (where/error Q_1 (Q:push Q_0 (label v)))
     (where/error t_1 ,(max (term t_0) (term t_d)))
     "sys/signal"]
@@ -144,10 +156,15 @@
     (side-condition #false)
     "sys/schedule-cancelled"]
 
+   ;; A cancelled owner's timer resumes NOW (deadline ignored) -- an ordinary
+   ;; wake-up: the raise happens in the sleep implementation's own post-wake
+   ;; (cancelled?) check (see os/io above), not here.
    [-->
-    (t_0 σ Q T P)
-    (t_0 σ Q T P)
-    (side-condition #false)
+    (t_0 σ Q_0 ((t_a label_a v_a) ... (t_c label v) (t_b label_b v_b) ...) P)
+    (t_1 σ Q_1 ((t_a label_a v_a) ... (t_b label_b v_b) ...) P)
+    (where #true (task:cancelled? σ label))
+    (where/error Q_1 (Q:push Q_0 (label v)))
+    (where/error t_1 t_0)
     "sys/signal-cancel"]))
 
 
@@ -243,6 +260,9 @@
      (os/block (work)))
    #false)
 
+  ;; TIMEOUT: the deadline flags the worker; its next sleep aborts and the
+  ;; settlement raises into the catch ("C" after 0-3 As). A worker that
+  ;; finishes before the flag is observed returns normally ("AAA", no C).
   (swift-->>∈
    (trace-stdout (print)
      (let* ([worker (async/lambda ()
@@ -253,11 +273,8 @@
                                            (loop (+ 1 i)))))])
                         (loop 0)))]
             [main (async/lambda ()
-                    (let ([w (worker)])
-                      (begin (await (os/io 1 (void)))
-                             (cancel w)
-                             (catch (lambda (e) (print "C"))
-                                    (await w)))))])
+                    (catch (lambda (e) (print "C"))
+                           (begin (timeout 1 (worker)) (void))))])
        (os/block (main))))
    '("C" "AC" "AAC" "AAAC" "AAA"))
 
@@ -294,4 +311,41 @@
                              (await task0)
                              (await task1))))])
        (os/block (main))))
-   (string-permutations "ABC")))
+   (string-permutations "ABC"))
+
+  ;; DESTRUCT: an unawaited child is flagged at its spawner's scope exit; its
+  ;; pending sleep aborts, so "B" is suppressed unless the (free-running)
+  ;; timer beat the parent to completion.
+  (swift-->>∈
+   (trace-stdout (print)
+     (let* ([child (async/lambda () (begin (await (os/io 50 (void))) (print "B")))]
+            [main (async/lambda ()
+                    (let ([c (child)])
+                      (print "A")))])
+       (os/block (main))))
+   '("A" "AB" "BA"))
+
+  ;; PROPAGATION: the timeout flags its child's whole subtree — the
+  ;; grandchild's sleep aborts and the failure chains up through both awaits.
+  (swift-->>∈
+   (let* ([inner (async/lambda () (await (os/io 50 "I")))]
+          [outer (async/lambda () (await (inner)))]
+          [main (async/lambda ()
+                  (catch (lambda (e) "cancelled")
+                         (timeout 1 (outer))))])
+     (os/block (main)))
+   '("cancelled" "I"))
+
+  ;; EXTENT + cooperative bodies: the spawner completes only after its child
+  ;; settles, and a born-cancelled body still runs (prints "B") — so "D"
+  ;; always trails both "A" and "B".
+  (swift-->>∈
+   (trace-stdout (print)
+     (let* ([child (async/lambda () (print "B"))]
+            [parent (async/lambda ()
+                      (let ([c (child)])
+                        (print "A")))]
+            [main (async/lambda ()
+                    (begin (await (parent)) (print "D")))])
+       (os/block (main))))
+   '("ABD" "BAD")))

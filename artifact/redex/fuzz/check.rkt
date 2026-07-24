@@ -10,19 +10,15 @@
 (provide check-runtime-output
          check-runtime-in-set)
 
-;; `trace-stdout` goes away in compiled programs: the body's `(print ...)`
-;; forms write to the process's real stdout, which is what the check compares
-;; against. The program's value becomes "" so the runtime's final result
-;; print contributes nothing after trimming.
+;; Compiled programs drop `trace-stdout`: the body's prints go to real stdout
+;; (what the check compares), and the program's value becomes "".
 (define (strip-trace-stdout e)
   (match e
     [`(trace-stdout (,_print) ,es ...) `(begin ,@es "")]
     [_ e]))
 
-;; Check that compiling and running `e` produces stdout
-;; matching one of `expected-vals`.
-;; `#:rust?` selects the JoinHandle→Result typing discipline (tokio/smol),
-;; under which awaiting a spawned task yields a Result struct.
+;; Check that compiling and running `e` produces stdout in `expected-vals`.
+;; `#:rust?` selects the JoinHandle->Result typing discipline (tokio/smol).
 (define (check-runtime-in-set compile-and-run e expected-vals
                               #:normalize [normalize ~a]
                               #:rust? [rust? #f])

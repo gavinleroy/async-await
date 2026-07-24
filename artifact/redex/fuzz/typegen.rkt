@@ -43,19 +43,28 @@
 
 ;; family       : 'lazy (call → coroutine) | 'eager (call → task)
 ;; spawn?       : (spawn coro) available
-;; cancel       : #f | 'catch  (cancel, then await under catch     — aio/trio/swift)
+;; cancel       : #f | 'catch  (cancel, then await under catch     — aio/trio)
 ;;              |      'leak   (cancel as statement, never awaited — tokio)
 ;;              |      'await  ((await (cancel t)) idiom           — smol)
-(struct lang-info (family spawn? cancel) #:transparent)
+;;              |      'timeout ((timeout d (call)) under catch    — swift:
+;;                     no per-task cancel exists; the timeout primitive is
+;;                     the lane's only cancellation source)
+;; unawaited?   : tasks may be left unconsumed, exercising cancel-on-destruct
+;;                at the spawner's scope exit (swift: async-let semantics)
+;; max-tasks    : cap on concurrent tasks per program. All lanes use 2:
+;;                3-task witness searches are infeasibly deep on the wide
+;;                models and near-budget on the rest, while 2-task programs
+;;                verify fast and still exercise every feature.
+(struct lang-info (family spawn? cancel unawaited? max-tasks) #:transparent)
 
 (define language-table
-  (hasheq 'asyncio    (lang-info 'lazy  #t 'catch)
-          'trio       (lang-info 'lazy  #t 'catch)
-          'tokio      (lang-info 'lazy  #t 'leak)
-          'smol       (lang-info 'lazy  #t 'await)
-          'javascript (lang-info 'eager #f #f)
-          'csharp     (lang-info 'eager #f #f)
-          'swift      (lang-info 'eager #f 'catch)))
+  (hasheq 'asyncio    (lang-info 'lazy  #t 'catch  #f 2)
+          'trio       (lang-info 'lazy  #t 'timeout #f 2)
+          'tokio      (lang-info 'lazy  #t 'leak   #f 2)
+          'smol       (lang-info 'lazy  #t 'await  #f 2)
+          'javascript (lang-info 'eager #f #f     #f 2)
+          'csharp     (lang-info 'eager #f #f     #f 2)
+          'swift      (lang-info 'eager #f 'timeout #t 2)))
 
 (define typegen-languages (hash-keys language-table))
 
@@ -187,8 +196,10 @@
 ;; ---------------------------------------------------------------------------
 
 ;; Create 1-3 tasks from the helpers, interleave traces and delays, cancel
-;; some (per the language's idiom), and await the rest. Every task is
-;; consumed: awaited, or cancelled via the language's safe pattern.
+;; some (per the language's idiom), and await the rest. Tasks are consumed
+;; (awaited, or cancelled via the language's safe pattern) — except in
+;; languages with unawaited?, where some are deliberately abandoned to
+;; exercise cancel-on-destruct at scope exit.
 (define (gen-main info helpers rust?)
   (define (call-helper h)
     `(,(helper-name h)
@@ -200,7 +211,7 @@
       ['lazy `(spawn ,(call-helper h))]
       ['eager (call-helper h)]))
 
-  (define ntasks (add1 (rand 3)))
+  (define ntasks (add1 (rand (lang-info-max-tasks info))))
   (define tasks
     (for/list ([_ (in-range ntasks)])
       (define h (pick helpers))
@@ -210,14 +221,22 @@
   (define cancel-style (lang-info-cancel info))
   (define plans
     (for/list ([t (in-list tasks)])
-      (if (and cancel-style (chance 0.35))
-          (list (car t) (cadr t) 'cancel)
-          (list (car t) (cadr t) 'await))))
+      (cond
+        [(and cancel-style (chance 0.35))
+         (list (car t) (cadr t) 'cancel)]
+        [(and (lang-info-unawaited? info) (chance 0.25))
+         (list (car t) (cadr t) 'unawaited)]
+        [else (list (car t) (cadr t) 'await)])))
 
   ;; Build: bind all tasks first (so they run concurrently), then a body of
   ;; interleaved traces/delays/awaits. The main's value is the last awaited
   ;; task's value (rendered), or a literal when everything is cancelled.
-  (define bindings (for/list ([t (in-list tasks)])
+  ;; Under the 'timeout style the timed task is NOT pre-bound: the timeout
+  ;; consume statement is itself the spawn (its call is __timeout's child).
+  (define bindings (for/list ([t (in-list tasks)]
+                              [p (in-list plans)]
+                              #:unless (and (eq? cancel-style 'timeout)
+                                            (eq? (caddr p) 'cancel)))
                      `[,(car t) ,(make-task (cadr t))]))
 
   (define mid-stmts
@@ -230,6 +249,8 @@
       (match-define (list tname h how) p)
       (match how
         ['await `(await ,tname)]
+        ;; left unconsumed: cancel-on-destruct flags it at main's scope exit
+        ['unawaited #f]
         ['cancel
          (match cancel-style
            ;; cancel then await under catch: the await may raise the
@@ -240,7 +261,14 @@
            ;; tokio: abort and walk away; the runtime drains it
            ['leak `(cancel ,tname)]
            ;; smol: cancelling is itself awaitable
-           ['await `(await (cancel ,tname))])])))
+           ['await `(await (cancel ,tname))]
+           ;; swift/trio: the timeout primitive is spawn+deadline+await in
+           ;; one; the catch converts a deadline-cancelled outcome to a
+           ;; marker. make-task wraps per family (bare call when eager,
+           ;; spawn'd coroutine when lazy)
+           ['timeout `(catch (lambda (e) ,(trace-stmt))
+                             (begin (timeout ,(small-delay) ,(make-task h))
+                                    (void)))])])))
 
   ;; main returns a base-typed value. The awaited task is a spawned handle
   ;; (lazy runtimes) or a started task (eager); for Rust the handle awaits to a
@@ -258,13 +286,14 @@
   ;; re-uses a task we drop its consume statement.
   (define stmts
     (append mid-stmts
-            (for/list ([p (in-list plans)]
-                       #:unless (and awaited (eq? (car p) (car awaited))
-                                     (eq? (caddr p) 'await)))
-              (for/first ([s (in-list consume-stmts)]
-                          [q (in-list plans)]
-                          #:when (eq? (car q) (car p)))
-                s))))
+            (filter values
+                    (for/list ([p (in-list plans)]
+                               #:unless (and awaited (eq? (car p) (car awaited))
+                                             (eq? (caddr p) 'await)))
+                      (for/first ([s (in-list consume-stmts)]
+                                  [q (in-list plans)]
+                                  #:when (eq? (car q) (car p)))
+                        s)))))
 
   (values
    `(async/lambda ()

@@ -1,26 +1,11 @@
 #lang racket/base
 
 ;; -----------------------------------------------------------------------------
-;; C# backend.
-;;
-;; Input is a fully type-annotated program (every node is `(: e τ)`, lambdas
-;; carry their function type). Emission is type-directed: each node is rendered
-;; at its exact C# type, so the output contains NO `dynamic`. The only
-;; existential is the exception payload (`object` + a safe `is` pattern),
-;; mirroring C#'s own exception channel, used only at throw/catch boundaries.
-;;
-;; Semantic mapping (C# is "eager": invoking an async lambda starts it):
-;;   async/lambda            -> Func<A..., Task<R>>  (async lambda)
-;;   (f a...)  : (Task R)    -> f(a...)              (hot Task<R>)
-;;   (await t) / (os/block t): await t
-;;   (os/io d v): (Task τ)   -> (async () => { await Task.Delay(d); v })()
-;; All functions compile to `Func<..., Task<R>>` (a sync `lambda` body may
-;; still `await`, e.g. a recursive loop), so sync applications are awaited
-;; inline and async applications keep the hot Task. The model `Unit` maps to a
-;; real `Unit` struct (C# `void` is not a usable generic argument).
-;;
-;; `await` is placed exactly where a task is awaited (see `fx`), and await-free
-;; function bodies use `Task.FromResult`, so the output compiles warning-free.
+;; C# backend. Input is fully type-annotated; emission is type-directed (no
+;; `dynamic`; the only existential is the exception payload). Every function
+;; compiles to Func<..., Task<R>>: sync applications await inline, async ones
+;; keep the hot Task; `fx` marks async/await only where a body really awaits
+;; (else Task.FromResult), so the output compiles warning-free.
 ;; -----------------------------------------------------------------------------
 
 (require racket/match
