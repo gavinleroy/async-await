@@ -34,9 +34,12 @@ All seven real runtimes (Python 3.14, Node, .NET, Rust, Swift 6) are
 preinstalled at pinned versions; nothing is downloaded at run time. Give
 Docker at least 8 GB of memory.
 
-> *Notes*
+> **Memory requirements.** Languages are run in parallel and you'll need to provision Docker with enough memory.
 >
-> 1. When running commands avoid resizing your terminal window. I provide some cute progress bars, but they're not at all sophisticated; resizing the window will easily break them.
+> - Docker Desktop (macOS/Windows): Settings → Resources → Memory.
+> - colima: colima start --cpu 4 --memory 16 (the default VM is 2 GB, which is not enough).
+>
+> If output shows `Killed` or `LANE DIED` this is a OOM error.
 
 ## Kick the Tires (5 minutes)
 
