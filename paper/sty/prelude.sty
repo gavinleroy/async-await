@@ -38,6 +38,9 @@
 \usepackage{colortbl}
 \usepackage{pifont}
 \usepackage{expl3}
+\usepackage{relsize}
+\usepackage{footmisc}
+\usepackage{tablefootnote}
 
 %%%%
 %% TIKZ packages
@@ -117,7 +120,7 @@
 
 \lstdefinestyle{grayish}{
     morekeywords={async, await, try, defer},
-    basicstyle=\ttfamily\small,
+    basicstyle=\ttfamily\footnotesize,
     stringstyle=\color{gray},
     commentstyle=\color{gray},
     breakatwhitespace=false,
@@ -137,6 +140,10 @@
     % belowskip=0pt,
     % aboveskip=4pt,
     % belowskip=4pt,
+}
+\lstdefinestyle{grayishinline}{
+    style=grayish,
+    basicstyle=\ttfamily\relscale{0.9},
 }
 
 \lstset{style=grayish}
@@ -160,7 +167,7 @@
 %%%%%
 
 % XXX change the following two together if needed
-\newcommand{\code}{\lstinline[language=Pseudo]}
+\newcommand{\code}{\lstinline[style=grayishinline,language=Pseudo]}
 \newcommand{\sysapply}[2]{\mbox{{\ttfamily\small\detokenize{#1(}}$#2${\ttfamily\small\detokenize{)}}}}
 
 \newcommand{\citeurlwith}[2]{(\href{#1}{#2})}
