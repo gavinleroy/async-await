@@ -21,6 +21,7 @@ permissions:
 jobs:
   build:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - runner: ubuntu-24.04
@@ -44,7 +45,15 @@ jobs:
       - name: Load and quick test
         run: |
           docker load < result
-          docker run --rm async-models-artifact:latest fuzz -n 1 -r 2
+          docker run --rm async-models-artifact:latest bash -c '
+            fuzz -n 1 -r 2 || {
+              echo "=== toolchain diagnostics ==="
+              which swiftc cc ld || true
+              swiftc --version || true
+              echo "=== lane logs ==="
+              tail -n 80 "$FUZZ_CACHE"/*/*.log
+              exit 1
+            }'
 
       - name: Push per-arch image to GHCR
         run: |
