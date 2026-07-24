@@ -147,23 +147,13 @@
           name = "async-models-artifact";
           tag = "latest";
           fromImage = swift-base;
-          contents = toolchains ++ [
-            fuzz
-            run-tests
-            figs
-            model
-            artifact-src
-            pkgs.bashInteractive
-            pkgs.coreutils
-            pkgs.gnugrep
-            pkgs.gnused
-            pkgs.findutils
-            pkgs.which
-            pkgs.procps
-            # rustc needs a C linker (`cc`); the swift base ships clang
-            # for Swift but no cc
-            pkgs.stdenv.cc
-          ];
+          # NOTHING nix-owned is merged into the filesystem root except
+          # /artifact (a fresh directory): merging package roots shadows the
+          # base's usrmerge symlinks (/lib -> usr/lib) in overlayfs, which
+          # deletes the ELF interpreter every base binary hardcodes and
+          # breaks swiftc. The nix programs reach PATH by store path instead,
+          # so the base filesystem is byte-identical to swift:6.0.3-jammy.
+          contents = [ artifact-src ];
           config = {
             Cmd = [
               "/bin/bash"
@@ -171,9 +161,20 @@
             ];
             WorkingDir = "/artifact";
             Env = [
-              # /bin: the nix closure (fuzz, run-tests, racket, dotnet, …);
-              # /usr/bin: the base image's swift toolchain.
-              "PATH=/bin:/usr/bin:/usr/local/bin"
+              # nix store bin dirs (fuzz, run-tests, figs, toolchains, and a
+              # cc for rustc — the base ships clang but no cc), then the
+              # base image's own /usr/bin (swiftc lives there).
+              "PATH=${
+                pkgs.lib.makeBinPath (
+                  [
+                    fuzz
+                    run-tests
+                    figs
+                    pkgs.stdenv.cc
+                  ]
+                  ++ toolchains
+                )
+              }:/usr/local/bin:/usr/bin:/bin"
               "ASYNC_FUZZ_CARGO_CONFIG=${cargo-offline-config}"
               # /artifact is nix-store-sourced (read-only permissions);
               # run outputs go under the writable HOME
