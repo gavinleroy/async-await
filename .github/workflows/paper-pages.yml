@@ -1,0 +1,66 @@
+# Build the paper PDF (`nix build .` — the flake's default package) on every
+# push to main and publish it to GitHub Pages. The PDF is served at
+# <pages-url>/main.pdf; the index.html only redirects the bare URL there.
+#
+# One-time setup: repo Settings → Pages → Source: "GitHub Actions".
+
+name: paper-pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "paper/**"
+      - "flake.nix"
+      - "flake.lock"
+      - ".github/workflows/paper-pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DeterminateSystems/nix-installer-action@v16
+
+      - name: Build paper
+        run: nix build -L .
+
+      - name: Stage site
+        run: |
+          mkdir -p _site
+          cp result/main.pdf _site/main.pdf
+          cat > _site/index.html <<'EOF'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="utf-8">
+            <meta http-equiv="refresh" content="0; url=main.pdf">
+            <title>A Design Space Exploration of Async/Await</title>
+          </head>
+          <body><a href="main.pdf">main.pdf</a></body>
+          </html>
+          EOF
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

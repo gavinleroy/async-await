@@ -1,0 +1,13 @@
+paper/
+models/
+progs/
+.github/
+.git/
+artifact/fuzz-cache/
+artifact/result
+artifact/redex/compiled/
+artifact/redex/fuzz/compiled/
+artifact/docker/
+fuzz-cache/
+result
+.dockerignore

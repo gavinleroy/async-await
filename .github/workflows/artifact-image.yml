@@ -1,0 +1,67 @@
+# Build the artifact's Docker images and push them to GHCR
+#
+# Native arm64 runners (ubuntu-24.04-arm) are free for PUBLIC repositories.
+# Release-tarball note: the images exceed GitHub's 2 GB per-release-asset
+# limit, so GHCR is the distribution channel; the release can link to it.
+
+name: artifact-image
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: amd64
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc \
+                      /usr/local/.ghcup /usr/local/share/boost
+          df -h /
+
+      - uses: DeterminateSystems/nix-installer-action@v16
+
+      - name: Build image with nix
+        run: nix build -L .#image
+
+      - name: Load and quick test
+        run: |
+          docker load < result
+          docker run --rm async-models-artifact:latest fuzz -n 1 -r 2
+
+      - name: Push per-arch image to GHCR
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" \
+            | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          TAG="${{ github.event.release.tag_name || 'latest' }}"
+          docker tag async-models-artifact:latest "$IMAGE:$TAG-${{ matrix.arch }}"
+          docker push "$IMAGE:$TAG-${{ matrix.arch }}"
+
+  manifest:
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Create multi-arch manifest
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" \
+            | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          TAG="${{ github.event.release.tag_name || 'latest' }}"
+          docker buildx imagetools create -t "$IMAGE:$TAG" \
+            "$IMAGE:$TAG-amd64" "$IMAGE:$TAG-arm64"
