@@ -158,64 +158,23 @@ The Rust runtimes, Tokio and Smol, do not provide cancellation \awareness. Cance
 \begin{figure}[t]
   \begin{subfigure}[t]{0.33\linewidth}
     \begin{lstlisting}[language=Pseudo]
-async fn write_to_log():
+async fn work():
   print("A")
-  // simulate log write
+  # simulate log write
   await sleep(2)
   print("B")
 
-async fn process_await():
-  task = spawn write_to_log()
-  // do other work ... 
-  await task
-
 async fn process_detach():
-  spawn write_to_log()
-  // do other work ...
-\end{lstlisting}
-  \caption{Two examples of functions that spawn a task to write data to a log, one that waits for the task, and another that doesn't.}
-  \label{fig:motivating-example-process}
-  \end{subfigure}
-  \hfill
-  \begin{subfigure}[t]{0.35\linewidth}
-    \begin{lstlisting}[language=Pseudo]
-async fn ex1():
-  await process_detach()
+  task = spawn work()
 
 async fn ex2():
-  task = spawn process_await()
+  await process_detach()
   await sleep(1)
-  task.cancel()
-
-async fn ex3():
-  task = spawn process_detach()
-  await sleep(1)
-  task.cancel()
+  print("C")
 \end{lstlisting}
-  \cprotect\caption{Three examples of invocations of the processing functions. The latter two use \code|cancel| to try and prevent the \task from completing.}
-  \label{fig:motivating-example-invoke}
-  \end{subfigure}
-  \hfill
-  \begin{subfigure}[t]{0.28\linewidth}
-    \vspace{0pt}
-    \begin{tabular}{lcccc}
-    \toprule
-                 & \code|ex1| & \code|ex2|          & \code|ex3| \\
-    \midrule
-    Rust \\
-    ~~ Tokio     & AB         & AB                  & AB \\
-    ~~ Smol      & A          & $\varepsilon$       & $\varepsilon$       \\
-    Python \\
-    ~~ Asyncio   & AB         & $\varepsilon$       & AB \\
-    ~~ Trio      & AB         & A                   & AB \\
-    \CSharp      & A          & -                   & -     \\
-    \Js          & AB         & -                   & -     \\
-    Swift        & A          & A                   & A     \\
-    \bottomrule
-    \end{tabular}
-    \caption{A table of outcomes when running the programs translated from the pseudocode into different languages. $\varepsilon$ indicates no output. `-' indicates that a language does not provide a built-in \code{.cancel()} method.}
-    \label{fig:motivating-example-outcomes}
-  \end{subfigure}
+  \caption{Two examples of functions that spawn a task to write data to a log, one that waits for the task, and another that doesn't.}
+  \label{fig:motivating-example-code}
+  end{subfigure}
   \caption{An example of an asynchronous programming pattern that exhibits different behavior under seven modern async/await languages and runtimes.}
   \label{fig:semantics-explained}
 \end{figure}

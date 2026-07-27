@@ -95,36 +95,13 @@ async fn timeout<F: Future>(
 \subsection{A Case Study on Timing Out}
 \label{sec:timeout}
 
-Consider implementing a \code|timeout| function, which takes as input an asynchronous function and a duration. The minimal semantics is that \code|timeout| returns either the result of the asynchronous work, or if the work takes longer than the duration, an indication of timing out. The \code|timeout| function is a paradigmatic example of asynchronous programming, as its implementation is often non-trivial when only using primitives from other concurrency or parallelism paradigms.
+Consider implementing a \code|timeout| function, which takes as input an asynchronous function and a duration. The minimal semantics is that \code|timeout| returns either the result of the asynchronous work, or if the work takes longer than the duration, an indication of timing out. The \code|timeout| function is a paradigmatic example of asynchronous programming, as its implementation is often non-trithe vial when using only primitives from other concurrency or parallelism paradigms.
 
-Most straight-line async designs include a race primitive (also called \code|select|, \code|or|, \code|wait|, \code|next|) that returns the first of several asynchronous computations to complete. \Cref{fig:timeout-simple} shows three implementations of the minimal \code|timeout| semantics using these primitives. The dual of racing is to wait for all computations to complete, variously called \code|all|, \code|and|, \code|join|, or \code|gather|.
+Most straight-line async designs include a race primitive (also called \code|select|, \code|or|, \code|wait|, or \code|next|) that returns the first of several asynchronous computations to complete. \Cref{fig:timeout-simple} shows three implementations of the minimal \code|timeout| semantics using these primitives. The dual of racing is to wait for all computations to complete, variously called \code|all|, \code|and|, \code|join|, or \code|gather|.
 
 An enhanced semantics for \code|timeout| should take into account \emph{cancellation}: stopping a computation that is no longer needed. Cancellation is another core concept for asynchrony, which did not feature prominently in earlier designs such as \Js and \CSharp, but is more consciously part of later designs such as Swift and Python. For \code|timeout|, we desire three properties. First, if \code|f| exceeds the duration, then \code|f| is cancelled. Second, if \code|timeout| is cancelled, then \code|f| is also cancelled. Third, if \code|f| is cancelled, then it can gracefully shutdown, i.e., execute cleanup code prior to termination.
 
 \begin{figure}[t]
-% \begin{subfigure}{0.51\linewidth}
-%   \begin{lstlisting}[language=Rust]
-% async fn timeout<Fut: Future<Output: Send + 'static> + Send + 'static>(
-%   duration: Duration,
-%   token: CancellationToken,
-%   f: impl FnOnce(CancellationToken) -> Fut,
-% ) -> TimeoutResult<Fut::Output> {
-%   let child_token = token.child_token();  
-%   let coro = f(child_token.clone());
-%   let task = tokio::spawn(coro);
-%   tokio::select! {
-%     result = task => Success(result.unwrap()),
-%     _ = token.cancelled() => Cancelled,
-%     _ = sleep(duration) => {
-%       child_token.cancel();
-%       TimedOut
-%     }
-%   }
-% }
-% \end{lstlisting}
-% \cprotect\caption{Rust+Tokio. Because Rust's cancellation is \tdown (\Cref{ssec:designdims:cooperation}), graceful shutdown requires the use of a cancellation token threaded through each async function, rather than directly invoking \code|task.abort()|. The \code|child_token| ensures that cancelling \code|f| does not cancel other tasks observing the \code|token| input to \code|timeout|.}
-% \label{fig:timeout-tokio}
-% \end{subfigure}%
 \begin{subfigure}{0.51\linewidth}
   \begin{lstlisting}[language=CSharp]
 async Task<T> Timeout<T>(
@@ -156,9 +133,9 @@ func timeout<T: Sendable>(
   duration: Duration,
   f: @Sendable () async throws -> T
 ) async throws -> T? {
-  try await withoutActuallyEscaping(f) { 
+  try await withoutActuallyEscaping(f) {
     f in
-    try await withThrowingTaskGroup { 
+    try await withThrowingTaskGroup {
       group in
       group.addTask { try await f() }
       group.addTask {
