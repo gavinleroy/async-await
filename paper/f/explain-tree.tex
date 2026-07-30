@@ -1,0 +1,231 @@
+% DRAFT branching-tree explainer for ex2 (Fig 1) — quick iteration.
+% CHAIN layout: node contents defined as macros (top). Four chain HEADS are
+% placed absolutely (e1, m1, t1, s1); every other node hangs off its parent
+% at a fixed (dx, dy) offset — move a head and its whole chain follows; tune
+% one offset to move one node (descendants follow). root/n1 hang off e1;
+% l1 off m1; acl/js off ea. Edge labels attached to their \draw commands.
+% Flush-left on purpose.
+%
+% STRUCTURAL CHANGE (flag if unwanted): e2 and a1 held identical configs, so
+% they are MERGED into one node (ea) with two incoming edges — eager and lazy
+% paths literally converge. Likewise the C# leaf merged into the
+% Asyncio/Tokio leaf (same rule: [Block] destroys pending) => leaf (acl).
+% The graph is now a DAG, not a tree.
+\newcommand{\fgap}{\noalign{\vskip 3pt}}
+% dimension highlights for rule names (colorbox: nestable in tikz nodes;
+% colors match \ceag/\cext/\cdes from the prelude)
+\newcommand{\dimeag}[1]{{\setlength{\fboxsep}{0.8pt}\colorbox{P1C1}{\textcolor{P1C1t}{#1}}}}
+\newcommand{\dimext}[1]{{\setlength{\fboxsep}{0.8pt}\colorbox{P1C2}{\textcolor{P1C2t}{#1}}}}
+\newcommand{\dimdes}[1]{{\setlength{\fboxsep}{0.8pt}\colorbox{P1C6}{\textcolor{P1C6t}{#1}}}}
+\newcommand{\dimpro}[1]{{\setlength{\fboxsep}{0.8pt}\colorbox{P1C5}{\textcolor{P1C5t}{#1}}}}
+\newcommand{\dimawa}[1]{{\setlength{\fboxsep}{0.8pt}\colorbox{P1C4}{\textcolor{P1C4t}{#1}}}}
+\newcommand{\dimdir}[1]{{\setlength{\fboxsep}{0.8pt}\colorbox{P1C3}{\textcolor{P1C3t}{#1}}}}
+
+%% ---------------- node contents (no layout) ----------------
+%% FORMAL syntax (Section 4): \mathbfsf keywords, application by
+%% juxtaposition, sys_io(t,v) for sleep, sys_block for the entry.
+%% Named definitions keep the root un-inlined (work, process_detach, ex2).
+\newcommand{\cfgRoot}{\begin{tabular}{@{}l@{}}
+  $\mathit{work} \triangleq \mathbfsf{async}\ \mathbfsf{fn}\ ()\ \to$\\
+  $\quad \mathbfsf{print}\ \text{"A"};\\\quad\mathbfsf{await}\ \mathbfsf{sys\_io}(2, ());\\\quad\mathbfsf{print}\ \text{"B"}$\\
+  \fgap
+  $\mathit{process\_detach} \triangleq \mathbfsf{async}\ \mathbfsf{fn}\ ()\ \to\\\quad\mathbfsf{spawn}\ (\mathit{work}())$\\
+  \fgap
+  $\mathit{ex2} \triangleq \mathbfsf{async}\ \mathbfsf{fn}\ ()\ \to$\\
+  $\quad \mathbfsf{await}\ (\mathit{process\_detach}());\\\quad \mathbfsf{await}\ \mathbfsf{sys\_io}(1, ());\\\quad \mathbfsf{print}\ \text{"C"}$\\
+  \fgap
+  $\mathbfsf{sys\_block}(\mathit{ex2}())$\\
+  \fgap
+  $\mathit{out}$: $\varepsilon$
+  \end{tabular}}
+
+% at work's application, process_detach inlined in main's frame
+\newcommand{\cfgSpawnRedex}{\begin{tabular}{@{}l@{}}
+  $C[\, \mathbfsf{spawn}\ (\mathit{work}()) \,]$\\
+  \fgap
+  $\mathit{out}$: $\varepsilon$
+  \end{tabular}}
+
+% work queued, unrun; plain C = no scope-exit obligation (indefinite extent)
+\newcommand{\cfgQueued}{\begin{tabular}{@{}l@{}}
+  $C[\, t_{\mathit{work}} \,]$\\
+  \fgap
+  $Q$: $\mathbfsf{print}\ \text{"A"};$\\
+  \hphantom{$Q$: }$\mathbfsf{await}\ \mathbfsf{sys\_io}(2, ());$\\
+  \hphantom{$Q$: }$\mathbfsf{print}\ \text{"B"}$\\
+  \fgap
+  $\mathit{out}$: $\varepsilon$
+  \end{tabular}}
+
+% work queued with the INSTALLED scope-exit epilogue visible inline:
+% green await = extent obligation; coral cancel (Swift) = destruction
+\newcommand{\cfgQueuedTrio}{\begin{tabular}{@{}l@{}}
+  $C[\, t_{\mathit{work}};$\\
+  \hphantom{$C[\,$}\dimext{$\mathbfsf{await}\ t_{\mathit{work}}$}$\,]$\\
+  \fgap
+  $Q$: $\mathbfsf{print}\ \text{"A"};$\\
+  \hphantom{$Q$: }$\mathbfsf{await}\ \mathbfsf{sys\_io}(2, ());$\\
+  \hphantom{$Q$: }$\mathbfsf{print}\ \text{"B"}$\\
+  \fgap
+  $\mathit{out}$: $\varepsilon$
+  \end{tabular}}
+
+\newcommand{\cfgQueuedSwift}{\begin{tabular}{@{}l@{}}
+  $C[\, t_{\mathit{work}};$\\
+  \hphantom{$C[\,$}\dimdes{$\mathbfsf{cancel}\ t_{\mathit{work}}$}$;$\\
+  \hphantom{$C[\,$}\dimpro{$\mathbfsf{try}$}\\
+  \hphantom{$C[\,$}\quad\dimext{$\mathbfsf{await}\ t_{\mathit{work}}$} \\
+  \hphantom{$C[\,$}\dimpro{$\mathbfsf{catch\ fn}\ \mathit{\_}\ \to\ ()$}
+  $\,]$\\
+  \fgap
+  $Q$: $\mathbfsf{print}\ \text{"A"};$\\
+  \hphantom{$Q$: }$\mathbfsf{await}\ \mathbfsf{sys\_io}(2, ());$\\
+  \hphantom{$Q$: }$\mathbfsf{print}\ \text{"B"}$\\
+  \fgap
+  $\mathit{out}$: $\varepsilon$
+  \end{tabular}}
+
+% lazy intermediate: coroutine made ([Async-App]), spawn is the redex;
+% the Spawn VARIANT (dyn vs indef) decides the next branch
+\newcommand{\cfgLazyCor}{\begin{tabular}{@{}l@{}}
+  $C[\, \mathbfsf{spawn}\ \mathit{coro}_{\mathit{work}} \,]$\\
+  \fgap
+  $\mathit{out}$: $\varepsilon$
+  \end{tabular}}
+
+% Swift abort snapshot: work ran (A printed), its cancellation-aware sys_io
+% observed the flag and raises; main still blocked on the epilogue await
+\newcommand{\cfgSwiftAbort}{\begin{tabular}{@{}l@{}}
+    $C$$[\,\dimawa{\mathbfsf{throw}\ \text{"cancelled"}}\,]$\\
+  \fgap
+  $\mathit{out}$: A
+  \end{tabular}}
+
+% eager: work already ran to its await; suspended in T
+\newcommand{\cfgEagerT}{\begin{tabular}{@{}l@{}}
+  $C[\, t_{\mathit{work}} \,]$\\
+  \fgap
+  $T$: $(2,\ \mathit{work},\ \mathbfsf{print}\ \text{"B"})$\\
+  \fgap
+  $\mathit{out}$: A
+  \end{tabular}}
+
+% main done; orphan pending in T; sys_block holds the result
+\newcommand{\cfgBlockDone}{\begin{tabular}{@{}l@{}}
+  $\mathbfsf{sys\_block}(())$\\
+  \fgap
+  $T$: $(2,\ \mathit{work},\ \mathbfsf{print}\ \text{"B"})$\\
+  \fgap
+  $\mathit{out}$: AC
+  \end{tabular}}
+
+% work settled/gone; only main's tail remains (out varies). No more C:
+% the remaining code is spelled out (the context here is empty)
+\newcommand{\cfgSettled}[1]{\begin{tabular}{@{}l@{}}
+  $();$\\
+  $\mathbfsf{await}\ \mathbfsf{sys\_io}(1, ());$\\
+  $\mathbfsf{print}\ \text{"C"}$\\
+  \fgap
+  $\mathit{out}$: #1
+  \end{tabular}}
+
+% leaves: output + runtimes
+\newcommand{\tleaf}[2]{\begin{tabular}{@{}c@{}}#1\\{\rmfamily #2}\end{tabular}}
+
+%% ---------------- layout ----------------
+% NOTE: flush-left on purpose during iteration — a centered figure re-balances
+% whenever any node shifts, moving everything else. Re-center at the very end
+% (wrap in center, or \useasboundingbox to freeze the bbox).
+\noindent
+% {\tiny where $C \triangleq [\cdot];\ \mathbfsf{await}\ \mathbfsf{sys\_io}(1, 0);\ \mathbfsf{print}\ \text{"C"}$ --- the rest of $\mathit{ex2}$; $\mathbfsf{sys\_block}$ is elided until \semrule{Block-Done} applies}\par\smallskip
+
+\begin{tikzpicture}[
+  cfg/.style={draw=black!20, rounded corners=2pt, inner sep=2.5pt, font=\tiny\ttfamily},
+  leaf/.style={draw=black!40, thick, rounded corners=2pt, inner sep=2.5pt, font=\tiny\ttfamily},
+  lab/.style={font=\tiny, align=left, inner sep=1pt, fill=white, fill opacity=0.85, text opacity=1},
+  labr/.style={lab, align=right},
+  arr/.style={->, >={Stealth[length=1.4mm]}, semithick}
+]
+  %% Chain heads (absolute): move a head and its whole chain follows.
+  \node[cfg, anchor=north] (e1) at (1.4, 0)      {\cfgEagerT};    % eager lane
+  \node[cfg, anchor=north] (m1) at (4.95, -1.65) {\cfgSettled{$\varepsilon$}}; % smol lane
+  \node[cfg, anchor=north] (lt) at (7.55, 1.20) {\cfgQueuedTrio}; % trio lane
+  \node[cfg, anchor=north] (s1) at (10.85, 2.5)  {\cfgQueuedSwift}; % swift lane
+
+  %% Chains: each node hangs off its parent's north at a fixed (dx, dy);
+  %% tune the offset to move one node (its own descendants follow).
+  \node[cfg,  anchor=north] (ea) at ([shift={(0,-2.15)}]e1.north) {\cfgBlockDone};
+  \node[leaf, anchor=north] (sm) at ([shift={(0,-2.4)}]m1.north) {\tleaf{C}{Smol}};
+  \node[cfg,  anchor=north] (t2) at ([shift={(0,-3.0)}]lt.north) {\cfgSettled{AB}};
+  \node[leaf, anchor=north] (tr) at ([shift={(0,-2.4)}]t2.north)  {\tleaf{ABC}{Trio}};
+  \node[cfg,  anchor=north] (sab) at ([shift={(0,-3.4)}]s1.north) {\cfgSwiftAbort};
+  \node[cfg,  anchor=north] (s3) at ([shift={(0,-1.6)}]sab.north) {\cfgSettled{A}};
+  \node[leaf, anchor=north] (sw) at ([shift={(0,-2.4)}]s3.north)  {\tleaf{AC}{Swift}};
+
+
+  % ea's two leaves sit side by side under it (outside the grid), so both
+  % edges can fan from the same point without crossing a box
+  \node[leaf, below=6mm of ea.south west, anchor=north] (acl) {\tleaf{AC}{\CSharp, Asyncio, Tokio}};
+  \node[leaf, below=10mm of ea.south east, anchor=north] (js) {\tleaf{ACB}{\Js}};
+
+  % the two wide nodes live outside the grid, above it
+  \node[cfg, above=12mm of e1.north west, anchor=south west] (root) {\cfgRoot};
+  \node[cfg, right=22mm of root.north east, anchor=north west, yshift=-6mm] (n1) {\cfgSpawnRedex};
+  % directly below n1; the one number = border-to-border gap
+  \node[cfg, below=9mm of n1] (l0) {\cfgLazyCor};
+  % smol/asyncio/tokio: plain-C queued state, below-left of l0
+  \node[cfg, anchor=north] (l1) at ([shift={(-2.0,-0.5)}]l0.south) {\cfgQueued};
+
+  %% ---------------- edges (all straight; labels attached) ----------------
+  % start on root's edge at n1's height => perfectly horizontal
+  \draw[arr] (root.east |- n1.west) -- (n1.west)
+    node[lab, midway, below=2pt] {\semrule{Block-Wait}\\ \semrule{Async-App}\\ \semrule{Await}};
+
+  \draw[arr] (n1.south) -- (s1.north)
+    node[labr, pos=0.6, midway, right=2pt] {\dimeag{\semrule{Async-App}}\textsubscript{\designpoint{semi-eager}}};
+
+  \draw[arr] (n1.south) -- (l0.north)
+    node[labr, near end, right=2pt] {\dimeag{\semrule{Async-App}}\textsubscript{\designpoint{lazy}}};
+
+  % Spawn variants: dyn installs the scope-exit obligation (C turns green)
+  \draw[arr] (l0.south) -- (lt.north)
+    node[lab, midway, right=2pt] {\semrule{Spawn}};
+  \draw[arr] (l0.south) -- (l1.north)
+    node[labr, midway, left=2pt] {\semrule{Spawn}};
+
+  \draw[arr] (n1.south) -- (e1.north)
+    node[labr, pos=0.6, near end, left=2pt, align=left] {\dimeag{\semrule{Async-App}}\textsubscript{\designpoint{eager}}\\ \semrule{OS-IO}};
+
+  \draw[arr] (e1.south) -- (ea.north)
+    node[lab, midway, right=2pt] {\semrule{OS-IO}\\ \semrule{Signal}\\ \semrule{Schedule}};
+
+  \draw[arr] (s1.south) -- (sab.north)
+    node[labr, midway, right=2pt, align=left] {\semrule{Schedule}\\ \semrule{OS-IO}};
+
+  \draw[arr] (sab.south) -- (s3.north)
+    node[labr, midway, right=2pt, align=left] {\semrule{Await}\\ \semrule{Catch-Exn}};
+
+  \draw[arr] (s3.south) -- (sw.north)
+    node[labr, midway, right=2pt, align=left] {\semrule{OS-IO}\\ \semrule{Signal}\\ \semrule{Schedule}\\ \semrule{Block-Done}};
+
+  \draw[arr] (l1.south) -- (m1.north)
+    node[labr, near end] {\dimdes{\semrule{Cancel-Unstarted}}};
+
+  \draw[arr] (m1.south) -- (sm.north)
+    node[lab, midway, right=2pt] {\semrule{OS-IO}\\ \semrule{Signal}\\ \semrule{Schedule}\\ \semrule{Block-Done}};
+
+  \draw[arr] (lt.south) -- (t2.north)
+    node[lab, midway, right=2pt] {\semrule{Schedule}\\ \semrule{OS-IO}\\ \semrule{Signal}\\ \semrule{Await-Task}};
+
+  \draw[arr] (t2.south) -- (tr.north)
+    node[lab, midway, right=2pt] {\semrule{OS-IO}\\ \semrule{Signal}\\ \semrule{Schedule}\\ \semrule{Block-Done}};
+
+  \draw[arr] (l1.south) -- (ea.north east)
+    node[lab, pos=0.4, near end, above=2pt] {\semrule{Schedule}\\ \semrule{OS-IO}\\ \semrule{Signal}};
+
+  \draw[arr] (ea.south) -- (acl.north)
+    node[lab, midway, left=2pt] {\dimdes{\semrule{Block-Done}}\textsubscript{\designpoint{terminated}}};
+
+  \draw[arr] (ea.south) -- (js.north)
+    node[lab, midway, right=2pt] {\semrule{Signal}\\ \semrule{Schedule}\\ \dimdes{\semrule{Block-Done}}\textsubscript{\designpoint{awaited}}};
+\end{tikzpicture}

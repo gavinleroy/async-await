@@ -537,7 +537,9 @@
 
 %%%%
 %% Languages with special typesetting
-\newcommand{\CSharp}{C\nolinebreak\hspace{-.05em}\raisebox{.3ex}{\scriptsize\bf \#}\xspace}
+% \relsize{-2} ~= \scriptsize at 10pt body text, but scales in small contexts
+% (\tiny figure nodes) where absolute \scriptsize would exceed the C.
+\newcommand{\CSharp}{C\nolinebreak\hspace{-.05em}\raisebox{.3ex}{{\relsize{-2}\bfseries\#}}\xspace}
 \newcommand{\FSharp}{F\nolinebreak\hspace{-.05em}\raisebox{.2ex}{\scriptsize\bf \#}\xspace}
 \newcommand{\Cpp}{C\nolinebreak\hspace{-.05em}\raisebox{.4ex}{\scriptsize\bf +}\nolinebreak\hspace{-.05em}\raisebox{.4ex}{\scriptsize\bf +}\xspace}
 \newcommand{\Js}{JavaScript\xspace}
