@@ -26,7 +26,7 @@
   \label{fig:lang:core}
 \end{figure}
 
-The preceding section provides a detailed but informal characterization of our view of the straight-line asynchrony design space. Now, we will put it on a formal footing. Our interest is not in the languages themselves but in how each one realizes straight-line asynchrony; we therefore distill each language to a functional core to sharpen the differences in async semantics.
+The preceding section provides a detailed but informal characterization of our view of the straight-line asynchrony design space. Now, we will put it on a formal footing. Our interest is not in the languages themselves but in how each one realizes straight-line asynchrony; we therefore distill each language to a functional core to sharpen the differences in async semantics. Eager readers may wish to skip forward to \Cref{fig:explain-tree} to see how we use the formal model to explain the diverging outcomes from \Cref{fig:motivating-example}.
 %
 We present the design dimensions as variants on a formal operational semantics for a core asynchronous language. We start with a small \lc language that captures the computational core of Python, Rust, etc., while eliminating many language-specific details. For example, we unify the languages' implementation of asynchrony using delimited continuations rather than faithfully modeling each implementation using state machines and other such mechanisms.
 
@@ -152,32 +152,15 @@ Where Asyncio and Trio diverge is cancellation \persistence. A peculiarity of As
 
 The Rust runtimes, Tokio and Smol, do not provide cancellation \awareness. Cancelled \tasks are not rescheduled but deallocated: the continuation $\kappa$ is thrown away and the \task is set as failed by the expression $e_{\mathit{fail}}$.
 
-\subsection{A Case Study on Divergences}
+\subsection{Seven Runtimes, One Program}
 
-\begin{figure}[p]
+\begin{figure}[htb]
   \input{./f/explain-tree.tex}
   \makelegend{eag,ext,des,pro,awa}
-  \cprotect\caption{The branching evaluation of program \code|ex2| from \Cref{fig:motivating-example} explained using formal model's reduction semantics.}
+  \cprotect\caption{The branching evaluation of program \code|ex2| from \Cref{fig:motivating-example}. The nodes in the \abbr{dag} represent the program state at that point. Between nodes we perform multiple reductions until the semantics of the runtimes diverge. A node has several outgoing edges when the runtimes disagree on the next applicable rule and we highlight the rules with the color of the design dimension along which they diverge; we indicate which design point each branch uses with a subscript. For example, on the rightmost path, Swift's \seager \semrule{Async-App} queues $\mathit{write\text{-}to\text{-}log}$ and injects a scope-exit epilogue that cancels its dependency (\cdes{\destruction}), awaits it (\cext{\extent}), and discards any resulting exception (\cpro{\propagation}). When $\mathit{write\text{-}to\text{-}log}$ runs, its cancellation-aware \semrule{OS-IO} implementation observes the flag and raises a \emph{cancelled} exception (\cawa{\awareness}).}
   \label{fig:explain-tree}
 \end{figure}
 
-We now bring the presentation of the design dimensions and the formal model full circle: \Cref{fig:explain-tree} uses the formal model and reduction rules to explain the diversity of outputs when running program \code{ex2} presented in \Cref{fig:motivating-example}.
+\Cref{fig:explain-tree} brings the design dimensions and the formal model full circle: it evaluates program \code|ex2| from \Cref{fig:motivating-example} under all seven runtimes at once, branching precisely where their reduction rules diverge. Unlike the table of outcomes in \Cref{fig:motivating-example-outcomes}, we can use the formal model explain \emph{why} a language produces the output it does. The branching evaluation highlights the fact that langauges can produce the same output for different reasons. For example, \CSharp and Swift both produce \code|AC|, however, \CSharp does so because the runtime loop terminates running tasks and Swift does so because it cancels unawaited \tasks at the end of their scope. In the evaluation context of \code|ex2|, these semantics produce the same output, but in a different context they would likely lead to different outputs. The branching evaluation also highlights the diverging branches can lead to the same output.
 
-The nodes in the branching evaluation represent the program state at that point. Between nodes we perform a big-step reduction until the semantics of the runtimes diverge. A node has several outgoing edges when the runtimes disagree on the next applicable rule. Each edge
-lists the rules applied during its step.
-
-As in the preceding semantics presentation, we highlight divergences with the design dimension color responsible for the divergence. If a particular rules injects code into the redex, we also highlight that code according to the role it plays in the semantics. For example, on the rightmost path, Swift's \seager \semrule{Async-App} queues $\mathit{work}$ and injects a scope-exit epilogue that cancels its dependency (\cdes{\destruction}), awaits it (\cext{\extent}), and discards any resulting exception (\cpro{\propagation}). When $\mathit{work}$ runs, its cancellation-aware \semrule{OS-IO} implementation observes the flag and raises a \emph{cancelled} exception (\cawa{\awareness}).
-
-
-In sum, we presented an illustrative subset of our formal model, constructed
-as a series of language extensions atop the core \lc
-(\Cref{fig:langs:lineage}). For each rule---\semrule{Async-App},
-\semrule{Spawn}, \semrule{Await}, and the cancellation
-rules---we marked where the language variants diverge, coloring each
-fragment by the design dimension it decides.
-\Cref{fig:explain-tree} shows how these rules explain the divergent
-outcomes of \Cref{fig:motivating-example-outcomes}.
-The shared formal base
-localizes the differences between languages to a handful of rule fragments,
-and we hope it serves as a common vocabulary for discussing asynchrony
-across language communities.
+In sum, we presented an illustrative subset of our formal model, constructed as a series of language extensions atop the core \lc (\Cref{fig:langs:lineage}). For each rule---\semrule{Async-App}, \semrule{Spawn}, \semrule{Await}, and the cancellation rules---we marked where the language variants diverge, coloring each fragment by the design dimension it decides. We use the fromal model to explain diverging output of real-world examples, illustrated in \Cref{fig:explain-tree} for \code|ex2| from \Cref{fig:motivating-example}. The included artifact provides the full Redex model that we hope can serve as common ground when communicating asynchronous semantics between language communities.
