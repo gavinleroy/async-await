@@ -6,11 +6,11 @@ $\begin{array}[t]{@{}r@{\ }l@{\ }l@{}l@{}}
 \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
-  \where\ (\sigma_1, x_{\mathit{task}}) = \mathsf{task\_alloc}(\sigma_0) \\
+  \where\ (\sigma_1, x_{\mathit{task}}) = \mathsf{task\text{-}alloc}(\sigma_0) \\
   \qquad e_{\mathit{task}} = \mathbfsf{reset}\ ( \\
-  \qquad \qquad \difff{\mathbfsf{try}}\ \semmacro{task\_set\_done}(x_{\mathit{task}}, \mathbfsf{await}\ v_{\mathit{coro}})\ \difff{\mathbfsf{catch}\ v_{\mathit{err}} \to \semmacro{task\_set\_failed}(x_{\mathit{task}}, v_{\mathit{err}})} \mathbin{;} \\
+  \qquad \qquad \difff{\mathbfsf{try}}\ \semmacro{task\text{-}set\text{-}done}(x_{\mathit{task}}, \mathbfsf{await}\ v_{\mathit{coro}})\ \difff{\mathbfsf{catch}\ v_{\mathit{err}} \to \semmacro{task\text{-}set\text{-}failed}(x_{\mathit{task}}, v_{\mathit{err}})} \mathbin{;} \\
   \quad\;\;\cdes{\ghost}\;\cext{\ghost}\;\cpro{\ghost}\;
-  \mathbfsf{sys\_start\_soon}(\semmacro{task\_get\_dependents}(x_{\mathit{task}}))) \\
+  \mathbfsf{sys\text{-}start\text{-}soon}(\semmacro{task\text{-}get\text{-}dependents}(x_{\mathit{task}}))) \\
   \qquad \kappa = \mathbfsf{fn}\ x_{\mathit{unit}} \to x_{\mathit{unit}} \mathbin{;} e_{\mathit{task}}
   \end{array}$
 }
@@ -25,13 +25,13 @@ $\begin{array}[t]{@{}r@{\ }l@{\ }l@{}l@{}}
 \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
-  \where\ (\sigma_1, x_{\mathit{task}}) = \mathsf{task\_alloc}(\sigma_0) \\
-    \qquad \cext{\sigma_2 = \mathsf{task\_add\_dependency}(\sigma_2, \ell, x_{\mathit{task}})} \\
+  \where\ (\sigma_1, x_{\mathit{task}}) = \mathsf{task\text{-}alloc}(\sigma_0) \\
+    \qquad \cext{\sigma_2 = \mathsf{task\text{-}add\text{-}dependency}(\sigma_2, \ell, x_{\mathit{task}})} \\
   \qquad e_{\mathit{task}} = \mathbfsf{reset}\ ( \\
-  \qquad \qquad \mathbfsf{try}\ \semmacro{task\_set\_done}(x_{\mathit{task}}, \mathsf{await}\ v_{\mathit{coro}})\ \mathbfsf{catch}\ v_{\mathit{err}} \to \semmacro{task\_set\_failed}(x_{\mathit{task}}, v_{\mathit{err}}) \mathbin{;} \\
-  \qquad \quad\;\cdes{\ghost}\;\cext{\semmacro{task\_wait\_on\_dependencies}(x_{\mathit{task}}) \mathbin{;}}\\
-  \qquad \qquad \cpro{\semmacro{task\_reraise\_dependency\_failures}(x_{\mathit{task}}) \mathbin{;}} \\
-  \qquad \qquad \mathbfsf{sys\_start\_soon}(\semmacro{task\_get\_dependents}(x_{\mathit{task}}))) \\
+  \qquad \qquad \mathbfsf{try}\ \semmacro{task\text{-}set\text{-}done}(x_{\mathit{task}}, \mathsf{await}\ v_{\mathit{coro}})\ \mathbfsf{catch}\ v_{\mathit{err}} \to \semmacro{task\text{-}set\text{-}failed}(x_{\mathit{task}}, v_{\mathit{err}}) \mathbin{;} \\
+  \qquad \quad\;\cdes{\ghost}\;\cext{\semmacro{task\text{-}wait\text{-}on\text{-}dependencies}(x_{\mathit{task}}) \mathbin{;}}\\
+  \qquad \qquad \cpro{\semmacro{task\text{-}reraise\text{-}dependency\text{-}failures}(x_{\mathit{task}}) \mathbin{;}} \\
+  \qquad \qquad \mathbfsf{sys\text{-}start\text{-}soon}(\semmacro{task\text{-}get\text{-}dependents}(x_{\mathit{task}}))) \\
   \qquad \kappa = \mathbfsf{fn}\ x_{\mathit{unit}} \to x_{\mathit{unit}} \mathbin{;} e_{\mathit{task}}
   \end{array}$
 }

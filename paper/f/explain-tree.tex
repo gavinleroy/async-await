@@ -27,14 +27,14 @@
 %% Named definitions keep the root un-inlined (work, process_detach, ex2).
 \newcommand{\cfgRoot}{\begin{tabular}{@{}l@{}}
   $\mathit{work} \triangleq \mathbfsf{async}\ \mathbfsf{fn}\ ()\ \to$\\
-  $\quad \mathbfsf{print}\ \text{"A"};\\\quad\mathbfsf{await}\ \mathbfsf{sys\_io}(2, ());\\\quad\mathbfsf{print}\ \text{"B"}$\\
+  $\quad \mathbfsf{print}\ \text{"A"};\\\quad\mathbfsf{await}\ \mathbfsf{sys\text{-}io}(2, ());\\\quad\mathbfsf{print}\ \text{"B"}$\\
   \fgap
-  $\mathit{process\_detach} \triangleq \mathbfsf{async}\ \mathbfsf{fn}\ ()\ \to\\\quad\mathbfsf{spawn}\ (\mathit{work}())$\\
+  $\mathit{process\text{-}detach} \triangleq \mathbfsf{async}\ \mathbfsf{fn}\ ()\ \to\\\quad\mathbfsf{spawn}\ (\mathit{work}())$\\
   \fgap
   $\mathit{ex2} \triangleq \mathbfsf{async}\ \mathbfsf{fn}\ ()\ \to$\\
-  $\quad \mathbfsf{await}\ (\mathit{process\_detach}());\\\quad \mathbfsf{await}\ \mathbfsf{sys\_io}(1, ());\\\quad \mathbfsf{print}\ \text{"C"}$\\
+  $\quad \mathbfsf{await}\ (\mathit{process\text{-}detach}());\\\quad \mathbfsf{await}\ \mathbfsf{sys\text{-}io}(1, ());\\\quad \mathbfsf{print}\ \text{"C"}$\\
   \fgap
-  $\mathbfsf{sys\_block}(\mathit{ex2}())$\\
+  $\mathbfsf{sys\text{-}block}(\mathit{ex2}())$\\
   \fgap
   $\mathit{out}$: $\varepsilon$
   \end{tabular}}
@@ -51,7 +51,7 @@
   $C[\, t_{\mathit{work}} \,]$\\
   \fgap
   $Q$: $\mathbfsf{print}\ \text{"A"};$\\
-  \hphantom{$Q$: }$\mathbfsf{await}\ \mathbfsf{sys\_io}(2, ());$\\
+  \hphantom{$Q$: }$\mathbfsf{await}\ \mathbfsf{sys\text{-}io}(2, ());$\\
   \hphantom{$Q$: }$\mathbfsf{print}\ \text{"B"}$\\
   \fgap
   $\mathit{out}$: $\varepsilon$
@@ -64,7 +64,7 @@
   \hphantom{$C[\,$}\dimext{$\mathbfsf{await}\ t_{\mathit{work}}$}$\,]$\\
   \fgap
   $Q$: $\mathbfsf{print}\ \text{"A"};$\\
-  \hphantom{$Q$: }$\mathbfsf{await}\ \mathbfsf{sys\_io}(2, ());$\\
+  \hphantom{$Q$: }$\mathbfsf{await}\ \mathbfsf{sys\text{-}io}(2, ());$\\
   \hphantom{$Q$: }$\mathbfsf{print}\ \text{"B"}$\\
   \fgap
   $\mathit{out}$: $\varepsilon$
@@ -75,11 +75,11 @@
   \hphantom{$C[\,$}\dimdes{$\mathbfsf{cancel}\ t_{\mathit{work}}$}$;$\\
   \hphantom{$C[\,$}\dimpro{$\mathbfsf{try}$}\\
   \hphantom{$C[\,$}\quad\dimext{$\mathbfsf{await}\ t_{\mathit{work}}$} \\
-  \hphantom{$C[\,$}\dimpro{$\mathbfsf{catch\ fn}\ \mathit{\_}\ \to\ ()$}
+  \hphantom{$C[\,$}\dimpro{$\mathbfsf{catch\ fn}\ \mathit{\text{-}}\ \to\ ()$}
   $\,]$\\
   \fgap
   $Q$: $\mathbfsf{print}\ \text{"A"};$\\
-  \hphantom{$Q$: }$\mathbfsf{await}\ \mathbfsf{sys\_io}(2, ());$\\
+  \hphantom{$Q$: }$\mathbfsf{await}\ \mathbfsf{sys\text{-}io}(2, ());$\\
   \hphantom{$Q$: }$\mathbfsf{print}\ \text{"B"}$\\
   \fgap
   $\mathit{out}$: $\varepsilon$
@@ -112,7 +112,7 @@
 
 % main done; orphan pending in T; sys_block holds the result
 \newcommand{\cfgBlockDone}{\begin{tabular}{@{}l@{}}
-  $\mathbfsf{sys\_block}(())$\\
+  $\mathbfsf{sys\text{-}block}(())$\\
   \fgap
   $T$: $(2,\ \mathit{work},\ \mathbfsf{print}\ \text{"B"})$\\
   \fgap
@@ -123,7 +123,7 @@
 % the remaining code is spelled out (the context here is empty)
 \newcommand{\cfgSettled}[1]{\begin{tabular}{@{}l@{}}
   $();$\\
-  $\mathbfsf{await}\ \mathbfsf{sys\_io}(1, ());$\\
+  $\mathbfsf{await}\ \mathbfsf{sys\text{-}io}(1, ());$\\
   $\mathbfsf{print}\ \text{"C"}$\\
   \fgap
   $\mathit{out}$: #1
@@ -137,7 +137,7 @@
 % whenever any node shifts, moving everything else. Re-center at the very end
 % (wrap in center, or \useasboundingbox to freeze the bbox).
 \noindent
-% {\tiny where $C \triangleq [\cdot];\ \mathbfsf{await}\ \mathbfsf{sys\_io}(1, 0);\ \mathbfsf{print}\ \text{"C"}$ --- the rest of $\mathit{ex2}$; $\mathbfsf{sys\_block}$ is elided until \semrule{Block-Done} applies}\par\smallskip
+% {\tiny where $C \triangleq [\cdot];\ \mathbfsf{await}\ \mathbfsf{sys\text{-}io}(1, 0);\ \mathbfsf{print}\ \text{"C"}$ --- the rest of $\mathit{ex2}$; $\mathbfsf{sys\text{-}block}$ is elided until \semrule{Block-Done} applies}\par\smallskip
 
 \begin{tikzpicture}[
   cfg/.style={draw=black!20, rounded corners=2pt, inner sep=2.5pt, font=\tiny\ttfamily},

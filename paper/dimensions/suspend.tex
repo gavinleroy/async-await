@@ -6,6 +6,12 @@ In only one language surveyed, \Js, an await point is guaranteed to yield accord
 
 \paragraph{Design rationale.}
 
+\begin{wrapfigure}{r}{0.5\linewidth}
+  \includegraphics[width=\linewidth]{f/suspension.pdf}
+  \caption{An example program demonstrating \Suspension, executed with \Js (\static) and \CSharp (\dynamic). \Js and \CSharp are both \eager, but have different \suspencion semantics. Each column shows an execution trace and the order of prints to stdout; the traces are nested according to their level in the call stack.}
+  \label{fig:suspension}
+\end{wrapfigure}
+
 The two principal reasons to adopt \static \suspension are preventing starvation and reducing non-determinism. In practice, some asynchronous function calls complete synchronously. For example, an asynchronous file read can return and buffer more bytes than requested; subsequent file reads within the buffered range return synchronously and perform no actual \abbr{i/o}. Under an \eager application semantics with \dynamic \suspension, a running \task can starve the others by never suspending. Although a task's code contains await points, it can execute entirely synchronously, turning an \abbr{i/o}-bound task into a \abbr{cpu}-bound task. A \static \suspension policy guarantees that tasks suspend at await points and don't accidentally starve others. Furthermore, \static \suspension is more predictable because it eliminates the non-deterministic factor of asynchronous functions executing synchronously.
 
 \Static \suspension comes at a performance cost. In the case of awaiting a completed task, \static \suspension requires an expensive round-trip to the runtime to continue past the await. Languages with \dynamic \suspension can mitigate the starvation issue by providing a \code|yield_now| primitive that has no effect but to force a suspension to the runtime.

@@ -32,10 +32,4 @@ Second, by separating coroutines from tasks, the language can enable users to pr
 
 The downsides of the \lazy approach include: by offering an extensible runtime, async-related libraries in the ecosystem tend to have reduced interoperability. For example, in Rust, \lstinline[language=Pseudo]|spawn| is a runtime-specific primitive, so libraries using it must be coupled to a choice of runtime such as Tokio or \smol. Users must also deal with the complexity of understanding both coroutines and tasks. Users often find \lazy behavior surprising --- to call a function and have nothing happen runs against a programmer's intuition transferred from synchronous function calls~\cite{d_why_2025,gebra_how_2023,mapeper_starting_2023}.
 
-\begin{wrapfigure}{r}{0.5\linewidth}
-  \includegraphics[width=\linewidth]{f/suspension.pdf}
-  \caption{An example program demonstrating the \Suspension dimension, executed with \Js (\static) and \CSharp (\dynamic). Each column shows an execution trace of the program under an \eager semantics with each kind of \suspension, and the order of prints to stdout. The execution traces are nested according to their level in the call stack.}
-  \label{fig:suspension}
-\end{wrapfigure}
-
 Non-\lazy approaches avoid these downsides by starting asynchronous work as soon as a function is called, either on the current thread (\eager) or any thread (\seager). The \eager approach reduces the overhead of control flow and context switches within the asynchrony runtime. The \seager approach leans more on the runtime, but in exchange provides a higher degree of concurrency by dispatching work to other threads. The increased concurrency can be particularly valuable for programs that want to avoid blocking a main thread, such as in \abbr{ui} applications~\cite{bartlett_why_2023,inc_embracing_nodate,winney_using_2021}.

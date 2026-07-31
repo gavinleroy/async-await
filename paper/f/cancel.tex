@@ -6,7 +6,7 @@ $\begin{array}[t]{@{}r@{\ }l@{}l@{}}
 \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
-    \where\ e_{\mathit{bool}} = \mathsf{task\_cancelled}(\sigma, \ell)\,\cper{\ghost} 
+    \where\ e_{\mathit{bool}} = \mathsf{task\text{-}cancelled}(\sigma, \ell)\,\cper{\ghost} 
   \end{array}$
 }
 \end{tabular*}
@@ -15,12 +15,12 @@ $\begin{array}[t]{@{}r@{\ }l@{}l@{}}
 \noindent
 $\begin{array}[t]{@{}r@{\ }l@{}l@{}l@{\ }l@{}l@{}l@{}}
                 & \elided{(\ell, \kappa) & {}\circ{} & Q, & P \uplus \{ & & \epsilon \}}\\
-\longrightarrow & \elided{               &           & Q, & P \uplus \{ \cawa{\langle \ell,}\, \cdir{\mathsf{throw\_in}(\kappa, \textsf{``stop''})}\, \cawa{\rangle} & {}\circ{} & \epsilon \}}
+\longrightarrow & \elided{               &           & Q, & P \uplus \{ \cawa{\langle \ell,}\, \cdir{\mathsf{throw\text{-}in}(\kappa, \textsf{``stop''})}\, \cawa{\rangle} & {}\circ{} & \epsilon \}}
 \end{array}$\hfill$\text{[Trio-Schedule-Cancelled]}$\par
 \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
-    \where\ \mathsf{true} = \mathsf{task\_cancelled}(\sigma, \ell)\,\cper{\ghost} 
+    \where\ \mathsf{true} = \mathsf{task\text{-}cancelled}(\sigma, \ell)\,\cper{\ghost} 
   \end{array}$%
 }
 \end{tabular*}
@@ -29,13 +29,13 @@ $\begin{array}[t]{@{}r@{\ }l@{}l@{}l@{\ }l@{}l@{}l@{}}
 \noindent
 $\begin{array}[t]{@{}r@{\ }l@{}l@{}l@{\ }l@{}l@{}l@{}}
                 & \elided{\sigma_0, (\ell, \kappa) & {}\circ{} & Q, & P \uplus \{ & & \epsilon \}} \\
-  \longrightarrow & \elided{\sigma_1,                &           & Q, & P \uplus \{ \cawa{\langle \ell,}\, \cdir{\mathsf{throw\_in}(\kappa, \textsf{``stop''})}\, \cawa{\rangle} & {}\circ{} & \epsilon \}}
+  \longrightarrow & \elided{\sigma_1,                &           & Q, & P \uplus \{ \cawa{\langle \ell,}\, \cdir{\mathsf{throw\text{-}in}(\kappa, \textsf{``stop''})}\, \cawa{\rangle} & {}\circ{} & \epsilon \}}
 \end{array}$\hfill$\text{[Asyncio-Schedule-Cancelled]}$\par
 \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
-  \where\ \mathsf{true} = \mathsf{task\_cancelled}(\sigma_0, \ell),~ 
-  \cper{\sigma_1 = \mathsf{task\_uncancel}(\sigma_0, \ell)}
+  \where\ \mathsf{true} = \mathsf{task\text{-}cancelled}(\sigma_0, \ell),~ 
+  \cper{\sigma_1 = \mathsf{task\text{-}uncancel}(\sigma_0, \ell)}
   \end{array}$
 }
 \end{tabular*}
@@ -49,8 +49,8 @@ $\begin{array}[t]{@{}r@{\ }l@{}l@{}l@{}l@{}l@{}}
 \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
-  \where\ \mathsf{true} = \mathsf{task\_cancelled}(\sigma, \ell)\, \cper{\ghost} \\
-  \qquad e_{\mathit{fail}} = \semmacro{task\_set\_failed}(\ell, ()) \mathbin{;} \mathbfsf{sys\_start\_soon}(\semmacro{task\_get\_dependents}(\ell))
+  \where\ \mathsf{true} = \mathsf{task\text{-}cancelled}(\sigma, \ell)\, \cper{\ghost} \\
+  \qquad e_{\mathit{fail}} = \semmacro{task\text{-}set\text{-}failed}(\ell, ()) \mathbin{;} \mathbfsf{sys\text{-}start\text{-}soon}(\semmacro{task\text{-}get\text{-}dependents}(\ell))
   \end{array}$
 }
 \end{tabular*}
