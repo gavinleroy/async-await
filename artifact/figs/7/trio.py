@@ -7,9 +7,9 @@ import trio
 
 
 async def work():
-    await trio.sleep(1.0)
+    await trio.sleep(2)
     print("A", flush=True)
-    await trio.sleep(1.0)
+    await trio.sleep(2)
     print("B", flush=True)
 
 
@@ -20,7 +20,7 @@ async def short_lived():
 
 async def main():
     await short_lived()
-    await trio.sleep(1.5)
+    await trio.sleep(3)
 
 
 trio.run(main)

@@ -1,8 +1,8 @@
 // Figure 7 (Destruction): C# destruction is TERMINATED — the unobserved
 // task has indefinite extent and keeps running after ShortLived returns,
 // but when Main exits the runtime simply terminates it mid-flight: "A"
-// prints at t≈1.0s, the process exits at t≈1.5s while the task sleeps
-// toward "B".
+// prints at t=2s, the process exits at t=3s while the task sleeps
+// toward "B" (due t=4s).
 // Expected output: A (deterministic).
 
 using System;
@@ -12,9 +12,9 @@ class Program
 {
     static async Task Work()
     {
-        await Task.Delay(1000);
+        await Task.Delay(TimeSpan.FromSeconds(2));
         Console.WriteLine("A");
-        await Task.Delay(1000);
+        await Task.Delay(TimeSpan.FromSeconds(2));
         Console.WriteLine("B");
     }
 
@@ -26,7 +26,7 @@ class Program
     static async Task Main()
     {
         await ShortLived();
-        await Task.Delay(1500);
+        await Task.Delay(TimeSpan.FromSeconds(3));
         // Main returns: the runtime exits, terminating the running task.
     }
 }

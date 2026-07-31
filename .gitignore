@@ -7,3 +7,4 @@ compiled/
 fuzz-cache/
 result
 *.log
+.DS_Store

@@ -1,5 +1,28 @@
 #lang racket/base
 
+;; -----------------------------------------------------------------------------
+;; Rust backends: tokio and smol from one emitter (the `runtime` parameter).
+;; Output is UNITYPED — every value is the Clone-able `Val` enum (closures
+;; Arc'd, boxes Arc<Mutex<>>), so ownership never fights the model's
+;; substitution semantics; variable reads clone.
+;;
+;; Semantic mapping, both runtimes ("lazy": applying an async fn builds an
+;; un-polled future):
+;;   async/lambda              -> Val::AsyncFn(move |args| Box::pin(async ...))
+;;   (f a...)                  -> f.call(args)       (Val::Future, not polled)
+;;   (spawn e)                 -> __spawn: runtime-spawn of e.do_await();
+;;                                handle stored as Val::Task
+;;   (await t), (os/block t)   -> t.do_await().await (join Task / poll Future)
+;;   (os/io d v)               -> __io: runtime sleep(d ms); return v
+;;
+;; Runtime differences:
+;;   tokio: (cancel t) -> JoinHandle::abort(); dropping a handle DETACHES the
+;;          task; join surfaces {type: Ok|Err, value} (JoinError marks
+;;          cancellation)
+;;   smol:  (cancel t) -> Task::cancel().await; dropping a handle CANCELS the
+;;          task (weak handles); join has no error channel (always Ok)
+;; -----------------------------------------------------------------------------
+
 (require racket/match
          racket/string
          racket/format

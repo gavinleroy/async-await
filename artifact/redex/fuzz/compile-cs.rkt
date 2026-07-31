@@ -6,6 +6,18 @@
 ;; compiles to Func<..., Task<R>>: sync applications await inline, async ones
 ;; keep the hot Task; `fx` marks async/await only where a body really awaits
 ;; (else Task.FromResult), so the output compiles warning-free.
+;;
+;; Semantic mapping (C# is "eager": calling an async function starts it; no
+;; spawn/cancel/timeout constructs — a task is just a hot Task<R>):
+;;   async/lambda              -> Func<A..., Task<R>> (async lambda; a body
+;;                                that never awaits returns Task.FromResult)
+;;   (f a...) at async->       -> f(a...)             (hot Task<R>, no await)
+;;   (f a...) at ->            -> (await f(a...))     (inline)
+;;   (await t), (os/block t)   -> (await t)
+;;   (os/io d v)               -> invoked async lambda:
+;;                                await Task.Delay(d * 100); return v
+;;   throw / catch             -> Err : Exception; try/catch recovering the
+;;                                typed payload with a safe `is` pattern
 ;; -----------------------------------------------------------------------------
 
 (require racket/match

@@ -1,5 +1,21 @@
 #lang racket/base
 
+;; -----------------------------------------------------------------------------
+;; JavaScript backend (compile-ts = compile-js: the TypeScript lane runs the
+;; same untyped output). Type annotations are dropped; the program runs under
+;; plain node. Binding/sequencing forms emit async IIFEs because their bodies
+;; may contain `await`, which is illegal in a synchronous function.
+;;
+;; Semantic mapping (JS is "eager": a promise starts running when created; no
+;; spawn/cancel/timeout constructs — a task is just a promise):
+;;   async/lambda              -> async function
+;;   (f a...)                  -> f(a...)            (hot promise, no await)
+;;   (await t), (os/block t)   -> (await t)
+;;   (os/io d v)               -> await new Promise(r =>
+;;                                  setTimeout(() => r(v), d * 20))
+;;   throw / catch             -> try/catch in an async IIFE
+;; -----------------------------------------------------------------------------
+
 (require racket/match
          racket/string
          racket/format

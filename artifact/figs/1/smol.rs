@@ -1,29 +1,24 @@
-// Figure 1 — Rust + smol (timeout variant).
+// Figure 1-dev — Rust + smol (decision-tree variant).
 //
-// spawn      = smol::spawn on the global executor; "spawn and ignore" is
-//              `let _ = smol::spawn(...)` — the handle drops immediately,
-//              and smol tasks CANCEL on drop
-// timeout    = figlib::timeout: future::or racing the future against a
-//              timer — on expiry the future is dropped; a Task handle
-//              held inside it cancels its task
-// isolation  = one block_on; each ex ends with a 3 s grace sleep so any
-//              surviving work lands in its own ex's section.
+// Three calling contexts, one per dimension group:
+//   ex1 START OF LIFE  plain async application, never polled
+//   ex2 END OF LIFE    spawn detached, extent ends un-awaited
+//   ex3 CANCELLATION   timeout a parent awaiting its spawned child
 //
-// Predicted: ex1 `ε` (the ignored task's handle drops before its first
-// poll), ex2 `A` (the inner task prints A at t0; the timeout drops
-// process_await at 0.1 s, whose held handle cancels it mid-sleep),
-// ex3 `ε` (inner handle dropped instantly, as in ex1).
+// spawn      = smol::spawn on the global executor; smol tasks CANCEL when
+//              their handle drops (the weak-reference design)
+// timeout    = figlib::timeout: on expiry the future is DROPPED (Rust
+//              cancellation-by-drop); a Task handle held inside cancels
+//              its task
+//
+// Predicted: ex1 `C` (lazy: the future is never polled), ex2 `C` (weak:
+// process_detached's handle drops at return, closing the task before its
+// first poll — not even A prints), ex3 `AC` (the timeout drops the
+// parent at 1 s; dropping its held handle cancels the child mid-sleep).
 
 mod figlib;
 
 use figlib::{sleep, timeout};
-
-fn grace() -> u64 {
-    std::env::var("GRACE")
-        .ok()
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(3)
-}
 
 async fn write_to_log() {
     println!("A");
@@ -32,27 +27,33 @@ async fn write_to_log() {
     println!("B");
 }
 
-async fn process_ignore() {
-    let _ = smol::spawn(write_to_log()); // spawn, handle dropped: cancels
-    sleep(0).await; // do other work ...
+async fn process_await() {
+    let task = smol::spawn(write_to_log());
+    sleep(0).await;
+    task.await;
 }
 
-async fn process_await() {
-    let task = smol::spawn(write_to_log()); // spawn
-    sleep(0).await; // do other work ...
-    let _ = task.await;
+async fn process_detached() {
+    let _task = smol::spawn(write_to_log());
+    // handle drops at return: the task is cancelled
 }
 
 async fn ex1() {
-    process_ignore().await;
+    let _t = write_to_log(); // plain application: a future, never polled
+    println!("C");
+    sleep(3).await;
 }
 
 async fn ex2() {
-    timeout(1, process_await()).await;
+    process_detached().await;
+    sleep(1).await;
+    println!("C");
 }
 
 async fn ex3() {
-    timeout(1, process_ignore()).await;
+    timeout(1, process_await()).await;
+    println!("C");
+    sleep(3).await;
 }
 
 fn main() {
@@ -63,6 +64,5 @@ fn main() {
             Some("3") => ex3().await,
             _ => panic!("expected ex number 1-3"),
         }
-        sleep(grace()).await;
     });
 }

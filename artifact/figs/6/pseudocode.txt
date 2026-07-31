@@ -1,0 +1,7 @@
+async fn work():
+  await sleep(1)
+  print("B")
+
+async fn main():
+  spawn work()
+  print("A")

@@ -8,9 +8,9 @@
 
 func work() async {
     do {
-        try await Task.sleep(for: .seconds(1.0))
+        try await Task.sleep(for: .seconds(2))
         print("A")
-        try await Task.sleep(for: .seconds(1.0))
+        try await Task.sleep(for: .seconds(2))
         print("B")
     } catch {
         // cancelled during a sleep: no further prints
@@ -26,6 +26,6 @@ func shortLived() async {
 struct Main {
     static func main() async {
         await shortLived()
-        try? await Task.sleep(for: .seconds(1.5))
+        try? await Task.sleep(for: .seconds(3))
     }
 }

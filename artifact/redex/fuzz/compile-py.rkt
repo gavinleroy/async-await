@@ -1,5 +1,33 @@
 #lang racket/base
 
+;; -----------------------------------------------------------------------------
+;; Python backends: asyncio and trio from one emitter (the `runtime`
+;; parameter). Lambdas are hoisted to named top-level defs (Python lambdas
+;; cannot contain statements); annotations become type hints.
+;;
+;; Semantic mapping, asyncio ("lazy": calling an async function builds a
+;; coroutine; nothing runs until spawned or awaited):
+;;   async/lambda              -> hoisted async def
+;;   (f a...)                  -> f(a...)            (cold coroutine)
+;;   (spawn c)                 -> asyncio.create_task(c)
+;;   (await t), (os/block t)   -> (await t)
+;;   (cancel t)                -> t.cancel()
+;;   (os/io d v)               -> __io: await asyncio.sleep(d * 0.02); return v
+;;
+;; Semantic mapping, trio (also lazy; trio cancels scopes, never tasks, so
+;; the only cancellation source is timeout):
+;;   async/lambda              -> hoisted async def; each task body runs in
+;;                                its own nursery (_TrioTask._run: task extent)
+;;   (f a...)                  -> f(a...)            (cold coroutine)
+;;   (spawn c)                 -> __spawn: _TrioTask started in the RUNNING
+;;                                task's nursery (_current_nursery)
+;;   (await t), (os/block t)   -> __await_task(t)    (result/event plumbing)
+;;   (timeout d (spawn c))     -> __timeout: fresh nursery inside
+;;                                trio.fail_after(d * 0.02); expiry cancels
+;;                                the subtree, raises Exception("cancelled")
+;;   (os/io d v)               -> __io: await trio.sleep(d * 0.02); return v
+;; -----------------------------------------------------------------------------
+
 (require racket/match
          racket/string
          racket/format

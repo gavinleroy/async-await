@@ -1,0 +1,12 @@
+async fn work():
+  await sleep(2)
+  print("A")
+  await sleep(2)
+  print("B")
+
+async fn short_lived():
+  t = spawn work()
+
+async fn main():
+  await short_lived()
+  await sleep(3)

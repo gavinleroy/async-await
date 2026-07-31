@@ -8,7 +8,7 @@
 
 func work() async {
     do {
-        try await Task.sleep(for: .seconds(1.0))
+        try await Task.sleep(for: .seconds(1))
         print("B")
     } catch {
         // cancelled during the sleep: no print

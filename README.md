@@ -3,7 +3,7 @@
 This artifact contains the models described in Section 4 of the paper "A Design Space Exploration of Async/Await".
 
 This artifact contains executable [Redex](https://docs.racket-lang.org/redex/) semantics for the async/await
-implementations of seven real runtimes — Python `asyncio`, Python `trio`,
+implementations of seven real runtimes --- Python `asyncio`, Python `trio`,
 JavaScript (node), C# (.NET), Swift, Rust `tokio`, and Rust `smol` --- together
 with a differential fuzzer that tests each model against its real runtime.
 
@@ -106,3 +106,9 @@ The entire set of model outputs is not generated, instead, we lazily search thro
 This means that the exhaustiveness checker has run out of fuel when search for an output. The fuzzer has been engineered such that this doesn't happen --- at least, not often --- but it is a possible scenario that you should be aware of.
 
 Of course, the full artifact is the actual Redex models as written, which you can find in the `redex/` directory.
+
+## Reusability
+
+The artifact and the included source files are provided under MIT license. The Redex extension languages are additionally distributed on the Racket `pkg-index`; users can `raco pkg install oopsla26-async-await`.
+
+Documentation for the models is provided online [here.](https://gavinleroy.com/async-await).
