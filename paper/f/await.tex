@@ -38,8 +38,7 @@ $\begin{array}[t]{@{}r@{\ }l@{}l@{}}
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
   \where\ e_{\mathit{await}} = \begin{array}[t]{@{}l@{\;}l@{}}
-      \mathbfsf{if}   & \semmacro{task\text{-}is\text{-}completed}(v_{\mathit{aw}}) \\
-      \mathbfsf{then} & \semmacro{task\text{-}get\text{-}result}(v_{\mathit{aw}}) \\
+      \mathbfsf{if}   & \semmacro{task\text{-}is\text{-}completed}(v_{\mathit{aw}})\ \mathbfsf{then}\ \semmacro{task\text{-}get\text{-}result}(v_{\mathit{aw}}) \\
       \mathbfsf{else} & {\csus{\mathbfsf{shift}\ k \to}}\ \semmacro{task\text{-}add\text{-}dependent}(v_{\mathit{aw}},
 \ell, \semmacro{task\text{-}continue\text{-}with}(v_{\mathit{aw}}, k))
     \end{array}
@@ -58,8 +57,7 @@ $\begin{array}[t]{@{}r@{\ }l@{}l@{}}
   $\begin{array}{l}
   \where\ e_{\mathit{await}} = \begin{array}[t]{@{}l@{\;}l@{\;}l@{}}
     {\csus{\mathbfsf{shift}\ k
-      \to}} & \mathbfsf{if}   & \semmacro{task\text{-}is\text{-}completed}(v_{\mathit{aw}}) \\
-           & \mathbfsf{then} & \semmacro{task\text{-}get\text{-}result}(v_{\mathit{aw}}) \\
+    \to}} & \mathbfsf{if}   & \semmacro{task\text{-}is\text{-}completed}(v_{\mathit{aw}})\ \mathbfsf{then}\ \semmacro{task\text{-}get\text{-}result}(v_{\mathit{aw}}) \\
            & \mathbfsf{else} & \semmacro{task\text{-}add\text{-}dependent}(v_{\mathit{aw}},
 \ell, \semmacro{task\text{-}continue\text{-}with}(v_{\mathit{aw}}, k))
     \end{array}
