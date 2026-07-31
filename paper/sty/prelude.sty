@@ -498,17 +498,16 @@
 \csdef{legenditem@per}{\legendmark{P1C7}\small Persistence}
 
 \newcommand{\makelegend}[1]{%
-  \begin{center} 
-    \def\legendsep{}% 
+  \par\baselineskip%
+  {\centering%
+    \def\legendsep{}%
     \renewcommand*{\do}[1]{%
       \legendsep 
       \csuse{legenditem@##1}% 
       \def\legendsep{\hspace{1.5em}}% 
     }%
     \docsvlist{#1}% 
-  \end{center}
-  \vspace{-0.5\baselineskip}
-}
+  \par}}
 
 %%%%
 

@@ -1,8 +1,5 @@
 \subsubsection{\Propagation}\label{ssec:designdims:propagation}
 
-One final point of divergence at a task's end of life is the handling of exceptions. In all surveyed languages with exceptions (Python, Swift, \Js, \CSharp), awaiting on an async function that has thrown an exception will re-raise the exception at the await point.\footnotemark{} However, what happens to an exception raised in a task that is never awaited? We call this the \Propagation dimension.%
-\cprotect\footnotetext{Instead of exceptions Rust uses the \code|Result| type to communicate errors. An \code|Err| variant is returned on await, which we consider a semantically equivalent design to re-raising an exception at the await point.}
-
 \begin{wrapfigure}{r}{0.42\linewidth}
 \begin{lstlisting}[language=Py]
 async def fail():
@@ -17,6 +14,9 @@ async def main():
   \cprotect\caption{An example of \destruct \propagation. Python+Trio reraises exceptions when their associated nursery scope ends.}
   \label{fig:propagation:trio}
 \end{wrapfigure}
+
+One final point of divergence at a task's end of life is the handling of exceptions. In all surveyed languages with exceptions (Python, Swift, \Js, \CSharp), awaiting on an async function that has thrown an exception will re-raise the exception at the await point.\footnotemark{} However, what happens to an exception raised in a task that is never awaited? We call this the \Propagation dimension.%
+\cprotect\footnotetext{Instead of exceptions Rust uses the \code|Result| type to communicate errors. An \code|Err| variant is returned on await, which we consider a semantically equivalent design to re-raising an exception at the await point.}
 
 Most languages \never propagate, meaning the exception generates no behavior outside its containing task, apart from perhaps printing to the console. Python+Asyncio and \Js will print a stack trace for an uncaught asynchronous exception. Node.js\ specifically will exit with a non-zero error code, although this latter behavior is not part of the ECMAScript specification so we still categorize it as a \never approach to \propagation.
 

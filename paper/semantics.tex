@@ -90,10 +90,10 @@ The goal of the operational semantics is to highlight the differences between la
 
 
 \begin{table}[t]
-\small
-\input{./f/metafunctions.tex}
-\caption{Metafunctions and macros used in the reduction rules. We use metafunction and macros to simplify the presentation of the reduction rules. Metafunctions evaluate to a term, while macros expand into expressions. We set macros in italics to distinguish them from metafunctions.}
-\label{table:metafunctions}
+  \small
+  \input{./f/metafunctions.tex}
+  \caption{Metafunctions and macros used in the reduction rules. Metafunctions evaluate to a term, while macros expand into expressions. We set macros in italics to distinguish them from metafunctions.}
+  \label{table:metafunctions}
 \end{table}
 
 \subsection{Start/End of Life}
@@ -105,7 +105,7 @@ The goal of the operational semantics is to highlight the differences between la
     \label{fig:sem:app}
 \end{figure}
 
-\begin{figure}[t]
+\begin{figure}[tb]
     \input{./f/spawn.tex}
     \makelegend{eag,ext,des,pro}
     \cprotect\caption{A comparison of \semrule{Spawn} across Rust/Python runtimes. The $\mathbfsf{try/catch}$ is colored gray because it is present in the Asyncio semantics, but not those for Tokio/Smol --- the rules are otherwise equivalent.}
@@ -118,7 +118,7 @@ The rule \semrule{Async-App} defines how a \coro/\task is constructed and, for n
 
 \semrule{Async-App} for the (semi-)eager languages also defines the end of life for a \task, including the \extent, \destruction, and \propagation semantics. When \CSharp/\Js allocate a \task, it is independent of the current context, meaning that the new \task has no relationship to the currently executing \task (labelled $\ell$). The absence of a relationship between the two \tasks marks the \indef \extent semantics for these two languages. In contrast, allocated \tasks in Swift are added as dependencies of the currently executing \task. Furthermore, within a Swift task body, $e_{\mathit{task}}$, after the \task is completed or failed its dependencies are cancelled and waited on. The dependency between the two tasks and the added operations at the end of the \task body marks the different semantics in Swift along the \extent and \destruction dimensions. Although Swift cancels and waits for dependencies to finish, exceptions held by \emph{failed} \tasks are not propagated.
 
-\begin{figure}[t]
+\begin{figure}[tb]
   \input{./f/await.tex}
   \makelegend{sus}
   \cprotect\caption{A comparison of \semrule{Await} semantics that define \dynamic and \static \suspension. \Dynamic suspending languages only suspend when the awaited value isn't immediately ready.}

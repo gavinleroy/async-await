@@ -6,7 +6,7 @@
 
 % --- Define Table Macros ---
 \newcommand{\DimSection}[1]{%
-  \multicolumn{4}{@{}l}{\Large #1} \\ \addlinespace[1ex]
+  \multicolumn{4}{@{}l}{\large #1} \\ \addlinespace[1ex]
 }
 
 \newcommand{\DimRowTitle}[2]{%
@@ -14,11 +14,11 @@
 }
 
 \newcommand{\DimCell}[3]{%
-  \textsc{#1} \newline {\footnotesize #2\par\vspace{1ex}#3\par}
+  \textsc{#1} \newline {\footnotesize #2\par\vspace{0.5ex}#3\par}
 }
 
 \newcommand{\DimSeparator}{%
-  \arrayrulecolor{gray}\specialrule{1pt}{1ex}{1.5ex}\arrayrulecolor{black}
+  \arrayrulecolor{gray}\specialrule{0.5pt}{1ex}{1.5ex}\arrayrulecolor{black}
 }
 
 \begin{table}[htbp]
@@ -91,6 +91,6 @@
 \DimCell{persistent}{A task can ignore cancellation but remains cancelled.}{Trio, Swift} & \\
 
 \end{tabularx}
-\caption{Overview of Asynchronous Programming Dimensions}
+\caption{Overview of the asynchronous programming design dimensions}
 \label{tab:dims-overview}
 \end{table}
