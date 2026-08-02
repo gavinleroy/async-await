@@ -74,3 +74,93 @@ jobs:
           TAG="${{ github.event.release.tag_name || 'latest' }}"
           docker buildx imagetools create -t "$IMAGE:$TAG" \
             "$IMAGE:$TAG-amd64" "$IMAGE:$TAG-arm64"
+
+  # Archive the release on Zenodo: source tarball + both per-arch docker
+  # image tarballs in ONE deposit (GitHub release assets cap at 2 GB, and
+  # Zenodo's GitHub webhook archives only the source — disable that webhook
+  # for this repo or every release gets a second, image-less record).
+  #
+  # Setup: repo secret ZENODO_TOKEN (scopes: deposit:write deposit:actions).
+  # After the FIRST published deposit, set repo variable ZENODO_RECORD_ID to
+  # its record id — later releases then become new VERSIONS under the same
+  # concept DOI instead of unrelated records.
+  zenodo:
+    needs: manifest
+    if: github.event_name == 'release'
+    runs-on: ubuntu-24.04
+    env:
+      TAG: ${{ github.event.release.tag_name }}
+      API: https://zenodo.org/api
+    steps:
+      - uses: actions/checkout@v4
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc \
+                      /usr/local/.ghcup /usr/local/share/boost
+          df -h /
+
+      - name: Create deposition (new version when ZENODO_RECORD_ID is set)
+        id: dep
+        run: |
+          auth="Authorization: Bearer ${{ secrets.ZENODO_TOKEN }}"
+          if [ -n "${{ vars.ZENODO_RECORD_ID }}" ]; then
+            draft=$(curl -sf -X POST -H "$auth" \
+              "$API/deposit/depositions/${{ vars.ZENODO_RECORD_ID }}/actions/newversion" \
+              | jq -r '.links.latest_draft')
+            dep=$(curl -sf -H "$auth" "$draft")
+            id=$(echo "$dep" | jq -r .id)
+            # a new version inherits the previous files; replace them
+            for f in $(curl -sf -H "$auth" "$API/deposit/depositions/$id/files" | jq -r '.[].id'); do
+              curl -sf -X DELETE -H "$auth" "$API/deposit/depositions/$id/files/$f"
+            done
+          else
+            dep=$(curl -sf -X POST -H "$auth" -H 'Content-Type: application/json' \
+              -d '{}' "$API/deposit/depositions")
+            id=$(echo "$dep" | jq -r .id)
+          fi
+          echo "id=$id" >> "$GITHUB_OUTPUT"
+          echo "bucket=$(echo "$dep" | jq -r .links.bucket)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload source tarball
+        run: |
+          auth="Authorization: Bearer ${{ secrets.ZENODO_TOKEN }}"
+          git archive --format=tar.gz -o "source-$TAG.tar.gz" HEAD
+          curl -sf -H "$auth" --upload-file "source-$TAG.tar.gz" \
+            "${{ steps.dep.outputs.bucket }}/async-await-$TAG-source.tar.gz" > /dev/null
+          rm "source-$TAG.tar.gz"
+
+      - name: Upload image tarballs (one arch at a time for disk headroom)
+        run: |
+          auth="Authorization: Bearer ${{ secrets.ZENODO_TOKEN }}"
+          for arch in amd64 arm64; do
+            docker pull "$IMAGE:$TAG-$arch"
+            docker save "$IMAGE:$TAG-$arch" | gzip > "image-$arch.tar.gz"
+            docker rmi "$IMAGE:$TAG-$arch"
+            curl -sf -H "$auth" --upload-file "image-$arch.tar.gz" \
+              "${{ steps.dep.outputs.bucket }}/async-await-$TAG-$arch.tar.gz" > /dev/null
+            rm "image-$arch.tar.gz"
+          done
+
+      - name: Set metadata and publish
+        run: |
+          auth="Authorization: Bearer ${{ secrets.ZENODO_TOKEN }}"
+          id="${{ steps.dep.outputs.id }}"
+          jq -n --arg tag "$TAG" --arg repo "${{ github.repository }}" '{
+            metadata: {
+              title: "Artifact: A Design Space Exploration of Async/Await (\($tag))",
+              upload_type: "software",
+              license: "MIT",
+              version: $tag,
+              creators: [{ name: "Gray, Gavin" }],
+              description: "Executable PLT Redex models of async/await across seven runtimes, with the differential-fuzzing artifact. Contains the source tree and the per-architecture docker images (restore with: docker load -i async-await-\($tag)-<arch>.tar.gz).",
+              related_identifiers: [{
+                relation: "isSupplementTo",
+                identifier: "https://github.com/\($repo)/releases/tag/\($tag)"
+              }]
+            }
+          }' > meta.json
+          curl -sf -X PUT -H "$auth" -H 'Content-Type: application/json' \
+            -d @meta.json "$API/deposit/depositions/$id" > /dev/null
+          curl -sf -X POST -H "$auth" \
+            "$API/deposit/depositions/$id/actions/publish" \
+            | jq -r '"published: doi \(.doi)"'
