@@ -51,8 +51,12 @@ RUN mkdir -p ~/.config/nix \
       > ~/.config/nix/nix.conf
 
 # The repository (root flake + artifact/; .dockerignore excludes the paper
-# and caches/results).
+# and caches/results). The context may be a nix store path (image-runner
+# passes the flake's own source), whose read-only modes COPY preserves —
+# restore owner-writability so evaluators can create fuzz-cache/ and edit
+# the tree.
 COPY --chown=artifact:artifact . /home/artifact/repo
+RUN chmod -R u+w /home/artifact/repo
 WORKDIR /home/artifact/repo
 
 # Realize the flake at build time so the image is self-contained offline:

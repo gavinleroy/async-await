@@ -97,7 +97,7 @@
 
 ;; Non-collapsing variant that exposes every successor (drops the make-big-step
 ;; wrapper). Drives whole-state-space exploration: the directed witness search
-;; (fuzz/witness.rkt) and the reference enumerator (fuzz/reference.rkt).
+;; (../fuzz/witness.rkt) and the reference enumerator (../fuzz/reference.rkt).
 (define -->>c#
   (union-reduction-relations
    -->sys/overrides
@@ -110,19 +110,18 @@
 (module+ test
   (require (submod "core.rkt" niceties)
            "utils.rkt"
-           "fuzz/check.rkt"
-           "fuzz/run.rkt")
+           "differential.rkt")
 
   (define-syntax-rule (c#-->>∈ e results)
     (begin
       (evaluates-in-set -->c# (async/main #:threads 2 e) results
                         #:extract-result program-output)
-      (check-runtime-in-set compile-and-run-cs 'e results)))
+      (differential-in-set 'cs 'e results)))
 
   (define-syntax-rule (c#-->>= e v)
     (begin
       (test-->> -->c# #:equiv prog/equiv (async/main #:threads 2 e) v)
-      (check-runtime-output compile-and-run-cs 'e v))))
+      (differential-output 'cs 'e v))))
 
 (module+ test
   (c#-->>=

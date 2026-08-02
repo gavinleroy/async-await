@@ -7,6 +7,8 @@ implementations of seven real runtimes --- Python `asyncio`, Python `trio`,
 JavaScript (node), C# (.NET), Swift, Rust `tokio`, and Rust `smol` --- together
 with a differential fuzzer that tests each model against its real runtime.
 
+The artifact and the included source files are provided under MIT license.
+
 ## Getting Started
 
 The only system requirement for running this artifact is Docker.
@@ -54,9 +56,9 @@ fuzz -n 2
 You should see output *like* the following:
 
 ```
-fuzz: generating 2 programs x 50 runs per lane (seed 12345)
+fuzz: generating 2 programs x 50 runs per lane
 fuzz: lanes: asyncio javascript trio smol tokio csharp swift
-fuzz: cache dir /home/artifact/artifact/fuzz-cache/20260724T012624Z-seed12345  (d
+fuzz: cache dir /home/artifact/repo/artifact/fuzz-cache/20260724T012624Z  (d
 etails per lane: <lang>.log, records: <lang>.jsonl)
 
 asyncio    [########################]   2/2   done 0:30  2 ok
@@ -82,7 +84,7 @@ total          14     0      0     0
 You *should not* see output that says `ERROR` or `MISMATCH`. In the second table printed, if any column except `pass` contains a non-zero value, this could indicate that environment is unstable or misconfigured. If that happens, there will be an output line such as:
 
 ```
-smol: failure details in /home/artifact/artifact/fuzz-cache/20260722T215342Z-seed27 0486700/smol.log
+smol: failure details in /home/artifact/repo/artifact/fuzz-cache/20260722T215342Z/smol.log
 ```
 
 This could indicate that the environment is setup incorrectly. So please let me know, including your architecture, and the contents of the printed log file.
@@ -107,8 +109,18 @@ This means that the exhaustiveness checker has run out of fuel when search for a
 
 Of course, the full artifact is the actual Redex models as written, which you can find in the `redex/` directory.
 
-## Reusability
+## Racket Package Index
 
-The artifact and the included source files are provided under MIT license. The Redex extension languages are additionally distributed on the Racket `pkg-index`; users can `raco pkg install oopsla26-async-await`.
+The Redex models are additionally distributed on the Racket package index.
+
+```bash
+raco pkg install oopsla26-async-await
+```
+
+A user can then import and build on the languages like so:
+
+```racket
+(require oopsla26-async-await/swift)
+```
 
 Documentation for the models is provided online [here.](https://gavinleroy.com/async-await).

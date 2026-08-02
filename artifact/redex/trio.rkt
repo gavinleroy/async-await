@@ -228,7 +228,7 @@
 
 ;; Non-collapsing variant that exposes every successor (drops the make-big-step
 ;; wrapper). Drives whole-state-space exploration: the directed witness search
-;; (fuzz/witness.rkt) and the reference enumerator (fuzz/reference.rkt).
+;; (../fuzz/witness.rkt) and the reference enumerator (../fuzz/reference.rkt).
 (define -->>trio
   (union-reduction-relations
    -->sys/overriden
@@ -242,15 +242,14 @@
   (require (prefix-in unit: rackunit)
            (submod "core.rkt" niceties)
            "utils.rkt"
-           "fuzz/check.rkt"
-           "fuzz/run.rkt")
+           "differential.rkt")
 
   ;; #:threads 1: the model runs trio on a single P-slot (the root thread is
   ;; the scheduler), matching the single-threaded runtime.
   (define-syntax-rule (trio-->>= e v)
     (begin
       (test-->> -->trio #:equiv prog/equiv (async/main #:threads 1 e) v)
-      (check-runtime-output compile-and-run-trio 'e v)))
+      (differential-output 'trio 'e v)))
 
   (define-syntax-rule (trio-->>∈ e results)
     (begin
@@ -259,7 +258,7 @@
            (evaluates-in-set -->trio (async/main #:threads 1 e) results
                              #:iterations 5
                              #:extract-result program-output)))
-      (check-runtime-in-set compile-and-run-trio 'e results))))
+      (differential-in-set 'trio 'e results))))
 
 (module+ test
   (trio-->>=

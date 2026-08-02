@@ -9,7 +9,7 @@
 
 (require racket/match
          (only-in racket/list make-list)
-         (only-in "../platform.rkt" program-output))
+         (only-in "../redex/platform.rkt" program-output))
 
 (provide wrap-program
          canonicalize

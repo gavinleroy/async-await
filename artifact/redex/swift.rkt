@@ -175,7 +175,7 @@
 
 ;; Non-collapsing variant that exposes every successor (drops the make-big-step
 ;; wrapper). Drives whole-state-space exploration: the directed witness search
-;; (fuzz/witness.rkt) and the reference enumerator (fuzz/reference.rkt).
+;; (../fuzz/witness.rkt) and the reference enumerator (../fuzz/reference.rkt).
 (define -->>swift
   (union-reduction-relations
    -->sys/overrides
@@ -189,8 +189,7 @@
   (require (submod "core.rkt" niceties)
            "utils.rkt"
            (prefix-in unit: rackunit)
-           "fuzz/check.rkt"
-           "fuzz/run.rkt")
+           "differential.rkt")
 
   ;; Swift prints booleans as true/false; the model's are #t/#f. Normalize
   ;; expected values to Swift's spelling for the runtime comparison.
@@ -200,7 +199,7 @@
   (define-syntax-rule (swift-->>= e v)
     (begin
       (test-->> -->swift #:equiv prog/equiv (async/main #:threads 2 e) v)
-      (check-runtime-output compile-and-run-swift 'e v #:normalize swift-normalize)))
+      (differential-output 'swift 'e v #:normalize swift-normalize)))
 
   (define-syntax-rule (swift-->>∈ e results)
     (begin
@@ -209,7 +208,7 @@
            (evaluates-in-set -->swift (async/main #:threads 2 e) results
                              #:iterations 1
                              #:extract-result program-output)))
-      (check-runtime-in-set compile-and-run-swift 'e results #:normalize swift-normalize))))
+      (differential-in-set 'swift 'e results #:normalize swift-normalize))))
 
 (module+ test
   (swift-->>=

@@ -165,7 +165,7 @@
 
 ;; Non-collapsing variant that exposes every successor (drops the make-big-step
 ;; wrapper). Drives whole-state-space exploration: the directed witness search
-;; (fuzz/witness.rkt) and the reference enumerator (fuzz/reference.rkt).
+;; (../fuzz/witness.rkt) and the reference enumerator (../fuzz/reference.rkt).
 (define -->>aio
   (union-reduction-relations
    -->sys/overriden
@@ -179,15 +179,14 @@
   (require (prefix-in unit: rackunit)
            (submod "core.rkt" niceties)
            "utils.rkt"
-           "fuzz/check.rkt"
-           "fuzz/run.rkt")
+           "differential.rkt")
 
   ;; #:threads 1: the model runs asyncio on a single P-slot (the root thread
   ;; is the event loop), matching the single-threaded runtime.
   (define-syntax-rule (aio-->>= e v)
     (begin
       (test-->> -->aio #:equiv prog/equiv (async/main #:threads 1 e) v)
-      (check-runtime-output compile-and-run-asyncio 'e v)))
+      (differential-output 'asyncio 'e v)))
 
   (define-syntax-rule (aio-->>∈ e results)
     (begin
@@ -196,7 +195,7 @@
            (evaluates-in-set -->aio (async/main #:threads 1 e) results
                              #:iterations 5
                              #:extract-result program-output)))
-      (check-runtime-in-set compile-and-run-asyncio 'e results))))
+      (differential-in-set 'asyncio 'e results))))
 
 (module+ test
   (aio-->>=

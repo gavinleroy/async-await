@@ -33,14 +33,14 @@
          (only-in "witness-place.rkt" witness-place-main)
          "typegen.rkt"
          "run.rkt"
-         "../platform.rkt"
-         "../aio.rkt"
-         "../tokio.rkt"
-         "../trio.rkt"
-         "../smol.rkt"
-         "../javascript.rkt"
-         "../swift.rkt"
-         "../csharp.rkt")
+         "../redex/platform.rkt"
+         "../redex/aio.rkt"
+         "../redex/tokio.rkt"
+         "../redex/trio.rkt"
+         "../redex/smol.rkt"
+         "../redex/javascript.rkt"
+         "../redex/swift.rkt"
+         "../redex/csharp.rkt")
 
 ;; ---------------------------------------------------------------------------
 ;; Configuration

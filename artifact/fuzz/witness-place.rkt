@@ -12,13 +12,13 @@
          racket/match
          "witness.rkt"
          (only-in "model.rkt" canon-for-lang)
-         (only-in "../aio.rkt"        -->>aio)
-         (only-in "../tokio.rkt"      -->>tokio)
-         (only-in "../trio.rkt"       -->>trio)
-         (only-in "../smol.rkt"       -->>smol)
-         (only-in "../javascript.rkt" -->>js)
-         (only-in "../swift.rkt"      -->>swift)
-         (only-in "../csharp.rkt"     -->>c#))
+         (only-in "../redex/aio.rkt"        -->>aio)
+         (only-in "../redex/tokio.rkt"      -->>tokio)
+         (only-in "../redex/trio.rkt"       -->>trio)
+         (only-in "../redex/smol.rkt"       -->>smol)
+         (only-in "../redex/javascript.rkt" -->>js)
+         (only-in "../redex/swift.rkt"      -->>swift)
+         (only-in "../redex/csharp.rkt"     -->>c#))
 
 (provide witness-place-main)
 

@@ -9,9 +9,9 @@
 ;; -----------------------------------------------------------------------------
 
 (require (only-in racket/list make-list)
-         (only-in "../tokio.rkt"      -->>tokio)
-         (only-in "../smol.rkt"       -->>smol)
-         (only-in "../javascript.rkt" -->>js)
+         (only-in "../redex/tokio.rkt"      -->>tokio)
+         (only-in "../redex/smol.rkt"       -->>smol)
+         (only-in "../redex/javascript.rkt" -->>js)
          (only-in "model.rkt" wrap-program)
          (only-in "reference.rkt" reference-output-set)
          "witness.rkt")

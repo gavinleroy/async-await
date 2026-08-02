@@ -107,7 +107,7 @@
 
 ;; Non-collapsing variant that exposes every successor (drops the make-big-step
 ;; wrapper). Drives whole-state-space exploration: the directed witness search
-;; (fuzz/witness.rkt) and the reference enumerator (fuzz/reference.rkt).
+;; (../fuzz/witness.rkt) and the reference enumerator (../fuzz/reference.rkt).
 (define -->>js
   (union-reduction-relations
    -->sys/overrides
@@ -120,8 +120,7 @@
 (module+ test
   (require (submod "core.rkt" niceties)
            "utils.rkt"
-           "fuzz/check.rkt"
-           "fuzz/run.rkt")
+           "differential.rkt")
 
   ;; #:threads 1: the model runs JS on a single P-slot (the root thread is
   ;; the event loop), matching the single-threaded runtime.
@@ -129,12 +128,12 @@
     (begin
       (evaluates-in-set -->js (async/main #:threads 1 e) results
                         #:extract-result program-output)
-      (check-runtime-in-set compile-and-run-js 'e results)))
+      (differential-in-set 'js 'e results)))
 
   (define-syntax-rule (js-->>= e v)
     (begin
       (test-->> -->js #:equiv prog/equiv (async/main #:threads 1 e) v)
-      (check-runtime-output compile-and-run-js 'e v))))
+      (differential-output 'js 'e v))))
 
 (module+ test
   (js-->>=

@@ -6,15 +6,11 @@
 //
 // Build: swiftc -swift-version 6 -parse-as-library main.swift -o main
 
-func work() async {
-    do {
-        try await Task.sleep(for: .seconds(2))
-        print("A")
-        try await Task.sleep(for: .seconds(2))
-        print("B")
-    } catch {
-        // cancelled during a sleep: no further prints
-    }
+func work() async throws {
+    try await Task.sleep(for: .seconds(2))
+    print("A")
+    try await Task.sleep(for: .seconds(2))
+    print("B")
 }
 
 func shortLived() async {
