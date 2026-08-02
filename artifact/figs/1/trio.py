@@ -1,22 +1,23 @@
-# Figure 1 — Python + Trio (timeout variant).
+# Figure 1-dev — Python + Trio (decision-tree variant).
 #
-# spawn      = nursery.start_soon (trio has no unstructured spawn; the
-#              nursery awaits its children at scope end, so process_detach
-#              cannot actually detach)
+# Three calling contexts, one per dimension group:
+#   ex1 START OF LIFE  plain async application, never awaited
+#   ex2 END OF LIFE    spawn detached, extent ends un-awaited
+#   ex3 CANCELLATION   timeout a parent awaiting its spawned child
+#
+# spawn      = nursery.start_soon (dynamic extent; the nursery awaits its
+#              children at scope end — a task CANNOT detach)
 # timeout    = figlib.timeout: trio.move_on_after — a cancel scope with a
 #              deadline; cancellation reaches every child structurally
-# isolation  = each ex under its own trio.run; each ex ends with a 3 s
-#              grace sleep (no-op for trio: children settle at scope end).
 #
-# Predicted: ex1 `AB` (the "detached" task is awaited by its nursery),
-# ex2 `A` (scope cancelled at 0.1 s, mid-sleep), ex3 `A` (process_detach's
-# nursery holds the child inside the cancelled scope).
+# Predicted: ex1 `C` (lazy: the coroutine never runs), ex2 `ABC` (the
+# nursery refuses to detach: process_detached returns only after B, then
+# C prints), ex3 `AC` (the cancel scope kills the child mid-sleep at
+# 1 s).
 
-import trio
-import os
 import sys
 
-GRACE = float(os.environ.get("GRACE", "3"))
+import trio
 
 from figlib import sleep, timeout
 
@@ -31,33 +32,38 @@ async def write_to_log():
 async def process_await():
     async with trio.open_nursery() as nursery:
         nursery.start_soon(write_to_log)
-        await sleep(0)  # do other work ...
-        # (the nursery awaits the task at scope end)
+        await sleep(0)
+        # the nursery exit awaits the child
 
 
-async def process_detach():
+async def process_detached():
     async with trio.open_nursery() as nursery:
         nursery.start_soon(write_to_log)
-        await sleep(0)  # do other work ... — but trio cannot detach: the
-        # nursery still awaits the task at scope end
+        # the nursery exit awaits the child
 
 
 async def ex1():
-    await process_detach()
+    t = write_to_log()  # plain application: a coroutine, never awaited
+    print("C")
+    await sleep(3)
 
 
 async def ex2():
-    await timeout(1, process_await)
+    await process_detached()
+    await sleep(1)
+    print("C")
 
 
 async def ex3():
-    await timeout(1, process_detach)
+    await timeout(1, process_await)
+    print("C")
+    await sleep(3)
 
 
 async def main(f):
     await f()
-    await sleep(GRACE)
 
 
 f = {"1": ex1, "2": ex2, "3": ex3}[sys.argv[1]]
+
 trio.run(main, f)

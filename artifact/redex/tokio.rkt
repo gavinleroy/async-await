@@ -155,7 +155,7 @@
 
 ;; Non-collapsing variant that exposes every successor (drops the make-big-step
 ;; wrapper). Drives whole-state-space exploration: the directed witness search
-;; (fuzz/witness.rkt) and the reference enumerator (fuzz/reference.rkt).
+;; (../fuzz/witness.rkt) and the reference enumerator (../fuzz/reference.rkt).
 (define -->>tokio
   (union-reduction-relations
    -->sys/overrides
@@ -169,13 +169,12 @@
   (require (submod "core.rkt" niceties)
            "utils.rkt"
            (prefix-in unit: rackunit)
-           "fuzz/check.rkt"
-           "fuzz/run.rkt")
+           "differential.rkt")
 
   (define-syntax-rule (tokio-->>= e v)
     (begin
       (test-->> -->tokio #:equiv prog/equiv (async/main #:threads 2 e) v)
-      (check-runtime-output compile-and-run-tokio 'e v #:rust? #t)))
+      (differential-output 'tokio 'e v #:rust? #t)))
 
   (define-syntax-rule (tokio-->>∈ e results)
     (begin
@@ -183,7 +182,7 @@
        (with-exn-handler
            (evaluates-in-set -->tokio (async/main #:threads 2 e) results
                              #:extract-result program-output)))
-      (check-runtime-in-set compile-and-run-tokio 'e results #:rust? #t)))
+      (differential-in-set 'tokio 'e results #:rust? #t)))
 
   ;; Model outputs are checked via regexp: the free-running clock makes
   ;; timing-bounded output sets unbounded, while real runtime jitter stays small.
@@ -194,7 +193,7 @@
            (evaluates-in-set -->tokio (async/main #:threads 2 e) (list px)
                              #:extract-result program-output
                              #:equiv? (lambda (got pat) (regexp-match? pat got)))))
-      (check-runtime-in-set compile-and-run-tokio 'e results #:rust? #t))))
+      (differential-in-set 'tokio 'e results #:rust? #t))))
 
 (module+ test
   (tokio-->>=

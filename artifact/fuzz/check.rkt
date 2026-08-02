@@ -5,7 +5,7 @@
          racket/match
          racket/string
          "run.rkt"
-         "../typecheck.rkt")
+         "../redex/typecheck.rkt")
 
 (provide check-runtime-output
          check-runtime-in-set)

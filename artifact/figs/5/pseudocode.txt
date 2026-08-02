@@ -1,0 +1,13 @@
+async fn work(msg):
+  print(msg)
+
+async fn repeat(msg):
+  await work(msg)
+  await work(msg)
+
+async fn main():
+  a = spawn repeat("A")
+  b = spawn repeat("B")
+  print("C")
+  await a
+  await b

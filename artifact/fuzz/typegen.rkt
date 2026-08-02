@@ -31,7 +31,7 @@
 (require racket/match
          racket/list
          racket/string
-         "../typecheck.rkt")
+         "../redex/typecheck.rkt")
 
 (provide generate-program
          (struct-out gen-program)

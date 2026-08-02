@@ -27,7 +27,7 @@
         ]);
 
         rust-vendor = pkgs.rustPlatform.importCargoLock {
-          lockFile = ./artifact/redex/fuzz/rust-template/Cargo.lock;
+          lockFile = ./artifact/fuzz/rust-template/Cargo.lock;
         };
 
         cargo-offline-config = pkgs.writeText "cargo-config.toml" ''
@@ -41,10 +41,21 @@
           offline = true
         '';
 
+        # redex/ is the standalone models package (publishable, pure
+        # redex-lib); fuzz/ is the differential harness beside it.
+        model-src = pkgs.runCommand "model-src" { } ''
+          mkdir -p $out
+          cp -r ${pkgs.lib.cleanSource ./artifact/redex} $out/redex
+          cp -r ${pkgs.lib.cleanSource ./artifact/fuzz} $out/fuzz
+          chmod -R u+w $out
+          # local raco-make caches must not leak into the build
+          find $out -type d -name compiled -prune -exec rm -rf {} +
+        '';
+
         model = pkgs.stdenv.mkDerivation {
           pname = "models";
           version = "0.1.0";
-          src = pkgs.lib.cleanSource ./artifact/redex;
+          src = model-src;
           nativeBuildInputs = [ pkgs.racket ];
 
           buildPhase = ''
@@ -54,14 +65,14 @@
             raco make fuzz/main.rkt fuzz/figs.rkt
           '';
 
-          # Module tests need the real runtimes
+          # Differential tests need the real runtimes
           # (Swift, Rust, etc) and spawn processes
           doCheck = false;
 
           installPhase = ''
-            mkdir -p $out/lib/redex
-            cp -r . $out/lib/redex
-            chmod +x $out/lib/redex/fuzz/fuzz-parallel.sh
+            mkdir -p $out/lib
+            cp -r . $out/lib
+            chmod +x $out/lib/fuzz/fuzz-parallel.sh
           '';
         };
         toolchains = [
@@ -87,7 +98,7 @@
             # those so swiftc resolves the system SDK.
             unset DEVELOPER_DIR SDKROOT
             export FUZZ_CACHE="''${FUZZ_CACHE:-$PWD/fuzz-cache}"
-            exec bash ${model}/lib/redex/fuzz/fuzz-parallel.sh "$@"
+            exec bash ${model}/lib/fuzz/fuzz-parallel.sh "$@"
           '';
         };
 
@@ -100,7 +111,7 @@
           };
           text = ''
             unset DEVELOPER_DIR SDKROOT
-            exec racket ${model}/lib/redex/fuzz/figs.rkt "$@"
+            exec racket ${model}/lib/fuzz/figs.rkt "$@"
           '';
         };
 
@@ -113,8 +124,11 @@
           text = ''
             unset DEVELOPER_DIR SDKROOT
             cd ${model}/lib/redex
-            racket tests.rkt
-            racket fuzz/witness-check.rkt
+            # ASYNC_DIFFERENTIAL switches the model suites from pure Redex
+            # to full differential mode (each case also compiles and runs
+            # on the real toolchain via the fuzz harness).
+            ASYNC_DIFFERENTIAL=${model}/lib/fuzz racket tests.rkt
+            racket ${model}/lib/fuzz/witness-check.rkt
           '';
         };
 

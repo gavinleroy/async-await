@@ -1,28 +1,24 @@
-// Figure 1 — Rust + tokio (timeout variant).
+// Figure 1-dev — Rust + tokio (decision-tree variant).
+//
+// Three calling contexts, one per dimension group:
+//   ex1 START OF LIFE  plain async application, never polled
+//   ex2 END OF LIFE    spawn detached, extent ends un-awaited
+//   ex3 CANCELLATION   timeout a parent awaiting its spawned child
 //
 // spawn      = tokio::spawn (indefinite extent; the task keeps running
 //              when its JoinHandle is dropped)
-// timeout    = figlib::timeout: tokio's built-in — drops the future on
-//              expiry (cancellation-by-drop); tasks IT spawned keep
-//              running detached
-// isolation  = ONE #[tokio::main] runtime for all three exs; each ex ends
-//              with a 3 s grace sleep, so detached work completes inside
-//              its own ex's section.
+// timeout    = figlib::timeout: on expiry the future is DROPPED (Rust
+//              cancellation-by-drop)
 //
-// Predicted: ex1 `AB` (the grace keeps the runtime alive past the detached
-// task's sleep), ex2 `AB` (the timeout drops process_await at 1 s, but
-// the inner spawned task runs detached to completion), ex3 `AB` (same).
+// Predicted: ex1 `C` (lazy: the future is never polled), ex2 `AC`
+// (strong: the dropped JoinHandle detaches the task, which runs until
+// runtime shutdown kills it mid-sleep), ex3 `ACB` (the timeout drops the
+// parent at 1 s, but dropping the held JoinHandle DETACHES the child,
+// which completes during the grace).
 
 mod figlib;
 
 use figlib::{sleep, timeout};
-
-fn grace() -> u64 {
-    std::env::var("GRACE")
-        .ok()
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(3)
-}
 
 async fn write_to_log() {
     println!("A");
@@ -32,26 +28,33 @@ async fn write_to_log() {
 }
 
 async fn process_await() {
-    let task = tokio::spawn(write_to_log()); // spawn
-    sleep(0).await; // do other work ...
+    let task = tokio::spawn(write_to_log());
+    sleep(0).await;
     let _ = task.await;
 }
 
-async fn process_detach() {
-    tokio::spawn(write_to_log()); // spawn, handle dropped, task keeps running
-    sleep(0).await; // do other work ...
+async fn process_detached() {
+    let _task = tokio::spawn(write_to_log());
+    // handle drops at return: the task detaches
 }
 
 async fn ex1() {
-    process_detach().await;
+    let _t = write_to_log(); // plain application: a future, never polled
+    println!("C");
+    sleep(3).await;
 }
 
 async fn ex2() {
-    timeout(1, process_await()).await;
+    process_detached().await;
+    sleep(1).await;
+    println!("C");
+    // extent ends: runtime shutdown drops the task mid-sleep
 }
 
 async fn ex3() {
-    timeout(1, process_detach()).await;
+    timeout(1, process_await()).await;
+    println!("C");
+    sleep(3).await;
 }
 
 #[tokio::main]
@@ -62,5 +65,4 @@ async fn main() {
         Some("3") => ex3().await,
         _ => panic!("expected ex number 1-3"),
     }
-    sleep(grace()).await;
 }

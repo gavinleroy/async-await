@@ -6,13 +6,15 @@
 #     -s SEED     RNG seed            (default: 12345, FIXED — every run sees
 #                 the same corpus; program i is a pure function of
 #                 (seed, lang, i))
-#     -S          random seed (printed; reproduce with -s <printed>)
+#     -S          random seed (recorded in the run's meta.json; reproduce
+#                 with -s <that seed>)
 #     -n N        programs per lane   (default: 50)
 #     -r R        runtime runs        (default: 50)
 #     -l LANGS    space-separated lanes (default: all seven)
 #     -o DIR      cache root          (default: $FUZZ_CACHE or ./fuzz-cache)
 #
-# Every run gets fuzz-cache/<UTC-stamp>-seed<S>/ containing meta.json, one
+# Every run gets fuzz-cache/<UTC-stamp>/ containing meta.json (which
+# records the seed), one
 # <lang>.log + <lang>.jsonl + <lang>-summary.json per lane, and summary.json.
 # Lanes are independent (per-language RNG seeding); never run two lanes of
 # the SAME language concurrently (shared per-language cargo target dir).
@@ -35,13 +37,13 @@ while getopts "Ss:n:r:l:o:" opt; do
 done
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-RUN="$ROOT/$(date -u +%Y%m%dT%H%M%SZ)-seed$SEED"
+RUN="$ROOT/$(date -u +%Y%m%dT%H%M%SZ)"
 mkdir -p "$RUN"
 
 printf '{"seed":%s,"count":%s,"runtime_runs":%s,"langs":"%s","started":"%s"}\n' \
   "$SEED" "$N" "$R" "$LANGS" "$(date -u +%FT%TZ)" > "$RUN/meta.json"
 
-echo "fuzz: generating $N programs x $R runs per lane (seed $SEED)"
+echo "fuzz: generating $N programs x $R runs per lane"
 echo "fuzz: lanes: $LANGS"
 echo "fuzz: cache dir $RUN  (details per lane: <lang>.log, records: <lang>.jsonl)"
 echo

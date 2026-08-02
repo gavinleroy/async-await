@@ -1,18 +1,15 @@
 // Figure 6 (Extent): Swift extent is DYNAMIC — the structured child
 // (`async let`) is tied to its enclosing scope; when main's scope ends
 // without awaiting it, the child is cancelled (and implicitly awaited).
-// The cancelled sleep throws, so "B" never prints.
+// The cancelled sleep throws (the discarded error dies with the child),
+// so "B" never prints.
 // Expected output: A (deterministic).
 //
 // Build: swiftc -swift-version 6 -parse-as-library main.swift -o main
 
-func work() async {
-    do {
-        try await Task.sleep(for: .seconds(1.0))
-        print("B")
-    } catch {
-        // cancelled during the sleep: no print
-    }
+func work() async throws {
+    try await Task.sleep(for: .seconds(1))
+    print("B")
 }
 
 @main

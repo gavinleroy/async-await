@@ -1,0 +1,9 @@
+async fn work(msg):
+  print(msg)
+
+async fn main():
+  a = work("A")
+  b = work("B")
+  print("C")
+  await a
+  await b

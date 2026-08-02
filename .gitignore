@@ -7,3 +7,7 @@ compiled/
 fuzz-cache/
 result
 *.log
+.DS_Store
+
+# raco setup outputs (linked package install)
+artifact/redex/doc/
