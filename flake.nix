@@ -107,10 +107,14 @@
           runtimeInputs = toolchains;
           runtimeEnv = {
             ASYNC_FUZZ_CARGO_CONFIG = cargo-offline-config;
-            FIGS_DIR = ./artifact/figs;
           };
+          # FIGS_DIR is a defaultable env var, and the default is INTERPOLATED
+          # (not runtimeEnv): interpolation carries the store-path dependency,
+          # while runtimeEnv's toString drops it — the figure sources would be
+          # missing from any closure-based deployment (the docker image).
           text = ''
             unset DEVELOPER_DIR SDKROOT
+            export FIGS_DIR="''${FIGS_DIR:-${./artifact/figs}}"
             exec racket ${model}/lib/fuzz/figs.rkt "$@"
           '';
         };
@@ -155,6 +159,7 @@
         artifact-src = pkgs.runCommand "artifact-src" { } ''
           mkdir -p $out/artifact
           cp -r ${pkgs.lib.cleanSource ./artifact}/. $out/artifact/
+          cp ${./README.md} $out/artifact/README.md
         '';
 
         image = pkgs.dockerTools.buildLayeredImage {
@@ -193,6 +198,8 @@
               # /artifact is nix-store-sourced (read-only permissions);
               # run outputs go under the writable HOME
               "FUZZ_CACHE=/root/fuzz-cache"
+              # the image's own copy of the figure programs
+              "FIGS_DIR=/artifact/figs"
               "HOME=/root"
             ];
           };

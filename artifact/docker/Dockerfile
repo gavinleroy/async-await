@@ -82,7 +82,10 @@ RUN fuzz -n 1 -r 2 \
  || { echo '=== lane logs ==='; tail -n 40 fuzz-cache/*/*.log; exit 1; } \
  && rm -rf fuzz-cache
 
-# Evaluators land where the models live (redex/, figs/).
+# Evaluators land where the models live (redex/, figs/), with the README
+# beside them; figs reads the editable in-repo figure programs.
+RUN cp README.md artifact/README.md
+ENV FIGS_DIR=/home/artifact/repo/artifact/figs
 WORKDIR /home/artifact/repo/artifact
 
 CMD ["bash", "-l"]

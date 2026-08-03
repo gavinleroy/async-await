@@ -141,18 +141,27 @@ jobs:
             rm "image-$arch.tar.gz"
           done
 
+      - name: Render README as the record description
+        run: |
+          jq -Rs '{text: ., mode: "gfm"}' < README.md > payload.json
+          curl -sf -X POST \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d @payload.json https://api.github.com/markdown > readme.html
+
       - name: Set metadata and publish
         run: |
           auth="Authorization: Bearer ${{ secrets.ZENODO_TOKEN }}"
           id="${{ steps.dep.outputs.id }}"
-          jq -n --arg tag "$TAG" --arg repo "${{ github.repository }}" '{
+          jq -n --arg tag "$TAG" --arg repo "${{ github.repository }}" \
+                --rawfile desc readme.html '{
             metadata: {
               title: "Artifact: A Design Space Exploration of Async/Await (\($tag))",
               upload_type: "software",
               license: "MIT",
               version: $tag,
               creators: [{ name: "Gray, Gavin" }],
-              description: "Executable PLT Redex models of async/await across seven runtimes, with the differential-fuzzing artifact. Contains the source tree and the per-architecture docker images (restore with: docker load -i async-await-\($tag)-<arch>.tar.gz).",
+              description: $desc,
               related_identifiers: [{
                 relation: "isSupplementTo",
                 identifier: "https://github.com/\($repo)/releases/tag/\($tag)"
