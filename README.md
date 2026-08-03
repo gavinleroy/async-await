@@ -7,13 +7,13 @@ implementations of seven real runtimes --- Python `asyncio`, Python `trio`,
 JavaScript (node), C# (.NET), Swift, Rust `tokio`, and Rust `smol` --- together
 with a differential fuzzer that tests each model against its real runtime.
 
-The artifact and the included source files are provided under MIT license. The repository hosting the code, including how this artifact is built and distributed, is [public online.](https://github.com/gavinleroy/async-await) The artifact of record is archived on Zenodo: DOI [10.5281/zenodo.21764829](https://doi.org/10.5281/zenodo.21764829).
+The artifact and the included source files are provided under MIT license. The repository hosting the code, including how this artifact is built and distributed, is [public online.](https://github.com/gavinleroy/async-await) The artifact of record is archived on Zenodo: DOI [10.5281/zenodo.21765917](https://doi.org/10.5281/zenodo.21765917).
 
 ## Getting Started
 
 The only system requirement for running this artifact is Docker. The Docker image is packaged and distributed on Zenodo.
 
-The [archived record](https://doi.org/10.5281/zenodo.21764829) contains one image tarball per architecture. Download the one matching your machine --- `async-await-<version>-amd64.tar.gz` for Intel/AMD, or `async-await-<version>-arm64.tar.gz` for Apple Silicon and other ARM --- then load and run it:
+The published artifact contains one image tarball per architecture. Download the one matching your machine --- `async-await-<version>-amd64.tar.gz` for Intel/AMD, or `async-await-<version>-arm64.tar.gz` for Apple Silicon and other ARM --- then load and run it:
 
 ```bash
 docker load -i async-await-v1.3-arm64.tar.gz
@@ -25,7 +25,7 @@ docker run --rm -it ghcr.io/gavinleroy/async-await:v1.3-arm64
 > - Docker Desktop (macOS/Windows): Settings → Resources → Memory.
 > - colima: `colima start --cpu 4 --memory 16` (the default VM is 2 GB, which is not enough).
 >
-> If output shows `Killed` or `LANE DIED`, the container ran out of memory.
+> If the fuzzer output shows `Killed` or `LANE DIED`, the container ran out of memory.
 
 The record's third file, `async-await-v1.3-source.tar.gz`, is the archival copy of the source tree --- you do not need it to run the artifact, the image contains all source files.
 
