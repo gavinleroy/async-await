@@ -96,7 +96,7 @@ async fn main() {
   a.await; b.await;
 } // => CAB
 \end{lstlisting}
-    \cprotect\subcaption{Rust function applications are lazy. The function \code{work} does not execute until line eleven. The print order of the program is always ``CAB'' because \code{a}, and \code{b} are not running concurrently.}
+    \cprotect\subcaption{Rust function applications are \lazy. The function \code{work} does not execute until line eleven. The print order of the program is always ``CAB'' because \code{a}, and \code{b} are not running concurrently.}
     \label{fig:designdims:eagerness:lazy}
   \end{minipage}\hfill%
   \begin{minipage}[t]{0.33\textwidth}
@@ -114,7 +114,7 @@ print("C")
 try await a; try await b
 // => CAB, CBA, BCA, ACB, ...
 \end{lstlisting}
-\cprotect\subcaption{Swift function applications are semi-eager. The right-hand-side of an async let binding is evaluated in a concurrently executing \task, execution of the current thread does not transfer to the body of the applied function. The print order of the program is any permutation of the string ``ABC,'' though typically it will begin with `C.'}
+\cprotect\subcaption{Swift function applications are \seager. The right-hand-side of an async let binding is evaluated in a concurrently executing \task, execution of the current thread does not transfer to the body of the applied function. The print order of the program is any permutation of the string ``ABC,'' though typically it will begin with `C.'}
     % \label{fig:designdims:eagerness:semieager}
   \end{minipage}\hfill%
   \begin{minipage}[t]{0.33\textwidth}
@@ -131,10 +131,10 @@ async Task Main() {
   await a; await b;
 } // => ABC
 \end{lstlisting}
-    \cprotect\subcaption{\CSharp{} function applications are eager. When \code{work} is called the executing thread transfers control to the body of the async function until it is suspended. The print order of this program is always ``ABC''.}
+    \cprotect\subcaption{\CSharp{} function applications are \eager. When \code{work} is called the executing thread transfers control to the body of the async function until it is suspended. The print order of this program is always ``ABC''.}
     % \label{fig:designdims:eagerness:eager}
   \end{minipage}
-  \caption{Examples of lazy, semi-eager, and eager async function application.}
+  \caption{Examples of \lazy, \seager, and \eager async function application.}
   % \label{fig:designdims:eagerness}
 \end{figure}
 
@@ -193,7 +193,7 @@ fn main() {
     \cprotect\subcaption{}
     % \label{fig:designdims:suspend:dynamic}
   \end{minipage}
-  \caption{Examples of static and dynamic suspension.}
+  \caption{Examples of \static and \dynamic \suspension.}
   % \label{fig:designdims:suspend}
 \end{figure}
 
@@ -238,7 +238,7 @@ try await work()
     \node[codeblock] (stateB) at ([yshift=-1pt]stateA.south west) {\usebox{\aastateC}};
     \node[dashedbox, fit=(stateA)] {};
 \end{tikzpicture}
-      \cprotect\caption{\Tasks have dynamic extent in Swift. References to the \task $T_1$ cannot be made after its calling construct, the \code{work} function outlined in \dashed{gray,} terminates --- including references made by the runtime system. The program prints ``exiting'' and then ``done.''}
+      \cprotect\caption{\Tasks have \dyn \extent in Swift. References to the \task $T_1$ cannot be made after its calling construct, the \code{work} function outlined in \dashed{gray,} terminates --- including references made by the runtime system. The program prints ``exiting'' and then ``done.''}
     % \label{fig:designdims:scope:region}
     \end{subfigure}\hfill%
     \begin{subfigure}[t]{0.49\textwidth}
@@ -258,10 +258,10 @@ async Task Main() {
   await Work();
 }
 \end{lstlisting}
-\cprotect\caption{\Tasks have indefinite extent in in \CSharp. \Task $T_1$ may continue to be referenced after the \code{Work} function has terminated. References made by the runtime are strong references. This program prints ``exiting,'' and the print in \code{InnerWork} is never executed.}
+\cprotect\caption{\Tasks have \indef \extent in \CSharp. \Task $T_1$ may continue to be referenced after the \code{Work} function has terminated. References made by the runtime are \strong references. This program prints ``exiting,'' and the print in \code{InnerWork} is never executed.}
     % \label{fig:designdims:scope:program}
   \end{subfigure}
-  \caption{Examples of dynamic and indefinite extent.}
+  \caption{Examples of \dyn and \indef \extent.}
   % \label{fig:designdims:scope}
 \end{figure}
 
@@ -331,13 +331,25 @@ async Task Main() {
     \cprotect\caption{\CSharp{} terminates all running tasks at the end of their scope (program scope). The execution of the above program takes about 0.6 seconds. The \code{inner} \Task{} is terminated and the sleep terminates early with no warning.}
     % \label{fig:designdims:destruction:term}
   \end{subfigure}
-  \caption{Examples of await, cancel, and termination destruction semantics.}
+  \caption{Examples of \awaited, \cancelled, and \terminated \destruction semantics.}
   % \label{fig:designdims:destruction}
 \end{figure}
 
 \subsection{Semantics}\label{app:semantics}
 
-See the provided supplemental for the Redex model. A fully typeset version of the rules can be provided at a later time.
+The full grammar for \lc is provided in \Cref{fig:app:lc-grammar}, and the complete reduction rules for \exn in \Cref{fig:app:exn-rules}. For the standard reduction rules of \lc, see the executable Redex model in the supplementary material.
+
+\begin{figure}[h]
+  \input{./f/lc-gr-full.tex}
+  \cprotect\caption{The full grammar for \lc.}
+  \label{fig:app:lc-grammar}
+\end{figure}
+
+\begin{figure}[h]
+  \input{./f/exn-rr-full.tex}
+  \cprotect\caption{The complete reduction rules for \exn.}
+  \label{fig:app:exn-rules}
+\end{figure}
 
 % \lstinputlisting[language=Racket]{./models/core.rkt}
 % \lstinputlisting[language=Racket]{./models/lc.rkt}

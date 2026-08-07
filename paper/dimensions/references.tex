@@ -1,89 +1,13 @@
-\subsubsection{Reference Strength}\label{ssec:designdims:references}
+\subsubsection{\References}\label{ssec:designdims:references}
 
-For designs with \indef \extent, tasks live until no longer reachable. One lever available to these designs is to ask: does the runtime's reference to a task count? In the parlance of reference counting garbage collection, is the runtime's reference \emph{strong} or \emph{weak}? This choice constitutes the Reference Strength dimension.
-
-% \begin{figure}[H]
-%   \begin{subfigure}[t]{0.49\textwidth}
-% \begin{lstlisting}[language=Rust]
-% use std::time::Duration;
-% use smol::Timer;
-% const sleep: fn(Duration) -> Timer =
-%   Timer::after;
-
-% async fn heartbeat() {
-%   loop {
-%     sleep(Duration::from_millis(1)).await;
-%     print!(".")
-%   }
-% }
-
-% async fn work() {
-%   let t = smol::spawn(heartbeat());
-%   sleep(Duration::from_millis(5)).await;
-%   print!("A");
-% }
-
-% fn main() {
-%   smol::block_on(async {
-%     work().await;
-%     print!("B");
-%     sleep(Duration::from_millis(5)).await;
-%   })
-% } // => "....AB"
-% \end{lstlisting}
-%     \cprotect\caption{An  example of  weak  runtime references. The Smol (Rust) framework does not hold strong references to running \tasks. The program prints ``....AB'' with never any trailing periods after the `B.'}
-%     \label{fig:designdims:refs:weak}
-%   \end{subfigure}\hfill%
-%   \begin{subfigure}[t]{0.49\textwidth}
-% \begin{lstlisting}[language=Rust]
-% use std::time::Duration;
-% use tokio::time::sleep;
+For designs with \indef \extent, tasks live until no longer reachable. One lever available to these designs is to ask: does the runtime's reference to a task count? In the parlance of reference counting garbage collection, is the runtime's reference \emph{strong} or \emph{weak}? This choice constitutes the \References dimension.
 
 
+For most \indef \extent designs, the runtime's handle is \strong: \Js, \CSharp, Rust+Tokio. Consequently, even if a task is no longer accessible from the main body of a program, it is still reachable by the runtime, and will therefore be executed to completion. Two designs use \weak runtime handles: Rust+Smol and Python+Asyncio.
 
-% async fn heartbeat() {
-%   loop {
-%     sleep(Duration::from_millis(1)).await;
-%     print!(".")
-%   }
-% }
+Rust lacks a garbage collector, so \weak \references does not translate literally for Smol. In Smol, the task handle received from a \lstinline[language=Pseudo]|spawn| implements a destructor (via the \code|Drop| trait), called when the handle goes out of scope (unless moved). The handle's destructor destructs the task, cancelling it in the case of Smol. In this way, Smol effectively achieves \dyn \extent. For example, the \dyn \extent semantics for the program in \Cref{fig:extent} are the same as Smol's semantics, and the \indef semantics are the same as Tokio's semantics.
 
-% async fn work() {
-%   let t = tokio::spawn(heartbeat());
-%   sleep(Duration::from_millis(5)).await;
-%   print!("A");
-% }
-
-% #[tokio::main]
-% async fn main() {
-%   work().await;
-%   print!("B");
-%   sleep(Duration::from_millis(5)).await;
-% } // => "....AB...."
-% \end{lstlisting}
-% \cprotect\caption{An  example of  strong  runtime references. The Tokio (Rust) framework holds strong references to running \tasks. The program prints ``....AB....'' with some amount of trailing periods printed during the sleep within the \code{main} function.}
-%     \label{fig:designdims:refs:strong}
-%   \end{subfigure}
-%   \cprotect\caption{An example of weak and strong runtime references.}
-%   \label{fig:designdims:refs}
-% \end{figure}
-
-% The Runtime Reference Strength axis defines the strength of \task references held by the runtime. The possible values are: \textit{strong,} and \textit{weak.}
-
-For most \indef \extent designs, the runtime's handle is strong: \Js, \CSharp, Rust+Tokio. Consequently, even if a task is no longer accessible from the main body of a program, it is still reachable by the runtime, and will therefore be executed to completion. Two designs use weak runtime handles: Rust+Smol and Python+Asyncio.
-
-Rust lacks a garbage collector, so weak reference strength does not translate literally for Smol. In Smol, the task handle received from a \lstinline[language=Pseudo]|spawn| implements a destructor (via the \code|Drop| trait), called when the handle goes out of scope (unless moved). The handle's destructor destructs the task, cancelling it in the case of Smol. In this way, Smol effectively achieves dynamic extent. For example, the \dyn \extent semantics for the program in \Cref{fig:extent} are the same as Smol's semantics, and the \indef semantics are the same as Tokio's semantics.
-
-% The \task reference strength held by the runtime is important for systems with \textit{indefinite} \task extent (see \Cref{ssec:designdims:extent}). Shown in \Cref{fig:designdims:refs:weak} the Smol (Rust) system holds weak pointers to running \tasks~\missingcite.\cprotect\footnote{The \code{.detach()} method can be used to explicitly transfer ownershiop of the \task to the \Executor, turning the default weak reference into a strong reference.} When no more references exist to the \task \code{t}, established on line 14, the \task is cancelled and deallocated. The program output is ``....AB''. No trailing periods will ever be printed because the \code{heartbeat} \task is cancelled on line 17 when the reference \code{t} goes out of scope.
-
-% In contrast, the Tokio (Rust) runtime holds strong references to \tasks~\missingcite. The \task referenced by \code{t} is not destroyed when \code{t} goes out of scope, because the runtime continues to hold a reference to the \task. The program output is ``....AB....''. The output will always contain some number of trailing periods because the \code{heartbeat} \task continues to execute while the main function sleeps on line 23.
-
-% Weak runtime references are used by Smol (Rust) to prevent dangling \tasks from consuming resources without the devlopers knowledge. A \task is automatically cancelled and deallocated when no further references to it exist; a deterministic effect thanks to Rusts ownership type system. This behavior parallels the behavior of memory allocation in Rust. 
-
-Asyncio also holds weak references to \tasks. Unlike Smol's intentional design, Asyncio's weak reference approach is presently marked as a bug on the CPython repository. Interestingly, it is not currently known why Asyncio holds weak references. According to Guido van Rossum~\cite{hartl_asyncio_2022}:
-% , speaking on the relevant Github issue thread~:
-
-% Maintainers are hesitant to change the reference strength semantics without understanding why they were designed with weak references to begin with. A core Python maintainer commented on the issue with the following:
+Asyncio also holds \weak references to \tasks. Unlike Smol's intentional design, Asyncio's \weak reference approach is presently marked as a bug on the CPython repository, although the rationale for this design is unclear. According to Guido van Rossum~\cite{hartl_asyncio_2022}:
 
 \begin{displayquote}
 % Rather than rhetoric about impact or how trivial the fix would be, we need a discussion on why we designed tasks this way in the first place. \ldots 

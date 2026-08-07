@@ -6,7 +6,7 @@
 
 % --- Define Table Macros ---
 \newcommand{\DimSection}[1]{%
-  \multicolumn{4}{@{}l}{\Large #1} \\ \addlinespace[1ex]
+  \multicolumn{4}{@{}l}{\large #1} \\ \addlinespace[1ex]
 }
 
 \newcommand{\DimRowTitle}[2]{%
@@ -14,11 +14,11 @@
 }
 
 \newcommand{\DimCell}[3]{%
-  \textsc{#1} \newline {\footnotesize #2\par\vspace{1ex}#3\par}
+  \textsc{#1} \newline {\footnotesize #2\par\vspace{0.5ex}#3\par}
 }
 
 \newcommand{\DimSeparator}{%
-  \arrayrulecolor{gray}\specialrule{1pt}{1ex}{1.5ex}\arrayrulecolor{black}
+  \arrayrulecolor{gray}\specialrule{0.5pt}{1ex}{1.5ex}\arrayrulecolor{black}
 }
 
 \begin{table}[htbp]
@@ -33,15 +33,19 @@
 
 \DimSection{Start of Life}
 
+%% TODO: gavinleroy, where is the footnote going? I thought tablefootnote fixed this
 \DimRowTitle{Eagerness}{How to evaluate an async function application.} &
 \DimCell{lazy}{Evaluate to a coroutine without executing further.}{Python, Rust} &
-\DimCell{eager}{Evaluate in current thread, and schedule as task on await.}{\CSharp, \Js} &
-\DimCell{semi-eager}{Evaluate to task, and schedule task for execution.}{Swift} \\
+\DimCell{eager}{Evaluate in current thread, and schedule as task on await.}{\CSharp, \Js, Swift~(\emph{immediate})%
+% \tablefootnote{\label{note:swift-eagerness}Swift does not have a \emph{default} along the \Eagerness axis. Async applications can be both \eager and \seager depending on how the function is invoked.}%
+} &
+\DimCell{semi-eager}{Evaluate to task, and schedule task for execution.}{Swift~(\emph{async let})} \\
 \addlinespace[1ex]
+
 
 \DimRowTitle{Suspension}{Guarantees on whether await points suspend.} &
 \DimCell{static}{Await points guaranteed to suspend.}{\Js} &
-\DimCell{dynamic}{No guarantees on awaiting tasks.}{Python, Rust, \CSharp, Swift} & \\
+\DimCell{dynamic}{No guarantees on awaiting tasks.}{\CSharp, Swift, Tokio, Smol, Asyncio, Trio} & \\
 
 \DimSeparator
 
@@ -52,7 +56,7 @@
 \DimCell{dynamic}{Tasks by default may exist until the end of their spawning scope.}{Swift, Trio} & \\
 \addlinespace[1ex]
 
-\DimRowTitle{Reference Strength}{[For indefinite extent] \newline The type of reference to a task held by the runtime.} &
+\DimRowTitle{Reference Strength}{[For \indef \extent] \newline The type of reference to a task held by the runtime.} &
 \DimCell{strong}{The runtime holds a strong reference.}{\Js, \CSharp, Tokio} &
 \DimCell{weak}{The runtime holds a weak reference.}{Asyncio, Smol} & \\
 \addlinespace[1ex]
@@ -87,6 +91,6 @@
 \DimCell{persistent}{A task can ignore cancellation but remains cancelled.}{Trio, Swift} & \\
 
 \end{tabularx}
-\caption{Overview of Asynchronous Programming Dimensions}
+\caption{Overview of the asynchronous programming design dimensions}
 \label{tab:dims-overview}
 \end{table}

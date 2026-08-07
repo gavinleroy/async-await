@@ -37,6 +37,10 @@
 \usepackage{bm}
 \usepackage{colortbl}
 \usepackage{pifont}
+\usepackage{expl3}
+\usepackage{relsize}
+\usepackage{footmisc}
+\usepackage{tablefootnote}
 
 %%%%
 %% TIKZ packages
@@ -48,6 +52,29 @@
   patterns.meta,
   backgrounds,
   shapes.geometric
+}
+
+\hyphenation{
+  ECMA-Script
+  Java-Script
+  TypeScript
+  CPython
+  GitHub
+  OCaml
+  Asyncio
+  Tokio
+  Redex
+  DrScheme
+  MrEd
+  RustConf
+  Rising-Stack
+  WinForms
+  QuickBird
+  Science-Direct
+  HotOS
+  arXiv
+  forEach
+  MaPePeR
 }
 
 %%%%
@@ -114,6 +141,10 @@
     % aboveskip=4pt,
     % belowskip=4pt,
 }
+\lstdefinestyle{grayishinline}{
+    style=grayish,
+    basicstyle=\ttfamily\relscale{0.9},
+}
 
 \lstset{style=grayish}
 
@@ -135,7 +166,10 @@
 
 %%%%%
 
-\newcommand{\code}{\lstinline[language=Pseudo]}
+% XXX change the following two together if needed
+\newcommand{\code}{\lstinline[style=grayishinline,language=Pseudo]}
+\newcommand{\sysapply}[2]{\mbox{{\ttfamily\small\detokenize{#1(}}$#2${\ttfamily\small\detokenize{)}}}}
+
 \newcommand{\citeurlwith}[2]{(\href{#1}{#2})}
 \newcommand{\citegithub}[1]{\citeurlwith{#1}{\StrBehind{#1}{github.com/}}}
 
@@ -151,69 +185,89 @@
 \newcommand{\Reactor}{Reactor\xspace}
 \newcommand{\reactor}{reactor\xspace}
 
+%%%% TODO gavinleroy
+% remove when you're done playing around with typography
 
-\newcommand{\Eagerness}{Eagerness\xspace}
-\newcommand{\eagerness}{eagerness\xspace}
-\newcommand{\Eager}{Eager\xspace}
-\newcommand{\eager}{eager\xspace}
-\newcommand{\seager}{semi-eager\xspace}
-\newcommand{\Seager}{Semi-eager\xspace}
-\newcommand{\Lazy}{Lazy\xspace}
-\newcommand{\lazy}{lazy\xspace}
+\ExplSyntaxOn
+\NewDocumentCommand\Capit{m}{\text_titlecase_all:n {#1}}
+\ExplSyntaxOff
 
-\newcommand{\Extent}{Extent\xspace}
-\newcommand{\extent}{extent\xspace}
-\newcommand{\Indef}{Indefinite\xspace}
-\newcommand{\indef}{indefinite\xspace}
-\newcommand{\Dyn}{Dynamic\xspace}
-\newcommand{\dyn}{dynamic\xspace}
+% Edit these two if you want to tweak either scheme:
+\newcommand{\dimensionfmt}[1]{%
+  \ifsansterms \textsf{\textsc{#1}}%   sans small caps = axis
+  \else        \textsc{#1}%            serif small caps = axis
+  \fi}
+\newcommand{\designpointfmt}[1]{%
+  \ifsansterms \textsf{#1}%            sans upright = value
+  \else        \textsc{#1}%            serif italic = value
+  \fi}
 
-\newcommand{\References}{\Task References\xspace}
-\newcommand{\references}{\task references\xspace}
-\newcommand{\strong}{strong\xspace}
-\newcommand{\weak}{weak\xspace}
+\newcommand{\dimension}[1]{\textsc{#1}}
+\newcommand{\designpoint}[1]{\textsc{#1}}
 
-\newcommand{\Destruction}{Destruction\xspace}
-\newcommand{\destruction}{destruction\xspace}
-\newcommand{\terminated}{terminated\xspace}
-\newcommand{\awaited}{awaited\xspace}
-\newcommand{\cancelled}{cancelled\xspace}
+%%%%% TODO ends here
 
-\newcommand{\Propagation}{Propagation\xspace}
-\newcommand{\propagation}{propagation\xspace}
-\newcommand{\never}{never\xspace}
-\newcommand{\destruct}{destruction\xspace}
+\newcommand{\Eagerness}{\dimension{Eagerness}\xspace}
+\newcommand{\eagerness}{\dimension{eagerness}\xspace}
+\newcommand{\Eager}{\designpoint{Eager}\xspace}
+\newcommand{\eager}{\designpoint{eager}\xspace}
+\newcommand{\seager}{\designpoint{semi-eager}\xspace}
+\newcommand{\Seager}{\designpoint{Semi-eager}\xspace}
+\newcommand{\Lazy}{\designpoint{Lazy}\xspace}
+\newcommand{\lazy}{\designpoint{lazy}\xspace}
 
-\newcommand{\Direction}{Direction\xspace}
+\newcommand{\Extent}{\dimension{Extent}\xspace}
+\newcommand{\extent}{\dimension{extent}\xspace}
+\newcommand{\Indef}{\designpoint{Indefinite}\xspace}
+\newcommand{\indef}{\designpoint{indefinite}\xspace}
+\newcommand{\Dyn}{\designpoint{Dynamic}\xspace}
+\newcommand{\dyn}{\designpoint{dynamic}\xspace}
 
-\newcommand{\Suspension}{Suspension\xspace}
-\newcommand{\suspension}{suspension\xspace}
-\newcommand{\Static}{Static\xspace}
-\newcommand{\Dynamic}{Dynamic\xspace}
-\newcommand{\static}{static\xspace}
-\newcommand{\dynamic}{dynamic\xspace}
+\newcommand{\References}{\dimension{Reference Strength}\xspace}
+\newcommand{\references}{\dimension{reference strength}\xspace}
+\newcommand{\strong}{\designpoint{strong}\xspace}
+\newcommand{\weak}{\designpoint{weak}\xspace}
+
+\newcommand{\Destruction}{\dimension{Destruction}\xspace}
+\newcommand{\destruction}{\dimension{destruction}\xspace}
+\newcommand{\terminated}{\designpoint{terminated}\xspace}
+\newcommand{\awaited}{\designpoint{awaited}\xspace}
+\newcommand{\cancelled}{\designpoint{cancelled}\xspace}
+
+\newcommand{\Propagation}{\dimension{Propagation}\xspace}
+\newcommand{\propagation}{\dimension{propagation}\xspace}
+\newcommand{\never}{\designpoint{never}\xspace}
+\newcommand{\destruct}{\designpoint{destructed}\xspace}
+
+\newcommand{\Suspension}{\dimension{Suspension}\xspace}
+\newcommand{\suspension}{\dimension{suspension}\xspace}
+\newcommand{\Static}{\designpoint{Static}\xspace}
+\newcommand{\Dynamic}{\designpoint{Dynamic}\xspace}
+\newcommand{\static}{\designpoint{static}\xspace}
+\newcommand{\dynamic}{\designpoint{dynamic}\xspace}
 
 \newcommand{\Cancellation}{Cancellation\xspace}
 \newcommand{\cancellation}{cancellation\xspace}
 
-\newcommand{\Cooperation}{Awareness\xspace}
-\newcommand{\cooperation}{awareness\xspace}
-\newcommand{\aware}{aware\xspace}
-\newcommand{\unaware}{unaware\xspace}
-\newcommand{\coop}{cooperative\xspace}
-\newcommand{\noncoop}{non-cooperative\xspace}
+\newcommand{\Awareness}{\dimension{Awareness}\xspace}
+\newcommand{\awareness}{\dimension{awareness}\xspace}
+\newcommand{\aware}{\designpoint{aware}\xspace}
+\newcommand{\unaware}{\designpoint{unaware}\xspace}
+\newcommand{\coop}{\designpoint{cooperative}\xspace}
+\newcommand{\noncoop}{\designpoint{non-cooperative}\xspace}
 
-\newcommand{\tdown}{top-down\xspace}
-\newcommand{\bup}{bottom-up\xspace}
-\newcommand{\simultaneous}{simultaneous\xspace}
+\newcommand{\Direction}{\dimension{Direction}\xspace}
+\newcommand{\direction}{\dimension{direction}\xspace}
+\newcommand{\tdown}{\designpoint{top-down}\xspace}
+\newcommand{\bup}{\designpoint{bottom-up}\xspace}
+\newcommand{\simultaneous}{\designpoint{simultaneous}\xspace}
 
-\newcommand{\Persistence}{Persistence\xspace}
-\newcommand{\persistence}{persistence\xspace}
-\newcommand{\instantaneous}{transient\xspace}
-\newcommand{\persistent}{persistent\xspace}
-\newcommand{\Persistent}{Persistent\xspace}
-\newcommand{\transient}{transient\xspace}
-\newcommand{\Transient}{Transient\xspace}
+\newcommand{\Persistence}{\dimension{Persistence}\xspace}
+\newcommand{\persistence}{\dimension{persistence}\xspace}
+\newcommand{\Persistent}{\designpoint{Persistent}\xspace}
+\newcommand{\persistent}{\designpoint{persistent}\xspace}
+\newcommand{\Transient}{\designpoint{Transient}\xspace}
+\newcommand{\transient}{\designpoint{transient}\xspace}
 
 \newcommand{\coro}{coroutine\xspace}
 \newcommand{\coros}{coroutines\xspace}
@@ -338,9 +392,19 @@
 %%%%
 %% Typesetting OP semantics
 
+\makeatletter
+\newsavebox{\@brx}
+\newcommand{\llangle}[1][]{\savebox{\@brx}{\(\m@th{#1\langle}\)}%
+  \mathopen{\copy\@brx\mkern2mu\kern-0.9\wd\@brx\usebox{\@brx}}}
+\newcommand{\rrangle}[1][]{\savebox{\@brx}{\(\m@th{#1\rangle}\)}%
+  \mathclose{\copy\@brx\mkern2mu\kern-0.9\wd\@brx\usebox{\@brx}}}
+\makeatother
+
+\newcommand{\elided}[1]{\llangle#1\rrangle}
 \newcommand{\onthread}[1]{\llparenthesis#1\rrparenthesis}
 \newcommand{\mathbfsf}[1]{\bm{\mathsf{#1}}}
 \newcommand{\where}{\mathrm{where}\xspace}
+\newcommand{\semmacro}[1]{\textsf{\textit{#1}}}
 
 \newcommand*\lc{$\lambda_v$\xspace}
 \newcommand*\exn{$\lambda_{\mathit{exn}}$\xspace}
@@ -361,10 +425,12 @@
 \newcommand*\qpush{\lhd}
 
 \newcommand{\hltikz}[3]{%
+  \kern-1.5pt% cancel left horizontal padding from text flow
   \tikz[baseline=(X.base)]\node[%
     rounded corners=1pt,%
-    inner sep=3pt,%
-    text depth=0pt,%  
+    inner xsep=1.5pt,%   % horizontal pad (split out from inner sep=3pt)
+    inner ysep=3pt,%     % keep vertical pad so box height is unchanged
+    text depth=0pt,%
     shade,%
     shading=radial,%
     inner color=#1!95,%
@@ -372,7 +438,9 @@
     text opacity=1.0,%
     text=#2%
   ](X){#3};%
+  \kern-1.5pt% cancel right horizontal padding -> comma sits flush
 }
+\newcommand{\ghost}[1][0.5em]{\vphantom{dp}\kern#1\relax}
 
 \newcommand{\highlightbox}[3]{%
   \mathchoice%
@@ -382,56 +450,8 @@
     {\hltikz{#1}{#2}{\(\scriptscriptstyle#3\)}}%
 }
 
-% \newcommand{\highlightbox}[3]{%
-%   \mathchoice%
-%     {\colorbox{#1}{\(\displaystyle\color{#2}#3\)}}%
-%     {\colorbox{#1}{\(\textstyle\color{#2}#3\)}}%
-%     {\colorbox{#1}{\(\scriptstyle\color{#2}#3\)}}%
-%     {\colorbox{#1}{\(\scriptscriptstyle\color{#2}#3\)}}%
-% }
-
-%%% (The below color palettes were suggested by Claude)
-%%% COLOR PALETTE — ORIGINAL
-%%% Problems: inconsistent saturation across groups, C8 (gray-blue)
-%%% too close to C1 (steel blue), warm C6 clashes with cool neighbors
-%%% in Group 1.
-%%%
-%%% Mapping reminder:
-%%%   Group 1 (ceag,cext,cdes,cpro) = C1, C2, C6, C5
-%%%   Group 2 (csus)                = C7
-%%%   Group 3 (cawa,cdir,cper)      = C4, C3, C8
-%%%
-
-% \definecolor{P1C1}{HTML}{C8DCF0} % Steel blue
-% \definecolor{P1C2}{HTML}{C8E6C6} % Sage green
-% \definecolor{P1C3}{HTML}{FDEAA8} % Warm amber
-% \definecolor{P1C4}{HTML}{F4C8D0} % Soft rose (cawa)
-% \definecolor{P1C5}{HTML}{DDD5F5} % Lavender
-% \definecolor{P1C6}{HTML}{FADEC0} % Peach
-% \definecolor{P1C7}{HTML}{BCE8E4}
-% \definecolor{P1C8}{HTML}{B8DCE4} % Sky teal (cper)
-%
-% \definecolor{P1C1t}{HTML}{0D2D45} % Steel blue text
-% \definecolor{P1C2t}{HTML}{0C2B1A} % Sage green text
-% \definecolor{P1C3t}{HTML}{3D2400} % Warm amber text
-% \definecolor{P1C4t}{HTML}{400C18} % Rose text
-% \definecolor{P1C5t}{HTML}{1A0A3D} % Lavender text
-% \definecolor{P1C6t}{HTML}{3D1800} % Peach text
-% \definecolor{P1C7t}{HTML}{062422} % Pale teal text
-% \definecolor{P1C8t}{HTML}{0C2830} % Sky teal text
-
-%%%
-%%% ALTERNATIVE 1: "Prismatic" — Maximum hue separation within groups.
-%%% Group 1 uses four hues ~90 degrees apart (blue 215, green 145,
-%%% violet 285, coral 15) all at the same lightness/saturation so no
-%%% color dominates. Group 3 uses a warm triad (rose 350, gold 50,
-%%% teal 190) giving strong contrast between awareness/direction/
-%%% persistence. Every color is instantly identifiable next to its
-%%% group-mates.
-%%%
 \definecolor{P1C1}{HTML}{C4D8F4} % Cornflower blue (ceag)
 \definecolor{P1C2}{HTML}{C0E4CC} % Mint green (cext)
-% \definecolor{P1C3}{HTML}{EDE0A4} % Warm gold (cdir)
 \definecolor{P1C3}{HTML}{FDEAA8} % Warm amber
 \definecolor{P1C4}{HTML}{F4C8D0} % Soft rose (cawa)
 \definecolor{P1C5}{HTML}{DCC8F4} % Iris violet (cpro)
@@ -441,7 +461,6 @@
 
 \definecolor{P1C1t}{HTML}{0E2848} % Cornflower text
 \definecolor{P1C2t}{HTML}{0E2C16} % Mint text
-% \definecolor{P1C3t}{HTML}{342C06} % Gold text
 \definecolor{P1C3t}{HTML}{3D2400} % Warm amber text
 \definecolor{P1C4t}{HTML}{400C18} % Rose text
 \definecolor{P1C5t}{HTML}{1C0C42} % Iris text
@@ -479,16 +498,16 @@
 \csdef{legenditem@per}{\legendmark{P1C7}\small Persistence}
 
 \newcommand{\makelegend}[1]{%
-  \begin{center} 
-    \def\legendsep{}% 
+  \par\vspace{-0.5em}%
+  {\centering%
+    \def\legendsep{}%
     \renewcommand*{\do}[1]{%
       \legendsep 
       \csuse{legenditem@##1}% 
       \def\legendsep{\hspace{1.5em}}% 
     }%
     \docsvlist{#1}% 
-  \end{center}
-}
+  \par\vspace{-0.5em}}}
 
 %%%%
 
@@ -518,7 +537,9 @@
 
 %%%%
 %% Languages with special typesetting
-\newcommand{\CSharp}{C\nolinebreak\hspace{-.05em}\raisebox{.3ex}{\scriptsize\bf \#}\xspace}
+% \relsize{-2} ~= \scriptsize at 10pt body text, but scales in small contexts
+% (\tiny figure nodes) where absolute \scriptsize would exceed the C.
+\newcommand{\CSharp}{C\nolinebreak\hspace{-.05em}\raisebox{.3ex}{{\relsize{-2}\bfseries\#}}\xspace}
 \newcommand{\FSharp}{F\nolinebreak\hspace{-.05em}\raisebox{.2ex}{\scriptsize\bf \#}\xspace}
 \newcommand{\Cpp}{C\nolinebreak\hspace{-.05em}\raisebox{.4ex}{\scriptsize\bf +}\nolinebreak\hspace{-.05em}\raisebox{.4ex}{\scriptsize\bf +}\xspace}
 \newcommand{\Js}{JavaScript\xspace}

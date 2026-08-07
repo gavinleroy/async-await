@@ -1,42 +1,26 @@
 \subsubsection{\Persistence}
 \label{ssec:designdims:persistence}
 
-One final element of cancellation is its \Persistence: when a task is cancelled, does the cancellation request persist (e.g., subsequent async work is also marked as cancelled), or is cancellation requested once? We will describe these options as \emph{\persistent} cancellation and \emph{\instantaneous} cancellation. The \persistence dimension is important for cancel \aware languages, because on cancellation a \task may perform additional async work.
+One final element of cancellation is its \Persistence: when a task is cancelled, does the cancellation request persist (e.g., subsequent async work is also marked as cancelled), or is cancellation requested once? We will describe these options as \persistent cancellation and \transient cancellation. The \persistence dimension is important for cancel \aware languages, because on cancellation a \task may perform additional async work.
 
 Swift and Python+Trio use \persistent cancellation. Swift and Trio both implement a cancellation flag shared amongst a task graph, and that flag is permanently active once set. Swift's flag is part of its public \abbr{api}, while Trio's flag is an implementation detail. Consequently, if an async computation ignores its cancellation, then subsequent awaits may again raise a cancellation exception; for both Swift and Trio any subsequent await point may result in a cancellation exception.
 
-Rust and Python+Asyncio use \instantaneous cancellation. In Rust's case, because cancellation is \noncoop, cancellation is unrecoverable. For Asyncio, cancellation is recoverable, so if an async computation ignores a cancellation request, then it can continue spawning and awaiting tasks unimpeded. Importantly, \tasks spawned after the initial cancellation request would be unaware of the previous cancellation attempt.
-
-\paragraph{Design rationale.} For \noncoop cancellation, \persistence is a moot point, so the main question is which design best fits \coop cancellation. This perhaps comes down to a philosophy on why tasks would choose to ignore their cancellation, and what risks are incurred as a result.
-
-% \begin{wrapfigure}{r}{0.4\linewidth}
-%   \begin{lstlisting}[language=Py]
-% with trio.move_on_after(TIMEOUT):
-%   conn = make_connection()
-%   try:
-%     await conn.send_hello_msg()
-%   finally:
-%     with trio.move_on_after(
-%       CLEANUP_TIMEOUT, shield=True
-%     ):
-%       await conn.send_goodbye_msg()
-% \end{lstlisting}
-%   \cprotect\caption{An example of shielding async resource cleanup from \persistent cancellation.}
-%   \label{fig:persistence:shield}
-% \end{wrapfigure}
+Rust and Python+Asyncio use \transient cancellation. In Rust's case, because cancellation is \noncoop, cancellation is unrecoverable. For Asyncio, cancellation is recoverable, so if an async computation ignores a cancellation request, then it can continue spawning and awaiting tasks unimpeded. Importantly, \tasks spawned after the initial cancellation request would be unaware of the previous cancellation attempt.
 
 \begin{wrapfigure}{r}{0.55\linewidth}
   \includegraphics[width=\linewidth]{f/persistence.pdf}
-  \cprotect\caption{An example program demonstrating the \Persistence dimension. After the \code|work| task is cancelled, then the first await raises a cancellation exception. Then under Transient semantics (Python+Asyncio), subsequent awaits proceed as normal. Under Persistent semantics (Python+Trio), subsequent awaits still raise a cancellation exception, preventing further execution.}
+  \cprotect\caption{An example program demonstrating \persistence. After the \code|work| task is cancelled, then the first await raises a cancellation exception. Under \Transient semantics (Python+Asyncio), subsequent awaits proceed as normal. Under \Persistent semantics (Python+Trio), subsequent awaits still raise a cancelled exception, stopping further execution.}
   \label{fig:persistence:shield}
 \end{wrapfigure}
 
-The main argument for \instantaneous cancellation is for \tasks to perform async resource cleanup. For example, as shown in \Cref{fig:persistence:shield}, if \code|work()| is cancelled in the middle of \code|attempt()|, then it can still call \code|await cleanup()| before re-raising the cancellation exception. A concrete instance of this pattern is that closing a \abbr{tls} socket may require asynchronously sending a \code|close_notify| alert to the peer so that they can be cryptographically assured that you intended to close the socket.
+\paragraph{Design rationale.} For \noncoop cancellation, \persistence is a moot point, so the main question is which design best fits \coop cancellation. This perhaps comes down to a philosophy on why tasks would choose to ignore their cancellation, and what risks are incurred as a result.
+
+The main argument for \transient cancellation is for \tasks to perform async resource cleanup. For example, as shown in \Cref{fig:persistence:shield}, if \code|work()| is cancelled in the middle of \code|attempt()|, then it can still call \code|await cleanup()| before re-raising the cancellation exception. A concrete instance of this pattern is that closing a \abbr{tls} socket may require asynchronously sending a \code|close_notify| alert to the peer so that they can be cryptographically assured that you intended to close the socket.
 % \footnotemark{} If a cancellation request persists to spawned dependencies, then the library's provided socket \code|.send()| method may always result in a reraised cancelled exception, with no bytes sent. 
 However, \transient cancellation has a greater risk for cancellation signals to go unnoticed. If one \task suppresses a cancellation signal, then all others in the graph may never become aware of the attempt.%
 % \footnotetext{\citeurlwith{https://docs.openssl.org/3.0/man3/SSL_shutdown/}{docs.openssl.org}}
 
-Runtimes with \persistent cancellation typically come with a cancellation shielding operator to allow for async cleanup. For example, the Python+Trio code in \Cref{fig:timeout-simple-trio} showed the \code|move_on_after| primitive which allows async cleanup code to temporarily ignore cancellation, while ensuring liveness by moving on after a fixed duration. 
+Runtimes with \persistent cancellation typically come with a cancellation shielding operator to allow for async cleanup. For example, the Python+Trio code in \Cref{fig:timeout-simple-trio} showed the \code|move_on_after| primitive that allows async cleanup code to temporarily ignore cancellation, while ensuring liveness by moving on after a fixed duration. 
 % This approach strikes a balance between resource management and exiting promptly (via the timeout).
 
 % The example in \Cref{fig:persistence:shield} (shown in Python, not pseudocode), the developer uses a shielded timeout to send a closing message on the socket without being immediately recancelled. 

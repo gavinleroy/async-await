@@ -4,46 +4,45 @@
   \begin{subfigure}[t]{0.4\textwidth}
     \vspace{0cm}
     \input{./f/lc-gr.tex}
-    \cprotect\caption{The grammar for \lc.
+    \cprotect\caption{A subset of the \lc grammar. All standard forms (e.g., $\mathbfsf{let}$, $\mathbfsf{ref}$, $\mathbfsf{fix}$) have been elided.
     \label{fig:lang:lc}}
   \end{subfigure}\hfill%
   \begin{minipage}[t]{0.55\textwidth}
-    \vspace{10pt}
+    \vspace{0pt}
     \begin{subfigure}{\textwidth}
       \vspace{0cm}
       \input{./f/exn-gr.tex}
-      \cprotect\subcaption{The grammar for \exn, which extends \lc with \code|try|/\code|catch|, and \code|throw| forms.}
+      \cprotect\subcaption{The extension grammar for \exn, which extends \lc with exception handling forms, including $\mathbfsf{throw\text{-}in}$, which we model after CPython's \code|.throw()| coroutine method.}
       \label{fig:lang:exn}
     \end{subfigure}
     \begin{subfigure}{\textwidth}
       \vspace{1em}
       \input{./f/exn-rr.tex}
-      \cprotect\subcaption{The operational semantics for the \exn.}
+      \cprotect\subcaption{An example reduction rule for the \exn extension language.}
       \label{fig:lang:exn:red}
     \end{subfigure}
   \end{minipage}
-  \caption{The grammar and reduction rules for the core calculi \lc and \exn.}
-  \label{fig:lang:exts}
+  \caption{An illustrative subset of the grammar and reduction rules for the core calculi \lc and \exn.}
+  \label{fig:lang:core}
 \end{figure}
 
-The preceding section provides a detailed but informal characterization of our view of the straight-line asynchrony design space. Now, we will put it on a formal footing.
-%
-We present the design dimensions as variants on a formal operational semantics for a core asynchronous language. We start with a small \lc language that captures the computational core of Python, Rust, etc., while eliminating many language-specific details. For example, we unify the languages' implementation of asynchrony using delimited continuations rather than faithfully modeling each implementation using state machines and other such mechanisms. 
+The preceding taxonomy helps us make sense of the space of straight-line asynchrony, but it does not provide a account of each language's async holistically. In this section we model the core async features of each of the languages under study. An example of the payoff is \Cref{fig:explain-tree}, which precisely accounts for the divergent behaviors of \Cref{fig:motivating-example}. The rest of the section explains the key components of the figure.
 
-Atop this foundation, we layer semantic rules that capture the essence of the design dimensions in \Cref{sec:designdims}. The goal of these rules is to concisely and precisely describe the exact meaning of each point along each design dimension.
-% A key contribution of this paper is a precise and neutral description of the operational behavior of several contemporary async systems. To reduce the cosmetic noise we provide the operational semantics as extensions to a base $\lambda$-calculus variant, henceforth refered to as \lc.
-The full semantics is too large to include in its entirety. The elided rules are provided in the appendix, and a complete executable model via Redex is available in the supplementary materials.
+Rather than describe each language separately, our semantics is designed to both capture the commonalities and highlight the differences between async in these languages. To do this, we unify the languages' implementation of asynchrony using delimited continuations rather than faithfully modeling each implementation using state machines and other such mechanisms. The full semantics is too large to include in its entirety; we provide the elided rules in the appendix.
 
-% By providing the semantics in layers we highlight the control features necessary for a given language's implementation and can more easily compare the operational behavior between two languages that have seemingly incomparable semantics. We additionally provide all the semantics in this section as a runnable Redex model, available in the supplementary materials.~\missingcite
+We provide an executable version of the model in Redex~\cite{racket:redex}, including a full test suite that covers all the examples from \Cref{sec:motivation,sec:designdims} for all runtimes. The model includes a fuzzer that generates random programs, compiles them into the respective languages, and checks that the output from the real program and model program match. Due to non-determinism, we run each program $N=50$ times and check that the program outputs are a subset of model outputs. This gives us high confidence that our model matches the behavior of the corresponding runtimes.
 
-\Cref{fig:lang:lc,fig:lang:exn} provide the grammar and semantics of the core calculi that comprise our base for the async extensions. The core language \lc contains mutable references and delimited continuations via the \code|shift| and \code|reset| operators described by \citet{danvy_functional_nodate}. The grammar for \lc is provided in \Cref{fig:lang:lc}. The reduction rule is defined over a mutable heap $\sigma$ and an expression $e$, $\langle\sigma\,e\rangle$. For space reasons, the standard reduction rules and full grammar for \lc are available in \Cref{app:semantics}.
 
-For languages with exceptions, we extend \lc with \code|try|/\code|catch| and \code|throw| forms and refer to this language as \exn. The grammar and reduction rules for \exn are provided in \Cref{fig:lang:exn,fig:lang:exn:red}. The \exn grammar provides the evaluation context $G$, which is the exception context delimited by a \code|try| form and discarded by the \code|throw| operator. We also provide a \code|throw_in| expression that raises an exception within a suspended computation, modeled after Python's \code{.throw()} coroutine method, which resumes a suspended computation with an exception instead of a value.
+\subsection{Base Language}
+
+\Cref{fig:lang:lc,fig:lang:exn} provide the grammar and semantics of the core calculi that comprise our base for the async extensions. The core language \lc contains mutable references and delimited continuations via the $\mathbfsf{shift}$ and $\mathbfsf{reset}$ operators described by \citet{danvy_functional_nodate}. The grammar for \lc is provided in \Cref{fig:lang:lc}. Reduction rules for synchronous grammars are defined over a mutable heap, $\sigma$, and an expression $e$, $\langle\sigma,e\rangle$. For space reasons, the standard reduction rules and full grammar for \lc are available in \Cref{app:semantics}.
+
+For languages with exceptions, we extend \lc with $\mathbfsf{try}$/$\mathbfsf{catch}$ and $\mathbfsf{throw}$ forms and refer to this language as \exn. The grammar extension for \exn is provided in \Cref{fig:lang:exn}, and the reduction rule for the non-standard $\mathbfsf{throw\text{-}in}$ form in \Cref{fig:lang:exn:red}; the remaining rules are standard and provided in \Cref{app:semantics}. The non-standard $\mathbfsf{throw\text{-}in}$ resumes a continuation with an exception instead of a value and is modeled after Python's \code{.throw()} coroutine method.
 
 \begin{figure}[t]
   \begin{subfigure}[t]{\textwidth}
     \input{./f/lasync-gr.tex}
-    \cprotect\caption{The full grammar for \lasync.}
+    \cprotect\caption{An illustrative subset of the \lasync extension grammar.}
     \label{fig:lasync:grammar}
   \end{subfigure}\vspace{1em}
   % \begin{subfigure}[t]{\textwidth}
@@ -63,30 +62,36 @@ For languages with exceptions, we extend \lc with \code|try|/\code|catch| and \c
     \cprotect\caption{The order of extension for each async runtime.}
     \label{fig:langs:lineage}
   \end{subfigure}
-  \cprotect\caption{The grammar extensions and order of extension for \lasync and the seven async systems under study.}
+  \cprotect\caption{The grammar extensions and order of extension for \lasync and the seven async systems under study. Python and Rust are \textit{extended by} \lasync because they provide native coroutines. The runtimes for those languages are defined as libraries. The other languages Swift/\Js/\CSharp \textit{extend} \lasync because they do not provide native coroutines and their async runtimes are built in to the language runtime.}
   \label{fig:platform}
 \end{figure}
 
+\subsection{The Async Platform}
+
 We now describe the configuration of the shared async grammar, which can extend any base language. \Cref{fig:lasync:grammar} defines the shared grammar constructs that encode the async runtime building blocks discussed in \Cref{sec:designdims}. We will refer to this extension as the async platform, \lasync.
 
-A \textit{frame}, $F$, is written $\langle \ell,\,e\rangle$ and consists of an expression $e$, along with a frame label, $\ell$. A \textit{frame label}, $\ell$, is either the name of the \task this frame corresponds to, or \textit{sync} to denote a synchronous frame. A \textit{frame stack}, $FS$, is a list of frames --- essentially a thread. An empty frame stack is written $\epsilon$, and we write $F \circ FS$ to denote a frame stack whose head is $F$ and tail is $FS$. A \textit{process}, $P$, is a collection of frame stacks. We will use the syntax $P \uplus FS$ to select one frame stack in $P$ to run. A \textit{task queue}, $Q$, stores the async work waiting to be run; $Q$ comprises tuples that have a label and a continuation, $(\ell,\kappa)$. A \textit{signals queue}, $T$, stores async work that is waiting on \abbr{i/o} operations, the work will be rescheduled in the future at timestamp $t$, at the earliest. $T$ comprises tuples that have a time, a label, and a continuation, $(t,\ell,\kappa)$. We will use the same stack notation for $Q$ and $T$ as we do for $FS$. We will additonally write $Q \qpush (\ell,\,\kappa)$ to append to the end of the queue, and $Q_0 \seqconcat Q_1$ to concatenate two sequences (applicable to both $Q$ and $T$).
+We introduce the notion of an async \textit{frame}, $F$, written $\langle \ell,\,e\rangle$, which consists of an expression $e$, along with a frame label, $\ell$.\footnotemark A \textit{frame label}, $\ell$, is either the name of the \task this frame corresponds to, or \textit{sync} to denote a synchronous frame. A \textit{frame stack}, $FS$, is a list of frames --- essentially a thread. An empty frame stack is written $\epsilon$, and we write $F \circ FS$ to denote a frame stack whose head is $F$ and tail is $FS$. A \textit{process}, $P$, is a collection of frame stacks. We will use the syntax $P \uplus FS$ to select one frame stack in $P$ to run. A \textit{task queue}, $Q$, stores the async work waiting to be run; $Q$ comprises tuples that have a label and a continuation, $(\ell,\kappa)$.
+% A \textit{signals queue}, $T$, stores async work that is waiting on \abbr{i/o} operations, the work will be rescheduled in the future at timestamp $t$, at the earliest. $T$ comprises tuples that have a time, a label, and a continuation, $(t,\ell,\kappa)$.
+% We will use the same stack notation for $Q$ and $T$ as we do for $FS$. We will additonally write $Q \qpush (\ell,\,\kappa)$ to append to the end of the queue (applicable to both $Q$ and $T$).%
+We will use the same stack notation for $Q$ as we do for $FS$. We will additonally write $Q \qpush (\ell,\,\kappa)$ to append to the end of the queue.%
+\footnotetext{We use a labeled async frame to explicitly associate executing code with a task. An alternative formalism would be to delimit tasks using a labeled context. We these two options as equivalent and chose the former.}
 
-The async platform provides a few additional expressions that we will describe here. The \code|sys_block|$(e)$ expression provides the barrier between synchronous code and asynchronous code. Languages may use a block expression to block a synchronous frame until the asynchronous expression has completed running. The block expression marks the runtime entry, and when it returns, the runtime exit.
+The async platform provides a few additional administrative instructions that we will describe here. The \sysapply{sys-block}{e} expression provides the barrier between synchronous code and asynchronous code. Languages may use a block expression to block a synchronous frame until the asynchronous expression has completed running. The block expression marks the runtime entry (e.g., creating a thread pool), and when it returns, the runtime exit (e.g., destroying the thread pool and runtime queues).
 
-The expression \code|sys_io|$(e_t,e)$ is the \abbr{i/o} operation provided by the runtime system. It models real-world \abbr{i/o} operations that would take some non-deterministic amount of time to resolve, like receiving packets from the network or querying a database. The form is prescient because the result is provided upfront: e.g., \code|sys_io|$(5, \text{``hello''})$ creates a \task that will resolve to the value ``hello'' after at least five time steps. Furthermore, we model \abbr{i/o} operations that may not complete as \code|sys_io|$(\infty, e)$. The \code|sys_io| form is deterministic in its evaluation \textit{value}, but not in its evaluation \textit{time}.
+The expression \sysapply{sys-io}{e_t,e} is the \abbr{i/o} operation provided by the runtime system. It models real-world \abbr{i/o} operations that would take some non-deterministic amount of time to resolve, like receiving packets from the network or querying a database. The form is prescient because the result is provided upfront: e.g., \sysapply{sys-io}{5, \text{``hello''}} creates a \task that will resolve to the value ``hello'' after at least five time steps. Furthermore, we model \abbr{i/o} operations that may not complete as $\mathbfsf{sys\text{-}io}(\infty, e)$. The $\mathbfsf{sys\text{-}io}$ form is deterministic in its evaluation \textit{value}, but not in its evaluation \textit{time}.
 
-The expression \code|sys_start_soon|$(\ell,\kappa)$ appends the continuation $\kappa$ to $Q$, set to run in a frame with the specified label $\ell$. The expression \code|sys_start_later|$(t,\ell,\kappa)$ appends the continuation to the signal queue, $T$, which will be scheduled after timestep $t$. The expression \code|sys_time|$()$ simply evaluates to the current timestep.
+The expression \sysapply{sys-start-soon}{\ell,\kappa} appends the continuation $\kappa$ to $Q$, set to run in a frame with the specified label $\ell$. The expression \sysapply{sys-start-later}{t,\ell,\kappa} appends the continuation to the signal queue, $T$, which will be scheduled after timestep $t$.
 
-The grammar extensions for the remaining languages are shown in \Cref{fig:lang:exts}, and the order in which we layer the extensions in \Cref{fig:langs:lineage}. The reduction rules for all async capable languages, which base Python and Rust are not, are defined over the tuple $\langle t, \sigma, Q, T, P \rangle$.
+The grammar extensions for the remaining languages are shown in \Cref{fig:langs:exts}, and the order in which we layer the extensions in \Cref{fig:langs:lineage}. The reduction rules for all async-capable languages, which base Python and Rust are not, are defined over the tuple $\langle t, \sigma, Q, T, P \rangle$. Most tuple items remain constant in many rules; to simplify the presentation we will use a double angle notation $\elided{\ldots}$ to indicate that unmodified tuple items are elided.
 
-The goal of the operational semantics is to highlight the differences between languages. We will therefore present the same reduction rule from different languages together. We will also call attention to the portion relevant to each design dimension with a highlight in the following colors: \ceag{\eagerness}, \cext{\extent}, \cdes{\destruction}, \cpro{\propagation}, and \csus{\suspension}, and within cancellation: \cawa{awareness}, \cdir{direction}, and \cper{persistence}. For space reasons we do not present the rules relevant for \references, and we simplify the presentation with a liberal use of metafunctions, see \Cref{table:metafunctions} for a description of each metafunction used in the rules; the full definitions of grammars, reductions, and metafunctions are provided in \Cref{app:semantics}.
+The goal of the operational semantics is to highlight the differences between languages. We will therefore present the same reduction rule from different languages together. We will also call attention to the portion relevant to each design dimension with a highlight in the following colors: \ceag{\eagerness}, \cext{\extent}, \cdes{\destruction}, \cpro{\propagation}, and \csus{\suspension}, and within cancellation: \cawa{\awareness}, \cdir{\direction}, and \cper{\persistence}. For space reasons we do not present the rules relevant for \references, and we simplify the presentation with a liberal use of metafunctions and macros, see \Cref{table:metafunctions} for a description of those used; the full definitions of grammars, reductions, and metafunctions are provided in \Cref{app:semantics}.
 
 
 \begin{table}[t]
-\small
-\input{./f/metafunctions.tex}
-\caption{Metafunctions used in the reduction rules. Metafunctions returning an expression, $e$, expands into code that performs the specified operation on evaluation.}
-\label{table:metafunctions}
+  \small
+  \input{./f/metafunctions.tex}
+  \caption{Metafunctions and macros used in the reduction rules. Metafunctions evaluate to a term, while macros expand into expressions. We set macros in italics to distinguish them from metafunctions.}
+  \label{table:metafunctions}
 \end{table}
 
 \subsection{Start/End of Life}
@@ -98,20 +103,20 @@ The goal of the operational semantics is to highlight the differences between la
     \label{fig:sem:app}
 \end{figure}
 
-\begin{figure}[b]
+\begin{figure}[tb]
     \input{./f/spawn.tex}
     \makelegend{eag,ext,des,pro}
-    \cprotect\caption{A comparison of \semrule{Spawn} across Rust/Python runtimes. The \code{try/catch} is colored gray because it is present in the Asyncio semantics but not for Tokio/Smol; the rules are otherwise equivalent.}
+    \cprotect\caption{A comparison of \semrule{Spawn} across Rust/Python runtimes. The $\mathbfsf{try/catch}$ is colored gray because it is present in the Asyncio semantics, but not those for Tokio/Smol --- the rules are otherwise equivalent.}
     \label{fig:sem:spawn}
 \end{figure}
 
-The rule \semrule{Async-App} defines how a \coro/\task is constructed and, for non-lazy languages, what a \task does at the end of its computation. We will use the definitions in \Cref{fig:sem:app} to highlight the semantics for the start and end of a computation's life.
+The rule \semrule{Async-App} defines how a \coro/\task is constructed and, for non-\lazy languages, what a \task does at the end of its computation. We will use the definitions in \Cref{fig:sem:app} to highlight the semantics for the start and end of a computation's life.
 
-\Cref{fig:sem:app} provides the rule \semrule{Async-App} rule for eager, semi-eager, and lazy async applications. For eager and semi-eager languages an async application follows a similar procedure: a new \task is allocated, and the function body is placed inside error handling logic to trap exceptions. Where the new expression is placed varies. Eager languages set the expression in a new frame on \emph{top} of the current frame stack. Semi-eager languages place the expression in the task queue to run soon by the next available thread. The semantics for the lazy languages diverge significantly. Neither Rust nor Python has a built-in async runtime, so their semantics are not defined as an extension of \lasync. The lazy \semrule{Async-App} variant simply captures the function body as a continuation. We will discuss the \semrule{Spawn} rule --- used to turn a \coro into a \task\ --- below.
+\Cref{fig:sem:app} provides the \semrule{Async-App} rule for \eager, \seager, and \lazy async applications. For \eager and \seager languages an async application follows a similar procedure: a new \task, $x_{\mathit{task}}$, is allocated in the global store; evaluation of the function body is wrapped in a try/catch block, on successful evaluation the result is stored in the task and it's marked as completed, on exception the error value is stored in the task and it's marked as failed. After the task is marked as completed or failed, all dependent tasks, those awaiting on the current \task, are scheduled to resume executing with the $\mathbfsf{sys\text{-}start\text{-}soon}$ form. \Eager and \seager languages differ by where the new $e_{\mathit{task}}$ expression is placed. \Eager languages set the expression in a new frame on \emph{top} of the current frame stack. \Seager languages place the expression in the task queue, $Q$, to run soon by the next available thread. The semantics for the \lazy languages diverge significantly. Neither Rust nor Python has a built-in async runtime, so their semantics are not defined as an extension of \lasync. The \lazy \semrule{Async-App} variant simply captures the function body as a continuation. We will discuss the \semrule{Spawn} rule --- used to turn a \coro into a \task\ --- below.
 
-\semrule{Async-App} for the (semi-)eager languages also defines the end of life for a \task. When \CSharp/\Js allocate a \task, it is independent of the current context, meaning that the new \task is not a dependency of the executing \task (labelled $\ell$). When the computation finishes, the \task's dependents (those that have awaited it) are immediately scheduled to run. There is an absence of \destruction and \propagation logic for dependencies, which defines the \dyn \extent of \tasks for \CSharp and \Js. Swift, on the other hand, allocates the new \task as a \emph{dependency} of the executing \task $\ell$. After the computation finishes, dependencies are cancelled and waited on. Here we distinguish \emph{waiting on} from \emph{awaiting}; the latter implies that exceptions are propagated, which Swift does not do.
+\semrule{Async-App} for the (semi-)eager languages also defines the end of life for a \task, including the \extent, \destruction, and \propagation semantics. When \CSharp/\Js allocate a \task, it is independent of the current context, meaning that the new \task has no relationship to the currently executing \task (labelled $\ell$). The absence of a relationship between the two \tasks marks the \indef \extent semantics for these two languages. In contrast, allocated \tasks in Swift are added as dependencies of the currently executing \task. Furthermore, within a Swift task body, $e_{\mathit{task}}$, after the \task is completed or failed its dependencies are cancelled and waited on. The dependency between the two tasks and the added operations at the end of the \task body marks the different semantics in Swift along the \extent and \destruction dimensions. Although Swift cancels and waits for dependencies to finish, exceptions held by \emph{failed} \tasks are not propagated.
 
-\begin{figure}[b]
+\begin{figure}[tb]
   \input{./f/await.tex}
   \makelegend{sus}
   \cprotect\caption{A comparison of \semrule{Await} semantics that define \dynamic and \static \suspension. \Dynamic suspending languages only suspend when the awaited value isn't immediately ready.}
@@ -120,11 +125,9 @@ The rule \semrule{Async-App} defines how a \coro/\task is constructed and, for n
 
 The rule \semrule{Spawn} is provided by the runtimes of \lazy languages to elevate a \coro to a \task registered in the runtime. \semrule{Spawn} defines the semantics for the \task start and end of life that are absent from the \lazy definition of \semrule{Async-App}.
 
-\semrule{Spawn} is defined separately for languages with \indef and \dyn extent. The definition used by Asyncio/Tokio/Smol allows for \indef extent and otherwise follows the semantics discussed previously for \CSharp's \semrule{Async-App} rule.
+\semrule{Spawn} is defined separately for languages with \indef and \dyn \extent. The definition used by Asyncio/Tokio/Smol allows for \indef \extent. The rule follows the semantics discussed previously for \CSharp's \semrule{Async-App} rule. Trio enforces \dyn \extent and the rule follows closely that discussed previously for Swift. However, after the task body, $e_{\mathit{task}}$, finishes executing, dependencies are waited on \emph{uncancelled} to finish, and exceptions from failed dependencies are reraised. These differenes mark Trio's unique combination of \awaited \destruction and \destruct \propagation semantics.
 
-Trio enforces \dyn extent and the rule follows closely that discussed previously for Swift. However, at the end of execution the \task does not cancel its dependencies, but it does \emph{await} them; awaiting dependencies includes propagating an exception.
-
-\Cref{fig:sem:await} provides the definitions for the rule \semrule{Await}. \Js, the only language sampled with \static \suspension semantics, always captures the current delimited continuation and adds itself as a dependent on the awaited value. Languages with \dyn \suspension first check if the awaited value is ready. If it is, no suspension occurs. If a value is not ready, the continuation is captured and registered as a dependent of the pending computation.
+\Cref{fig:sem:await} provides the definitions for the rule \semrule{Await}. \Js, the only language sampled with \static \suspension semantics, always captures the current delimited continuation and adds itself as a dependent on the awaited value. The captured continuation, $e_{\mathit{k}}$, is returned. Languages with \dyn \suspension first check if the awaited value is ready---if it is, no suspension occurs. If a value is not ready, the continuation is captured and registered as a dependent of the pending computation; $e_{\mathit{k}}$ is returned.
 
 \subsection{Cancellation}
 
@@ -135,12 +138,27 @@ Trio enforces \dyn extent and the rule follows closely that discussed previously
   \label{fig:sem:cancel}
 \end{figure}
 
-\Cref{fig:sem:cancel} provides the full set of rules for the cancellation mechanism provided by Swift, Tokio, Smol, Asyncio, and Trio. No rules are present for \CSharp or \Js as they do not provide a built-in mechanism to cancel a running \task. The design dimensions for cancellation are awareness, direction, and persistence.
+\Cref{fig:sem:cancel} provides the full set of rules for the cancellation mechanism provided by Swift, Tokio, Smol, Asyncio, and Trio. No rules are present for \CSharp or \Js as they do not provide a built-in mechanism to cancel a running \task (see \Cref{ssec:designdims:cancellation}). The design dimensions for cancellation are \awareness, \direction, and \persistence.
 
-Rules \semrule{Cancelled?} and \semrule{Schedule-Cancelled} define how a \task becomes aware of its cancellation. Swift provides the \code{cancelled?} function that returns the cancellation status of the current \task. The existence of this operation defines cancellation awareness, and simultaneously also the cancellation direction. A \task does not need to rely on another to signal cancellation; this information is communicated between the runtime directly to each \task.
+The \semrule{Cancelled?} rule is provided for Swift to allow a running \task to check if it has been cancelled. This form defines both the \aware \awareness and \simultaneous \direction that is unique to Swift. A \task does not need to rely on another mechanism to signal cancellation; this information is communicated between the runtime directly to each \task.
 
-The \semrule{Schedule-Cancelled} rule for Asyncio/Trio also provides awareness to running \tasks that they are being cancelled by injecting an exception into the running computation at the suspended \code{await} point. Unlike Swift, this cancellation starts from a \task's dependencies and is expected to propagate up through dependents. The propagating exception could be caught and handled by an intermediate \task, thus suppressing the cancellation.
+The \semrule{Schedule-Cancelled} rule for Asyncio/Trio are almost identical. When a cancelled \task is rescheduled the runtime will resume the continuation with an exception, using our $\mathbfsf{throw\text{-}in}$ form. By resuming the computation they are \aware of their cancellation. The cancellation \direction flows \bup because the \tasks in the task queue, $Q$, are depended on by others and not awaiting for any dependencies; in other words, they are the deepest dependencies.
 
-A peculiarity of Asyncio is the \transient \persistence of cancellation: after a cancelled \task is resumed with a cancellation signal, it is no longer marked as cancelled. Further async work can be done and a second cancellation signal will not be raised. Trio and Swift both have persistent cancellation, so if further async work is done in an exception handler, it would be resumed with another cancellation exception.\footnote{To perform asynchronous cleanup work, runtimes like Trio and Swift will provide cancellation \emph{shields}, which temporarily protect a \task against cancellation so that async work can finish.}
+% also provides awareness to running \tasks that they are being cancelled by injecting an exception into the running computation at the suspended \code{await} point. Unlike Swift, this cancellation starts from a \task's dependencies and is expected to propagate up through dependents. The propagating exception could be caught and handled by an intermediate \task, thus suppressing the cancellation.
 
-The Rust runtimes, Tokio and Smol, do not provide cancellation awareness. Cancelled \tasks are not rescheduled but deallocated. The two diverge in \abbr{api} because the \code{cancel}$(e)$ expression in Smol is itself asynchronous. This change is mostly cosmetic and changes neither the cancellation awareness nor direction.
+Where Asyncio and Trio diverge is cancellation \persistence. A peculiarity of Asyncio is the \transient \persistence of cancellation: after a cancelled \task is resumed with a cancellation signal, it is no longer marked as cancelled. Further async work can be done and a second cancellation signal will not be raised. Trio and Swift both have \persistent cancellation, so further async work in an exception handler would be resumed with another cancellation exception.\footnote{To perform asynchronous cleanup work, runtimes like Trio and Swift will provide cancellation \emph{shields}, which temporarily protect a \task against cancellation so that async work can finish.}
+
+The Rust runtimes, Tokio and Smol, do not provide cancellation \awareness. Cancelled \tasks are not rescheduled but deallocated: the continuation $\kappa$ is thrown away and the \task is set as failed by the expression $e_{\mathit{fail}}$.
+
+\subsection{Seven Runtimes, One Program}
+
+\begin{figure}[htb]
+  \input{./f/explain-tree.tex}
+  \makelegend{eag,ext,des,pro,awa}
+  \cprotect\caption{The branching evaluation of program \code|ex2| from \Cref{fig:motivating-example}. The nodes in the \abbr{dag} represent the program state at that point. Between nodes we perform multiple reductions until the semantics of the runtimes diverge. A node has several outgoing edges when the runtimes disagree on the next applicable rule and we highlight the rules with the color of the design dimension along which they diverge; we indicate which design point each branch uses with a subscript. For example, on the rightmost path, Swift's \seager \semrule{Async-App} queues $\mathit{write\text{-}to\text{-}log}$ and injects a scope-exit epilogue that cancels its dependency (\cdes{\destruction}), awaits it (\cext{\extent}), and discards any resulting exception (\cpro{\propagation}). When $\mathit{write\text{-}to\text{-}log}$ runs, its cancellation-aware \semrule{OS-IO} implementation observes the flag and raises a \emph{cancelled} exception (\cawa{\awareness}).}
+  \label{fig:explain-tree}
+\end{figure}
+
+\Cref{fig:explain-tree} brings the design dimensions and the formal model full circle: it evaluates program \code|ex2| from \Cref{fig:motivating-example} under all seven runtimes at once, branching precisely where their reduction rules diverge. Unlike the table of outcomes in \Cref{fig:motivating-example-outcomes}, we can use the formal model explain \emph{why} a language produces the output it does. The branching evaluation highlights the fact that langauges can produce the same output for different reasons. For example, \CSharp and Swift both produce \code|AC|, however, \CSharp does so because the runtime loop terminates running tasks and Swift does so because it cancels unawaited \tasks at the end of their scope. In the evaluation context of \code|ex2|, these semantics produce the same output, but in a different context they would likely lead to different outputs. The branching evaluation also highlights the diverging branches can lead to the same output.
+
+In sum, we presented an illustrative subset of our formal model, constructed as a series of language extensions atop the core \lc (\Cref{fig:langs:lineage}). For each rule---\semrule{Async-App}, \semrule{Spawn}, \semrule{Await}, and the cancellation rules---we marked where the language variants diverge, coloring each fragment by the design dimension it decides. We use the fromal model to explain diverging output of real-world examples, illustrated in \Cref{fig:explain-tree} for \code|ex2| from \Cref{fig:motivating-example}. The included artifact provides the full Redex model that we hope can serve as common ground when communicating asynchronous semantics between language communities.

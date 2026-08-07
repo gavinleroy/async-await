@@ -1,20 +1,24 @@
-\begin{tabular}{@{}l@{\quad}l@{}}
+% \begin{tabular}{@{}l@{\quad}l@{}}
+\begin{tabularx}{\linewidth}{@{}l>{\raggedright\arraybackslash}X@{}}
 \toprule
 Metafunction & Description \\
 \midrule
-$\mathsf{task\_cancelled} : \sigma \times \ell \to b$ & $\mathit{true}$ iff task $\ell$, or any transitive dependent, is cancelled \\
-$\mathsf{task\_alloc} : \sigma \to (\sigma, x)$ & Allocate a new task struct bound under gensymed name $x$ in $\sigma$ \\
-$\mathsf{task\_add\_dependency} : \sigma \times \ell \times \ell \to \sigma$ & Add second label as dependency of first label's task \\
-$\mathsf{task\_alloc\_dependency} : \sigma \times \ell \to (\sigma, x)$ & Allocate a fresh task as a dependency of $\ell$ \\
-$\mathsf{task\_set\_done} : x \times e \to e$ & Evaluate $e$ and use value as $x$'s resolved success value \\
-$\mathsf{task\_set\_failed} : x \times e \to e$ & Evaluate $e$ and use value as $x$'s resolved failure value \\
-$\mathsf{task\_uncancel} : \sigma \times \ell \to \sigma$ & Remove cancellation from task $\ell$ in $\sigma$ \\
-$\mathsf{task\_is\_completed} : e \to e$ & $\mathit{true}$ iff task is resolved (success or failure) \\
-$\mathsf{task\_get\_result} : e \to e$ & Return task's final value; reraise if task failed \\
-$\mathsf{task\_continue\_with} : v \times x \to e$ & Resume continuation bound by $x$ with settled value of task $v$ \\
-$\mathsf{task\_get\_dependents} : e \to e$ & Return dependents of the task that $e$ evaluates to \\
-$\mathsf{task\_cancel\_dependencies} : x \to e$ & Cancel task $x$ and its descendants \\
-$\mathsf{task\_wait\_on\_dependencies} : x \to e$ & Wait for all dependencies of $x$ to settle \\
-$\mathsf{task\_reraise\_dependency\_failures} : x \to e$ & Reraise dependency failures \\
+$\mathsf{task\text{-}cancelled} : \sigma \times \ell \to b$ & $\mathit{true}$ iff task $\ell$, or any transitive dependent, is cancelled \\
+$\mathsf{task\text{-}alloc} : \sigma \to (\sigma, x)$ & Allocate a new task struct bound under gensymed name $x$ in $\sigma$ \\
+$\mathsf{task\text{-}uncancel} : \sigma \times \ell \to \sigma$ & Remove cancellation from task $\ell$ in $\sigma$ \\
+$\mathsf{task\text{-}add\text{-}dependency} : \sigma \times \ell_1 \times \ell_2 \to \sigma$ & Add task $\ell_2$ as a dependency of $\ell_1$ \\
+\midrule
+Macro & Description \\
+\midrule
+$\semmacro{task\text{-}add\text{-}dependent} : v \times \ell \times e \rightsquigarrow e$ & Register $\ell$ (continuation $e$) as a dependent of awaitable $v$ \\
+$\semmacro{task\text{-}set\text{-}done} : x \times e \rightsquigarrow e$ & Evaluate $e$ and use value as $x$'s resolved success value \\
+$\semmacro{task\text{-}set\text{-}failed} : x \times e \rightsquigarrow e$ & Evaluate $e$ and use value as $x$'s resolved failure value \\
+$\semmacro{task\text{-}is\text{-}completed} : e \rightsquigarrow e$ & $\mathit{true}$ iff task is resolved (success or failure) \\
+$\semmacro{task\text{-}get\text{-}result} : e \rightsquigarrow e$ & Return task's final value; reraise if task failed \\
+$\semmacro{task\text{-}continue\text{-}with} : v \times x \rightsquigarrow e$ & Resume continuation bound by $x$ with settled value of task $v$ \\
+$\semmacro{task\text{-}get\text{-}dependents} : e \rightsquigarrow e$ & Return dependents of the task that $e$ evaluates to \\
+$\semmacro{task\text{-}cancel\text{-}dependencies} : x \rightsquigarrow e$ & Cancel task $x$ and its descendants \\
+$\semmacro{task\text{-}wait\text{-}on\text{-}dependencies} : x \rightsquigarrow e$ & Wait for all dependencies of $x$ to settle \\
+$\semmacro{task\text{-}reraise\text{-}dependency\text{-}failures} : x \rightsquigarrow e$ & Reraise dependency failures \\
 \bottomrule
-\end{tabular}
+\end{tabularx}

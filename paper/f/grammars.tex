@@ -1,13 +1,12 @@
 $$
 \begin{array}{@{\quad} r c l}
   \multicolumn{3}{@{}l}{\textsf{\CSharp\ / \Js\ / Rust / Python}} \\
-  e & ::=\ \ldots & \mid \mathbfsf{async}\ \mathbfsf{fn}\ \many{x} \to e \mid \mathbfsf{await}\ e \\
+  e & ::=\ \ldots & \mid \mathbfsf{await}\ e \\
   v & ::=\ \ldots & \mid \mathbfsf{async}\ \mathbfsf{fn}\ \many{x} \to e \\[0.5em]
   \multicolumn{3}{@{}l}{\textsf{Asyncio / Trio / Smol / Tokio}} \\
-  e & ::=\ \ldots & \mid \mathsf{spawn}\ e \mid \mathsf{cancel}\ e \\[0.5em]
+  e & ::=\ \ldots & \mid \mathbfsf{spawn}\ e \mid \mathbfsf{cancel}\ e \\[0.5em]
   \multicolumn{3}{@{}l}{\textsf{Swift}} \\
-  e & ::=\ \ldots & \mid \mathbfsf{async}\ \mathbfsf{fn}\ \many{x} \to e \mid \mathbfsf{await}\ e \\
-    &     & \mid \mathsf{cancel}\ e \mid \mathsf{cancelled?} \\
+  e & ::=\ \ldots & \mid \mathbfsf{await}\ e \mid \mathbfsf{cancel}\ e \mid \mathbfsf{cancelled?} \\
   v & ::=\ \ldots & \mid \mathbfsf{async}\ \mathbfsf{fn}\ \many{x} \to e
 \end{array}
 $$

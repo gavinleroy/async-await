@@ -5,7 +5,7 @@ Software developers have long struggled to write concurrent and parallel program
 Our original motivation for studying async/await was to help developers translate their understanding of the concept from one language to another, e.g., from JavaScript to Python. In theory, both languages contain the same core concept with small differences in the details. We should be able to explain async/await just as one might explain lexically-scoped variables, if-statements, or other standardized language features~\cite{lu_identifying_2024}. In reality, the surface similarities between async/await designs can mask deep semantic divergences. For instance: what's the difference between a coroutine, a future, a promise, and a task? What happens when you cancel a task? When are tasks required to exit, if ever? How do errors propagate across a task boundary, if it all? These questions are further complicated by languages with customizable async/await runtimes (e.g., Rust and Python), which give different answers based on the choice of runtime.
 
 \begin{figure}[t]
-  \begin{subfigure}[t]{0.33\linewidth}
+  \begin{subfigure}[t]{0.30\linewidth}
     \begin{lstlisting}[language=Pseudo]
 async fn write_to_log():
   print("A")
@@ -14,58 +14,61 @@ async fn write_to_log():
   print("B")
 
 async fn process_await():
-  task = spawn write_to_log()
-  // do other work ... 
+  task = spawn work()
+  await sleep(0)
   await task
 
 async fn process_detach():
-  spawn write_to_log()
-  // do other work ...
+  task = spawn work()
 \end{lstlisting}
   \caption{Two examples of functions that spawn a task to write data to a log, one that waits for the task, and another that doesn't.}
   \label{fig:motivating-example-process}
   \end{subfigure}
   \hfill
-  \begin{subfigure}[t]{0.35\linewidth}
+  \begin{subfigure}[t]{0.28\linewidth}
     \begin{lstlisting}[language=Pseudo]
 async fn ex1():
-  await process_detach()
+  t = work()
+  print("C")
+  await sleep(3)
 
 async fn ex2():
-  task = spawn process_await()
+  await process_detach()
   await sleep(1)
-  task.cancel()
+  print("C")
 
 async fn ex3():
-  task = spawn process_detach()
-  await sleep(1)
-  task.cancel()
+  await timeout(
+    1, process_await)
+  print("C")
+  await sleep(3)
 \end{lstlisting}
-  \cprotect\caption{Three examples of invocations of the processing functions. The latter two use \code|cancel| to try and prevent the \task from completing.}
+\cprotect\caption{Three examples of invocations of the processing functions. \code|timeout| is used to try and prevent the \task from completing.}
   \label{fig:motivating-example-invoke}
   \end{subfigure}
   \hfill
-  \begin{subfigure}[t]{0.28\linewidth}
+  \begin{subfigure}[t]{0.35\linewidth}
     \vspace{0pt}
+% Automatically generated using `nix run .#figs -- 1`
     \begin{tabular}{lcccc}
     \toprule
-                 & \code|ex1| & \code|ex2|          & \code|ex3| \\
+                 & \code|ex1| & \code|ex2| & \code|ex3| \\
     \midrule
-    Rust \\
-    ~~ Tokio     & AB         & AB                  & AB \\
-    ~~ Smol      & A          & $\varepsilon$       & $\varepsilon$       \\
+    \CSharp    & ACB & AC  & ACB \\
+    \Js        & ACB & ACB & ACB \\
+    Swift      & CAB & AC  & AC  \\
     Python \\
-    ~~ Asyncio   & AB         & $\varepsilon$       & AB \\
-    ~~ Trio      & AB         & A                   & AB \\
-    \CSharp      & A          & -                   & -     \\
-    \Js          & AB         & -                   & -     \\
-    Swift        & A          & A                   & A     \\
+    ~~Asyncio    & C   & AC  & AC  \\
+    ~~Trio       & C   & ABC & AC  \\
+    Rust \\
+    ~~Tokio      & C   & AC  & ACB \\
+    ~~Smol       & C   & C   & AC  \\
     \bottomrule
     \end{tabular}
-    \caption{A table of outcomes when running the programs translated from the pseudocode into different languages. $\varepsilon$ indicates no output. `-' indicates that a language does not provide a built-in \code{.cancel()} method.}
+    \caption{A table of outcomes when running the programs translated from the pseudocode into different languages.}
     \label{fig:motivating-example-outcomes}
   \end{subfigure}
-  \caption{An example of an asynchronous programming pattern that exhibits different behavior under seven modern async/await languages and runtimes.}
+  \caption{An example of an asynchronous programming pattern that exhibits different behavior under seven modern async/await languages and runtimes. We discuss the translation from pseudocode to each respective language in \Cref{sec:designdims}.}
   \label{fig:motivating-example}
 \end{figure}
 

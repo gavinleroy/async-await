@@ -4,10 +4,10 @@ $\langle t, \sigma_0, Q_0, T, P \uplus \{ \langle \ell, E[\mathrm{spawn}\ v_{\ma
 $\longrightarrow \langle \mathrm{step}(t), \sigma_1, Q_1, T, P \uplus \{ \langle \ell, E[x_{\mathit{task}}] \rangle \circ FS \} \rangle$ & \\
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
-  \textbf{where}\ (\sigma_1, x_{\mathit{task}}) = \mathrm{task\_alloc}(\sigma_0) \\
+  \textbf{where}\ (\sigma_1, x_{\mathit{task}}) = \mathrm{task\text{-}alloc}(\sigma_0) \\
   \qquad \kappa = \mathbf{fn}\ x_{\mathit{unit}} \to x_{\mathit{unit}} \mathbin{;} \mathbfsf{reset}\ ( \\
-  \qquad \qquad \mathbfsf{try}\ \mathrm{task\_set\_done}(x_{\mathit{task}}, \mathbf{await}\ v_{\mathit{coro}})\ \mathbfsf{catch}\ v_{\mathit{err}} \to \mathrm{task\_set\_failed}(x_{\mathit{task}}, v_{\mathit{err}}) \mathbin{;} \\
-  \qquad \qquad \cext{\mathrm{os\_start\_soon}(\mathrm{task\_get\_dependents}(x_{\mathit{task}}))} \\
+  \qquad \qquad \mathbfsf{try}\ \mathrm{task\text{-}set\text{-}done}(x_{\mathit{task}}, \mathbf{await}\ v_{\mathit{coro}})\ \mathbfsf{catch}\ v_{\mathit{err}} \to \mathrm{task\text{-}set\text{-}failed}(x_{\mathit{task}}, v_{\mathit{err}}) \mathbin{;} \\
+  \qquad \qquad \cext{\mathrm{os\text{-}start\text{-}soon}(\mathrm{task\text{-}get\text{-}dependents}(x_{\mathit{task}}))} \\
   \qquad ) \\
   \qquad Q_1 = Q_0 \qpush (x_{\mathit{task}}, \kappa)
   \end{array}$
@@ -21,10 +21,10 @@ $\longrightarrow \langle \mathrm{step}(t), \sigma_1, Q_1, T, P \uplus \{ \langle
 % $\longrightarrow \langle \mathrm{step}(t), \sigma, Q, T, P \uplus \{ \langle \ell, E[e_{\mathit{check}}] \rangle \circ FS \} \rangle$ & \\
 % \multicolumn{2}{@{}l@{}}{
 %   $\begin{array}{l}
-%   \textbf{where}\ \mathrm{task\_is\_task}(v_{\mathit{aw}}) \\
-%   \qquad e_k = \mathbfsf{shift}\ k \to \mathrm{task\_add\_self\_as\_dependent}(v_{\mathit{aw}}, \ell, \mathrm{task\_continue\_with}(v_{\mathit{aw}}, k)) \\
-%   \qquad e_{\mathit{check}} = \csus{\mathbfsf{if}\ \mathrm{task\_is\_completed}(v_{\mathit{aw}})\ \mathbfsf{then}\ \mathrm{task\_get\_result}(v_{\mathit{aw}})\ \mathbfsf{else}\ e_k}
-%   % \mathrm{task\_set\_awaited}(v_{\mathit{aw}}) \mathbin{;} \\
+%   \textbf{where}\ \mathrm{task\text{-}is\text{-}task}(v_{\mathit{aw}}) \\
+%   \qquad e_k = \mathbfsf{shift}\ k \to \mathrm{task\text{-}add\text{-}self\text{-}as\text{-}dependent}(v_{\mathit{aw}}, \ell, \mathrm{task\text{-}continue\text{-}with}(v_{\mathit{aw}}, k)) \\
+%   \qquad e_{\mathit{check}} = \csus{\mathbfsf{if}\ \mathrm{task\text{-}is\text{-}completed}(v_{\mathit{aw}})\ \mathbfsf{then}\ \mathrm{task\text{-}get\text{-}result}(v_{\mathit{aw}})\ \mathbfsf{else}\ e_k}
+%   % \mathrm{task\text{-}set\text{-}awaited}(v_{\mathit{aw}}) \mathbin{;} \\
 %   \end{array}$
 % }
 % \end{tabular*}
@@ -36,7 +36,7 @@ $\langle t, \sigma, (\ell_{\mathit{waiting}}, \kappa) \circ Q_1, T, P \uplus \{ 
 $\longrightarrow \langle \mathrm{step}(t), \sigma, Q_1, T, P \uplus \{ \langle \ell_{\mathit{waiting}}, \kappa\ () \rangle \circ \epsilon \} \rangle$ & \\
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
-  \textbf{where}\ \neg \mathrm{task\_cancelled}(\sigma, \ell_{\mathit{waiting}})
+  \textbf{where}\ \neg \mathrm{task\text{-}cancelled}(\sigma, \ell_{\mathit{waiting}})
   \end{array}$
 }
 \end{tabular*}
@@ -45,10 +45,10 @@ $\longrightarrow \langle \mathrm{step}(t), \sigma, Q_1, T, P \uplus \{ \langle \
 \noindent
 \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
 $\langle t, \sigma, (\ell_{\mathit{waiting}}, \kappa) \circ Q_1, T, P \uplus \{ \epsilon \} \rangle$ & [Schedule-Cancelled] \\
-$\longrightarrow \langle \mathrm{step}(t), \sigma, Q_1, T, P \uplus \{ \langle \ell_{\mathit{waiting}}, \ccan{\mathbfsf{throw\_in}(\kappa, \text{``cancelled''})} \rangle \circ \epsilon \} \rangle$ & \\
+$\longrightarrow \langle \mathrm{step}(t), \sigma, Q_1, T, P \uplus \{ \langle \ell_{\mathit{waiting}}, \ccan{\mathbfsf{throw\text{-}in}(\kappa, \text{``cancelled''})} \rangle \circ \epsilon \} \rangle$ & \\
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
-  \textbf{where}\ \mathrm{task\_cancelled}(\sigma, \ell_{\mathit{waiting}})
+  \textbf{where}\ \mathrm{task\text{-}cancelled}(\sigma, \ell_{\mathit{waiting}})
   \end{array}$
 }
 \end{tabular*}
@@ -69,14 +69,14 @@ $\longrightarrow \langle \mathrm{step}(t), \sigma, Q_{\mathit{before}} \circ Q_{
 % \noindent
 % \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
 % $\langle t, \sigma, Q, T, P \uplus \{ \langle \ell, E[\mathrm{cancel}\ v_{\mathit{task}}] \rangle \circ FS \} \rangle$ & [Cancel] \\
-% $\longrightarrow \langle t, \sigma, Q, T, P \uplus \{ \langle \ell, E[\mathrm{task\_set\_cancelled}(v_{\mathit{task}})] \rangle \circ FS \} \rangle$ & 
+% $\longrightarrow \langle t, \sigma, Q, T, P \uplus \{ \langle \ell, E[\mathrm{task\text{-}set\text{-}cancelled}(v_{\mathit{task}})] \rangle \circ FS \} \rangle$ & 
 % \end{tabular*}
 
 % \vspace{1.5em}
 % \noindent
 % \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
-% $\langle t, \sigma, Q, T, P \uplus \{ \langle \mathrm{root}, E[\mathrm{os\_block}\ v_{\mathit{coro}}] \rangle \circ FS \} \rangle$ & [OS-Block-Coro] \\
-% $\longrightarrow \langle \mathrm{step}(t), \sigma, Q, T, P \uplus \{ \langle \mathrm{root}, E[\mathrm{os\_block}\ (\mathrm{spawn}\ v_{\mathit{coro}})] \rangle \circ FS \} \rangle$ & \\
+% $\langle t, \sigma, Q, T, P \uplus \{ \langle \mathrm{root}, E[\mathrm{os\text{-}block}\ v_{\mathit{coro}}] \rangle \circ FS \} \rangle$ & [OS-Block-Coro] \\
+% $\longrightarrow \langle \mathrm{step}(t), \sigma, Q, T, P \uplus \{ \langle \mathrm{root}, E[\mathrm{os\text{-}block}\ (\mathrm{spawn}\ v_{\mathit{coro}})] \rangle \circ FS \} \rangle$ & \\
 % \multicolumn{2}{@{}l@{}}{
 %   $\begin{array}{l}
 %   \textbf{where}\ v_{\mathit{coro}} = \mathrm{fun}\ x \to e

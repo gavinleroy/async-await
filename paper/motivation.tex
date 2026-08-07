@@ -7,12 +7,10 @@ Moreover, async/await is only one form of asynchrony. The job of async/await is 
 
 Before diving into the details of async design dimensions, we start by providing a high-level picture of async/await circa 2026: how does asynchrony relate to the similar concepts of concurrency and parallelism, and what does it look like to write async/await code today?
 
-% We concretize these points to provide some context on how asynchrony generally, and async/await specifically, fits into the broader picture of language design and implementation.
-
 \subsection{Asynchrony vs.\ Concurrency vs.\ Parallelism}
 \label{s:sync-quotes-from-langs}
 
-We will define concurrency as a logical property of a computation, whereby two subcomputations can execute interleaved: one computation begins before another ends. Parallelism is a physical property of a computation, whereby two subcomputations can execute simultaneously: both compuations overlap at the same point in time. Parallelism implies concurrency but not vice versa. For instance, an embedded operating system running on a single core is concurrent but not parallel.
+We will define concurrency as a logical property of a computation, whereby two subcomputations can execute interleaved: one computation begins before another ends. Parallelism is a physical property of a computation, whereby two subcomputations can execute simultaneously: both computations overlap at the same point in time. Parallelism implies concurrency but not vice versa. For instance, an embedded operating system running on a single core is concurrent but not parallel.
 
 We think of asynchrony as a special case of cooperative concurrency. In an asynchronous program, two subcomputations execute interleaved because they are written to yield control to one another. Asynchrony contrasts with competitive concurrency, where interleaving occurs through external imposition, e.g., by context switches. Competitive concurrency usually arises at an architectural level below the language, such as operating system threads.
 
@@ -31,7 +29,6 @@ Asynchrony also has paradigms. Callback asynchrony uses higher-order functions t
 
 \begin{displayquote}%rust
   \textbf{(Rust)}
-  % ``In brief, an asynchronous function returns a future, rather than evaluating immediately when it is called. Inside the function, other futures can be awaited using an await expression, which causes them to yield control while the future is being polled. 
   ``From a user's perspective, they can use async/await as if it were synchronous code, and only need to annotate their functions and calls.''~\cite{withoutboats_2394_2018}
 \end{displayquote}
 
@@ -40,96 +37,93 @@ Asynchrony also has paradigms. Callback asynchrony uses higher-order functions t
 
 We therefore define the paradigm embodied by async/await as \emph{straight-line asynchrony}, given its fundamental organizing principle of eliminating complex control flow. An alternative name would be \emph{task asynchrony}, used within the \CSharp community. As we will discuss, tasks are indeed a central concept to async/await, but when looking cross-linguistically, tasks are not the only element of straight-line asynchrony. For instance, languages like Rust provide coroutines so straight-line asynchrony can be achieved without ever creating a task. Some designs like Python+Trio do not expose any concept of a task to the user.
 
-The goal of this paper is to explore the design space of straight-line asynchrony. We primarily focus on programming languages that (a) have a relatively settled design for straight-line asynchrony, and (b) are in relatively widespread use. That includes languages with a singular form of asynchrony: \Js (specifically ECMAScript 2025, with Typescript types for clarity), \CSharp (v14 on .NET 10), and Swift (v6.2). It also includes languages with a modular form of asynchrony: Python (v3.14, using Asyncio and Trio v0.33) and Rust (v1.92.0, with Tokio v1.50.0 and \smol v2.0.2). We discuss how our findings relate to other languages in \Cref{sec:discussion}.
-
+The goal of this paper is to explore the design space of straight-line asynchrony. We primarily focus on programming languages that (a) have a relatively settled design for straight-line asynchrony, and (b) are in relatively widespread use. That includes languages with a singular form of asynchrony: \Js (specifically ECMAScript 2025, with Typescript types for clarity), \CSharp (v14 on .NET~10), and the \emph{structured-concurrency} subset of Swift (v6.2). It also includes languages with a modular form of asynchrony: Python (v3.14, using Asyncio and Trio v0.33) and Rust (v1.92.0, with Tokio v1.50.0 and \smol v2.0.2). We discuss how our findings relate to other languages in \Cref{sec:discussion}.
+Throughout, we consider only async function calls that introduce concurrency. We do not consider immediately-awaited applications (e.g., \code|await f()|), which complete before the caller resumes and therefore behave like synchronous calls under every design we study.
 We describe our findings informally in \Cref{sec:designdims} and formally in \Cref{sec:semantics}. We do not expect our readers to be familiar with the concrete syntax of all relevant languages, so we articulate the design dimensions at a high level, and present code examples primarily using the same pseudocode style in \Cref{fig:motivating-example}. However, it is useful to first get a sense for both the gestalt and the variety of syntaxes, mechanisms, and semantics in straight-line asynchrony. We therefore conclude this section by implementing an async utility in multiple languages.
 
 \begin{figure}[t]
-  \begin{subfigure}{0.28\linewidth}
+  \begin{subfigure}{0.33\linewidth}
 \begin{lstlisting}[language=Js]
-function timeout<T>(
-  duration: number,
+async function timeout<T>(
+  secs: number,
   f: () => Promise<T>
 ): Promise<T | null> {
-  return Promise.race([
-    f(), sleep(duration)
+  return await Promise.race([
+    f(), sleep(secs)
   ]);
 }
 \end{lstlisting}
-  \cprotect\caption{\Js using its built-in Promise API. \code|Promise.race| returns the result of whichever future finishes first.}
+\cprotect\caption{\Js using its built-in Promise \abbr{api}. \code|Promise.race| returns the result of whichever future finishes first. \Js does not cancel the losing computation.}
   \end{subfigure}
-  \hfill  
+  \hfill
   \begin{subfigure}{0.30\linewidth}
   \begin{lstlisting}[language=Py]
 async def timeout(
-  duration: float,
-  f: Callable[[], Awaitable[T]]
+  secs: float,
+  f: Callable[[],
+       Awaitable[T]]
 ) -> T | None:
   with trio.move_on_after(
-    duration
+    secs
   ):
     return await f()
-  return None
 \end{lstlisting}
-  \cprotect\caption{The Trio library in Python. Trio only exposes timing out, not racing, as a first-class construct, so this function is trivial.}
+  \cprotect\caption{Python+Trio using its first-class construct for timeout. Unlike other languages sampled, Python+Trio does not provide a racing primitive. The timed-out computation is cancelled.}
   \label{fig:timeout-simple-trio}
 \end{subfigure}
   \hfill%
-  \begin{subfigure}{0.34\linewidth}
+  \begin{subfigure}{0.32\linewidth}
   \begin{lstlisting}[language=Rust]
 async fn timeout<F: Future>(
-  duration: Duration, 
+  d: Duration,
   f: impl FnOnce() -> F
 ) -> Option<F::Output> {
   tokio::select! {
-    result = f() => 
+    result = f() =>
       Some(result),
-    _ = sleep(duration) => 
+    _ = sleep(d) =>
       None,
   }
 }
 \end{lstlisting}
-  \cprotect\caption{The Tokio library in Rust. \code|select!| dispatches based on the result of a race.}
+  \cprotect\caption{Rust+Tokio using \code|select!|, which dispatches based on the result of a race. The losing computation is cancelled.}
   \end{subfigure}
-\cprotect\caption{A simplified implementation of \code|timeout|, demonstrating primitives for racing.}
+\cprotect\caption{A simplified implementation of \code|timeout|, demonstrating primitives for racing. The minimal semantics for timing out does not guarantee that a timed-out computation is cancelled, it simply guarantees that execution is no longer blocked.}
 \label{fig:timeout-simple}
 \end{figure}
 
 \subsection{A Case Study on Timing Out}
 \label{sec:timeout}
 
-Consider implementing a \code|timeout| function, which takes as input an asynchronous function and a duration. The minimal semantics is that \code|timeout| returns either the result of the asynchronous work, or if the work takes longer than the duration, an indication of timing out. The \code|timeout| function is a paradigmatic example of asynchronous programming, as its implementation is often non-trivial when only using primitives from other concurrency or parallelism paradigms.
+Consider implementing a \code|timeout| function, which takes as input an asynchronous function and a duration. The minimal semantics is that \code|timeout| returns either the result of the asynchronous work, or if the work takes longer than the duration, an indication of timing out. The \code|timeout| function is a paradigmatic example of asynchronous programming, as its implementation is often non-trithe vial when using only primitives from other concurrency or parallelism paradigms.
 
-Most straight-line async designs include a race primitive (also called \code|select|, \code|or|, \code|wait|, \code|next|) which returns the first of several asynchronous computations to complete. \Cref{fig:timeout-simple} shows three implementations of the minimal \code|timeout| semantics using these primitives. The dual of racing is to wait for all computations to complete, variously called \code|all|,  \code|and|, or \code|join|. 
-%Notably, some designs like Trio offer a different set of primitives, so \code|move_on_after| is a timeout primitive which cannot be implemented by the user.
-
-% \wcnote{Would like to talk about coroutines vs. tasks here because e.g. timeout doesn't actually work for compute-bound futures in Rust.}
-% A subtle difference between these implementations depends on each language's representation of async work. In \Js, a \code|Promise| 
+Most straight-line async designs include a race primitive (also called \code|select|, \code|or|, \code|wait|, or \code|next|) that returns the first of several asynchronous computations to complete. \Cref{fig:timeout-simple} shows three implementations of the minimal \code|timeout| semantics using these primitives. The dual of racing is to wait for all computations to complete, variously called \code|all|, \code|and|, \code|join|, or \code|gather|.
 
 An enhanced semantics for \code|timeout| should take into account \emph{cancellation}: stopping a computation that is no longer needed. Cancellation is another core concept for asynchrony, which did not feature prominently in earlier designs such as \Js and \CSharp, but is more consciously part of later designs such as Swift and Python. For \code|timeout|, we desire three properties. First, if \code|f| exceeds the duration, then \code|f| is cancelled. Second, if \code|timeout| is cancelled, then \code|f| is also cancelled. Third, if \code|f| is cancelled, then it can gracefully shutdown, i.e., execute cleanup code prior to termination.
 
 \begin{figure}[t]
 \begin{subfigure}{0.51\linewidth}
-  \begin{lstlisting}[language=Rust]
-async fn timeout<Fut: Future<Output: Send + 'static> + Send + 'static>(
-  duration: Duration,
-  token: CancellationToken,
-  f: impl FnOnce(CancellationToken) -> Fut,
-) -> TimeoutResult<Fut::Output> {
-  let child_token = token.child_token();  
-  let coro = f(child_token.clone());
-  let task = tokio::spawn(coro);
-  tokio::select! {
-    result = task => Success(result.unwrap()),
-    _ = token.cancelled() => Cancelled,
-    _ = sleep(duration) => {
-      child_token.cancel();
-      TimedOut
-    }
+  \begin{lstlisting}[language=CSharp]
+async Task<T> Timeout<T>(
+  TimeSpan duration, 
+  CancellationToken token, 
+  Func<CancellationToken, Task<T>> f
+) {
+  using var childCts = CancellationTokenSource
+    .CreateLinkedTokenSource(token);
+  var work = f(childCts.Token);
+  try {
+    return await work.WaitAsync(
+      duration, token);
+  } catch (Exception e) when (
+    e is TimeoutException or OperationCanceledException
+  ) {
+    childCts.Cancel();
+    throw;
   }
 }
 \end{lstlisting}
-\cprotect\caption{Rust+Tokio. Because Rust's cancellation is top-down (\Cref{ssec:designdims:cooperation}), graceful shutdown requires the use of a cancellation token threaded through each async function, rather than directly invoking \code|task.abort()|. The \code|child_token| ensures that cancelling \code|f| does not cancel other tasks observing the \code|token| input to \code|timeout|.}
+\cprotect\caption{\CSharp does not provide a built-in mechanism to cancel a \code{Task}, graceful shutdown requires the use of a cancellation token threaded through each async function. The use of a child token, \code|childCts|, ensures that cancelling \code|f| does not cancel other tasks observing the \code|token| input to \code|Timeout|.}
 \label{fig:timeout-tokio}
 \end{subfigure}%
 \hfill
@@ -139,9 +133,9 @@ func timeout<T: Sendable>(
   duration: Duration,
   f: @Sendable () async throws -> T
 ) async throws -> T? {
-  try await withoutActuallyEscaping(f) { 
+  try await withoutActuallyEscaping(f) {
     f in
-    try await withThrowingTaskGroup { 
+    try await withThrowingTaskGroup {
       group in
       group.addTask { try await f() }
       group.addTask {
@@ -160,111 +154,8 @@ func timeout<T: Sendable>(
   \label{fig:timeout-cancel}
 \end{figure}
 
-These goals can be achieved either through library-level or language-level implementations of cancellation. At the library level, a token or signal is threaded through a program, and each task is responsible for observing that token. At the language level, tasks are grouped together, and cancelling one task propagates the cancellation to other tasks, often by throwing a cancellation exception. \Cref{fig:timeout-cancel} shows a library-level and language-level implementation of the enhanced \code|timeout| semantics. 
+These goals can be achieved either through library-level or language-level implementations of cancellation. At the library level, a token or signal is threaded through a program, and each task is responsible for observing that token. At the language level, tasks are grouped together, and cancelling one task propagates the cancellation to other tasks, often by throwing a cancellation exception. \Cref{fig:timeout-cancel} shows a library-level and language-level implementation of the enhanced \code|timeout| semantics.
 
-% (See \Cref{app:timeout-impls} for additional implementations in other languages.) The Rust+Tokio function uses an explicit data structure, the \code|CancellationToken|, threaded throughout the code. This token is a signal for a set of related tasks to end. To enable \code|timeout| to cancel its child computation, the token is passed to \code|f|, which should (by convention!) react to the token. To enable a caller to cancel \code|timeout|, the token's cancellation event is handled in the \code|select!| macro. This style of explicit cancellation is akin to that found in \Js (via \code|AbortController| and \code|AbortSignal|) and \CSharp (via \code|CancellationToken|). Note that one could alternatively implement the Rust+Tokio code without a cancellation token by calling \code|handle.abort()|, which terminates the computation at the next await point. This strategy would still invoke Rust's standard \code|Drop| handlers that precede memory deallocation, but it would not permit for any more customized cleanup code.
-
-% In Swift, cancellation is more deeply integrated into its asynchrony design. Asynchronous work is encapsulated in a core \code|Task| data structure, which contains a signal for whether it has been cancelled. Swift propagates the signal between associated tasks --- for example, the \code|timeout| task awaits on \code|withThrowingTaskGroup|, causing an association between the tasks. Similarly, the task group is associated with its children. Cancelling \code|timeout| propagates inwards. By convention, asynchronous computations which observe the cancellation signal (e.g., \code|Task.sleep|) will throw a \code|CancellationError|. Hence, cancelling \code|timeout| causes an exception to be thrown inside both \code|sleep| and potentially \code|f|, which propagates outwards outside of \code|timeout|.
+For the pseudocode in this paper we use the minimal semantics implementation of \code|timeout| as our cancellation primitve. We made this choice to encompass the varying primitives exposed by runtimes, as well as to accommodate languages without built-in cancellation (e.g., \Js, \CSharp).
 
 In sum, \Cref{fig:motivating-example} demonstrated how different designs for straight-line asynchrony can take the same simple-looking program and cause different outcomes. This section demonstrated how for more sophisticated asynchronous patterns, the same concept can require substantively different implementations. Together, they motivate the need for a better understanding of the collective design space of straight-line asynchrony.
-
-
-
-% Our thesis is that this design goal --- that asynchronous programming permits synchronous reasoning --- is at best only partially true for programs using only the most basic asynchronous programming mechanisms. The reason is that async/await designs require many design decisions for which there is no obvious ``right'' answer. Different languages make reasonably different decisions, which means similar-looking programs can have divergent behavior. To make this point concrete, we will provide several illustrative examples of surprising async/await program behavior.
-
-% Put another way, the asynchronous programming paradigm shares in common with collections parallelism the value of introducing 
-
-% It's true that the async/await version of our illustrative example strongly resembles the synchronous version, however, the sad reality is that it does not take advantage of concurrency. Not only is the syntax of the async/await function similar to the synchronous version, so is its execution. The truth is that async/await is a syntactic abstraction over complicated semantics. Reasoning about async/await programs is no easier than reasoning about any concurrent program. In this section we provide examples of surprising async/await program behavior, which require deeper knowledge of concurrent semantics than the async/await abstraction may lead you to believe.
-
-% \subsection{Async Building Blocks}
-
-% In this section we will look at the architectural building blocks of asynchronous programming and the decisions language designers make when building the async/await abstraction.
-
-% \begin{figure}
-%   \centering
-%   \includegraphics[width=0.98\textwidth]{./f/arch-overview.pdf}
-%   \caption{Cooperative Multitasking Architecture}
-%   \label{fig:architecture-diagram}
-% \end{figure}
-
-% An asynchronous programming system requires several key architectural components. \Cref{fig:architecture-diagram} provides a high-level diagrammatic view of an asynchronous runtime. \todo{Some description of the diagram.} In this section we explain each component and its role within the broader system.
-
-% \paragraph{\Coro (low-level control flow)} The most fundamental building block of asynchronous programming is a functions ability to suspend itself for later resumption. The base language must provide functionality equivalent to \textit{delimited continuations.} A majority of languages do not rely on continuations, but rather, rewrite asynchronous functions into a state machine. The expanded state machine code behaves like an \textit{asymmetric stackless coroutine,} to use the taxonomy provided by~\cite{moura_revisiting_2009}. General coroutines can yield values on suspension and accept values on resumption. For asynchronous programming the generated state machine does not need to yield values on suspension, but needs only to accept values on resumption (or access them at a shared location). To distinguish from general coroutines we will use the term \coro to refer to a coroutine with this limited ability.
-
-% \begin{figure}[htbp]
-%   \begin{minipage}[t]{0.42\textwidth}
-% \begin{lstlisting}[language=Rust]
-% async fn slow_print(msg):
-%   println!("{msg}")
-%   await sleep(Duration::millis(5))
-% \end{lstlisting}\vspace{2em}
-% \begin{lstlisting}[language=Rust]
-% enum SP:
-%   Init(msg),
-%   Waiting(fut)
-
-% fn slow_print(msg):
-%   SP::Init(msg)
-% \end{lstlisting}
-%   \end{minipage}\hfill%
-%   \begin{minipage}[t]{0.58\textwidth}
-% \begin{lstlisting}[language=Rust,firstnumber=7]
-% impl Future for SP:
-%   fn poll(self, ctx):
-%     loop:
-%       match *self:
-%         SP::Init(msg):
-%           let fut = sleep(Duration::millis(5))
-%           *self = SP::Waiting(fut)
-%         SP::Waiting(fut):
-%           if let Poll::Ready(()) = fut.poll(ctx):
-%             return Poll::Ready(())
-%           else:
-%             return Poll::Pending
-% \end{lstlisting}
-%   \end{minipage}
-%   \cprotect\caption{An example of how the Rust compiler transforms an async function into a state machine. \ggnote{Using a pseduo-Rust syntax here and, even if we do want to keep an example here, we'll need something a bit more illustrative.}}
-%   \label{fig:state-machine-transform}
-% \end{figure}
-
-% \paragraph{\Task (async runtime object)} The \coro is a state machine representation of the users initial code, and the \task is the runtime object that tracks the state, e.g., the state of the state machine and other \tasks that are waiting on this \tasks value. There's an important distinction between the \coro and the \task, the former is a reification of the users code as an object, the latter is a pointer to that executing code. The \Task is registered with the current asynchronous runtime and will eventually be scheduled to run.
-
-% \paragraph{Reactor (OS interface)} The reactor provides a communication layer between the runtime and the operating system. A fundamental assumption of cooperative multitasking is that the underlying operating system is capable of concurrent \abbr{i/o}. The reactor starts an \abbr{i/o} operation with the \abbr{os} and, when the \abbr{os} signals that the operation is done, will requeue the waiting \task with the returned value.
-
-% \paragraph{Executor (thread interface)} The executor is responsible for scheduling queued \tasks on a thread to execute. The implementation of the Reactor and Executor are mostly a performance consideration, which we see as out of scope for this investigation. The Executor implementation may have implications on fairness and starvation, which we discuss in \Cref{sec:discussion}.
-
-% \paragraph{\Task (async runtime object)} The \coro is a state machine representation of the users initial code, and the \task is the runtime object that tracks the state, e.g., the state of the state machine and other \tasks that are waiting on this \tasks value. There's an important distinction between the \coro and the \task, the former is a reification of the users code as an object, the latter is a pointer to that executing code. The \Task is registered with the current asynchronous runtime and will eventually be scheduled to run.
-
-% \paragraph{\Reactor (OS interface)} The reactor provides a communication layer between the runtime and the operating system. A fundamental assumption of cooperative multitasking is that the underlying operating system is capable of concurrent \abbr{io}. The reactor starts an \abbr{io} operation with the \abbr{os} and, when the \abbr{os} signals that the operation is done, will requeue the waiting \task with the returned value.
-
-% \paragraph{\Executor (thread interface)} The executor is responsible for scheduling queued \tasks on a thread to execute. The implementation of the Reactor and \Executor are mostly a performance consideration, which we see as out of scope for this investigation. The \Executor implementation may have implications on fairness and starvation, which we discuss in \Cref{sec:discussion}.
-
-% \begin{table}
-%   \begin{tabular}{lll}
-%     \toprule
-%     System            & \Coro               & \Task      \\
-%     \CSharp           & IAsyncStateMachine  & Task       \\
-%     JavaScript        & -                   & Promise    \\
-%     Swift             & -                   & Task       \\
-%     \midrule
-%     Rust              & Future              & -          \\
-%     Tokio (Rust)      & -                   & Task       \\
-%     Smol (Rust)       & -                   & Task       \\
-%     \midrule
-%     Python            & Coroutine           & -          \\
-%     asyncio (Python)  & -                   & Task       \\
-%     Trio (Python)     & -                   & Task       \\
-%     \midrule
-%     Kotlin            & Coroutine           & Deferred   \\
-%     \Cpp{}20          & Coroutine           & Promise    \\
-%     Hack              & -                   & Awaitable  \\
-%     Nim               & -                   & Future     \\
-%     Dart              & -                   & Future     \\
-%     Zig               & -                   & Future     \\
-%     \FSharp           & -                   & Async      \\
-%     \bottomrule
-%   \end{tabular}
-%   \caption{An overview of asynchronous terminology used by modern programming languages. Many languages don't expose \coro types to developers, which means that a manual implementation is not possible using the exposed language \abbr{api}.}
-%   \label{tab:aa-terminology-overview}
-% \end{table}
-

@@ -1,44 +1,19 @@
 \subsubsection{\Destruction}\label{ssec:designdims:destruction}
 
-% \begin{figure}[t]
-%   \includegraphics[width=\linewidth]{f/destruction.pdf}
-%   \caption{An example program demonstrating the \Destruction dimension. Each task diagram shows the sequence of execution of instructions, branching at the point of divergence between each \Destruction approach. Administrative instructions which are executed but don't appear in the source code are displayed in square brackets. }
-%   \label{fig:destruction}
-% \end{figure}
-
-
-Once a language has decided that it is time to destroy a task, we encounter yet another point of divergence: what does it mean to destroy a task? For example, consider the program in \Cref{fig:destruction}. At the end of the \extent of the spawned \lstinline[language=Pseudo]|work()| task (either end of \lstinline[language=Pseudo]|main()| for \dyn \extent, or end of program for \indef \extent), what happens to the \lstinline[language=Pseudo]|work()| task? Today's languages offer three possibilities: to \emph{await} the task, to \emph{cancel} the task, and to \emph{terminate} the task.
-
-The \destruction dimension is orthogonal to \extent. \Js is a language with \indef \extent and awaiting destruction --- \Cref{fig:extent} previously showed an example relying on this pair of design decisions. Python+Trio is a language/system with \dyn \extent and awaiting destruction, as tasks are tied to a ``nursery,'' and the nursery waits until all its child tasks are completed before exiting. The awaiting column in \Cref{fig:destruction} demonstrates Trio semantics, where the program would print ``ABC'' by waiting for the \lstinline[language=Pseudo]|work()| task to before exiting \lstinline[language=Pseudo]|main()|.
-
-\begin{wrapfigure}{r}{0.42\linewidth}
-  \includegraphics[width=\linewidth]{f/destruction-vert.pdf}
-  \caption{An example program demonstrating the \Destruction dimension. Each diagram shows the sequence of instruction execution for a task under Awaited (Trio), Cancelled (Swift), and Terminated (\CSharp). The diagrams branch at the point of divergence between each approach. Administrative instructions which are executed but don't appear in the source code are displayed in brackets. }
+\begin{figure}[tb]
+  \includegraphics[width=\linewidth]{f/destruction-horiz.pdf}
+  \caption{An example program demonstrating the \Destruction dimension. Each diagram shows the sequence of instruction execution for a task under Awaited (Trio), Cancelled (Swift), and Terminated (\CSharp). The diagrams branch at the point of divergence between each approach. Administrative instructions that are executed but don't appear in the source code are displayed in brackets. }
   \label{fig:destruction}
-\end{wrapfigure}
+\end{figure}
 
+Once a language has decided that it is time to destroy a task, we encounter yet another point of divergence: what does it mean to destroy a task? For example, consider the program in \Cref{fig:destruction}. At the end of the \extent of the spawned \lstinline[language=Pseudo]|work()| task (either end of \lstinline[language=Pseudo]|main()| for \dyn \extent, or end of program for \indef \extent), what happens to the \lstinline[language=Pseudo]|work()| task? Today's languages offer three possibilities: to await the task, to cancel the task, or to terminate the task --- the \awaited, \cancelled, and \terminated points of the \Destruction dimension.
 
+The \destruction dimension is orthogonal to \extent. \Js is a language with \indef \extent and \awaited \destruction --- \Cref{fig:extent} previously showed an example relying on this pair of design decisions. Python+Trio is a language/system with \dyn \extent and \awaited \destruction, as tasks are tied to a ``nursery,'' and the nursery waits until all its child tasks are completed before exiting. The \awaited column in \Cref{fig:destruction} demonstrates Trio semantics, where the program would print ``ABC'' by waiting for the \lstinline[language=Pseudo]|work()| task to finish before exiting \lstinline[language=Pseudo]|main()|.
 
-Most other designs opt to cancel and then await\footnotemark{} tasks at the end of extent, such as Swift, Rust+Tokio, Rust+Smol, and Python+Asyncio. \Cref{fig:destruction} running under Swift would output nothing because \code|work()| is cancelled before it can reach a print statement. By contrast, \CSharp will \emph{terminate} tasks at the end of their \indef \extent, meaning the runtime simply exits while the destroyed tasks are running. In \Cref{fig:destruction}, under \CSharp, the program would print ``A'' because the tasks continues until it is terminated after 15 seconds.
+Most other designs opt to cancel and then await\footnotemark{} tasks at the end of \extent, such as Swift, Rust+Tokio, Rust+Smol, and Python+Asyncio. \Cref{fig:destruction} running under Swift would output nothing because \code|work()| is cancelled before it can reach a print statement. By contrast, \CSharp will \emph{terminate} tasks at the end of their \indef \extent, meaning the runtime simply exits while the destroyed tasks are running. In \Cref{fig:destruction}, under \CSharp, the program would print ``A'' because the tasks continues until it is terminated after 15 seconds.
 
-% . By contrast, Smol would output ``AB'' because it would cancel \code|work()|, finish \code|main()|, wait 5 seconds, then exit before the \code|sleepSync(10)| can complete.
+\cprotect\footnotetext{The one exception here is Smol, which does not await cancelled tasks under its \dyn \extent by default. The reason is that Smol implements task destruction using Rust's \code|Drop| trait, which only permits synchronous code, so Rust async implementations cannot await the completion of a task on drop. Smol offers an async \code|Task::cancel| method that implements the cancel+await semantics, but this method is not called automatically. Tokio, by contrast, does implement cancel+await because it uses \indef \extent, and it is easier to have a runtime await outstanding tasks at the end of the main function. Libraries like Trio can implement await-on-destruction using Python's \code|async with| construct for scoped async entry/exit methods.}
 
-\cprotect\footnotetext{The one exception here is Smol, which does not await cancelled tasks under its \dyn \extent by default. The reason is that Smol implements task destruction using Rust's \code|Drop| trait, which only permits synchronous code, so Rust async implementations cannot await the completion of a task on drop. Smol offers an async \code|Task::cancel| method which implements the cancel+await semantics, but this method is not called automatically. Tokio, by contrast, does implement cancel+await because it uses \indef \extent, and it is easier to have a runtime await outstanding tasks at the end of the main function. Libraries like Trio can implement await-on-destruction using Python's \code|async with| construct for scoped async entry/exit methods.}
-
-\paragraph{Design rationale.} For languages with \dyn \extent, the standard approach is to use cancelled destruction. The idea is that responsible async code should await on a task in the same scope in which it was spawned. If a task is still executing after its parent scope exits, this is probably unintended, and it could create surprising behavior to wait until that task is completed. However, this approach makes less sense in Trio, whose nurseries do not expose any concept of a task handle, so it is not trivial to directly await the result of a spawned task.
+\paragraph{Design rationale.} For languages with \dyn \extent, the standard approach is to use \cancelled \destruction. The idea is that responsible async code should await on a task in the same scope in which it was spawned. If a task is still executing after its parent scope exits, this is probably unintended, and it could create surprising behavior to wait until that task is completed. However, this approach makes less sense in Trio, whose nurseries do not expose any concept of a task handle, so it is not trivial to directly await the result of a spawned task.
 
 For languages with \indef \extent, any approach can make sense depending on the needs of the application, and it is straightforward to configure a single global runtime to adopt the desired behavior. For example, Tokio can be configured to terminate rather than await.
-
-% The \Task Destruction axis defines what happens to a task when the \task object is destroyed by the system. The possible values are: \textit{awaited,} \textit{cancelled,} or \textit{terminated.}
-
-% \Cref{fig:designdims:destruction:await} shows an example JavaScript program that awaits \tasks on destruction~\missingcite, even though there is no explicit \code{await} keyword. The program terminates after 10 seconds and prints ``exiting'' and ``done.''
-
-% \Cref{fig:designdims:destruction:cancel} shows an example Swift program that cancels a running task on destruction~\missingcite. Because that task is executing a long sleep operation, the sleep is cancelled --- on cancellation \code{Task.sleep} raises an exception that we suppress with the \code{try?} keyword --- and the program continues executing. The program terminates after ~0.5 seconds and prints ``exiting,'' ``cancelled'' and ``done.''
-
-% \Cref{fig:designdims:destruction:term} shows an example \CSharp program that terminates running \tasks on destruction~\missingcite. The program terminates after ~0.5 seconds and prints ``exiting.''
-
-% Where your language falls on the destruction axis informs the safety and responsiveness of the system. Await destruction allows running \tasks to complete, which provides data/invariant integrity for the program at the expense of responsiveness.
-
-% Cancel destruction may provide \tasks the chance to safely reclaim resources --- depending on the language's chosen cancellation semantics --- however, programs may still suffer from responsiveness issues if cancelling a \task requires the \task's cooperation. We discuss cancellation semantics in \Cref{ssec:designdims:cancellation}.
-
-% Terminate destruction prioritizes speed over safety. A running \task may hold system resources or be in the middle of an operation, by cancelling the \task the system risks deadlocks and breaking logical invariants.

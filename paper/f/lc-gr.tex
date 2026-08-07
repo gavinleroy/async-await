@@ -1,27 +1,11 @@
 $$
 \begin{array}{r@{\ }c@{\ }l}
-\mathsf{Number}\ n & & \mathsf{String}\ s \\
-\mathsf{Const}\ c      & ::=  & \mathsf{true} \mid\mathsf{false}\mid n \mid s \\
-\mathsf{Expr}\ e       & ::=  & x \mid v \mid \mathbfsf{fn}\ \many{x} \to e \mid e\ \many{e} \\
-                       & \mid & \mathbfsf{let}\ x = e\ \mathbfsf{in}\ e \\
-                       & \mid & \mathbfsf{if}\ e\ \mathbfsf{then}\ e\ \mathbfsf{else}\ e \\
-                       & \mid & \mathbfsf{fix}\ e \mid e \mathbin{;} e \\
-                       & \mid & \mathbfsf{reset}\ e \mid \mathbfsf{shift}\ x \to e \\
-                       & \mid & \mathbfsf{ref}\ e \mid !e \mid e := e \\
-\\
-\mathsf{Value}\ v      & ::=  & c \mid () \mid \mathsf{ptr}(x) \\
-       & \mid & \mathbfsf{fn}\ \many{x} \to e \mid \mathbfsf{fix}\ v \\
-\\
-\mathsf{Eval\ Ctx}\ E      & ::=  & [\cdot] \mid \many{v}\ E\ \many{e} \mid \mathbfsf{fix}\ E \\
-       & \mid & \mathbfsf{let}\ x = E\ \mathbfsf{in}\ e \\
-       & \mid & \mathbfsf{let}\ x = v\ \mathbfsf{in}\ E \\
-       & \mid & \mathbfsf{if}\ E\ \mathbfsf{then}\ e\ \mathbfsf{else}\ e \\
-       & \mid & \many{v} \mathbin{;} E \mathbin{;} \many{e} \mid \mathbfsf{reset}\ E \\
-       & \mid & \mathbfsf{ref}\ E \mid !E \mid E := e \\
-       & \mid & v := E
-\\
-\mathsf{Delim\ Ctx}\ M      & ::=\  & \mathsf{(} E\ \mathsf{without}\ \mathbfsf{reset}\ M \mathsf{)}
-\\
-\mathsf{Heap}\ \sigma & ::=  & \cdot \mid \sigma, x \mapsto v
+\multicolumn{3}{c}{\mathsf{Number}\ n \quad \mathsf{String}\ s \quad \mathsf{Variable}\ x} \\
+\mathsf{Const}\ c      & ::=  & \mathbfsf{true} \mid \mathbfsf{false} \mid n \mid s \\
+\mathsf{Expr}\ e       & ::=  & x \mid v \mid e\ \many{e} \mid \mathbfsf{reset}\ e \\
+                       & \mid & \mathbfsf{shift}\ x \to e \mid \cdots \\
+\mathsf{Value}\ v      & ::=  & c \mid () \mid \mathbfsf{fn}\ \many{x} \to e \mid \cdots \\
+\mathsf{Eval\ Ctx}\ E  & ::=  & [\cdot] \mid \many{v}\ E\ \many{e} \mid \mathbfsf{reset}\ E \mid \cdots \\
+\mathsf{Heap}\ \sigma  & ::=  & \cdot \mid \sigma, x \mapsto v
 \end{array}
 $$
