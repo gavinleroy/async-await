@@ -1,10 +1,16 @@
 \subsubsection{\Extent}\label{ssec:designdims:extent}
 
 \begin{figure}[t]
-  \includegraphics[width=0.7\linewidth]{f/extent.pdf}
+  \includegraphics[width=0.7\linewidth]{./f/extent.pdf}
   \caption{An example program demonstrating the \extent dimension, executed with Swift (\dyn) and \Js (\indef). Each column shows the task structure and output after executing each line. Arrows between tasks indicate a parent-child relationship used for \dyn \extent.}
   \label{fig:extent}
 \end{figure}
+
+% \begin{figure}[t]
+%   \includegraphics[width=0.7\linewidth]{./f/extent.pdf}
+%   \caption{An example program demonstrating the \extent dimension, executed with Swift (\dyn) and \Js (\indef). Each column shows the task structure and output after executing each line. Arrows between tasks indicate a parent-child relationship used for \dyn \extent.}
+%   \label{fig:extent}
+% \end{figure}
 
 Borrowing terminology from the Lisp community, the \extent of a task is the interval of time during which that task is capable of executing. For example, consider the program in \Cref{fig:extent}. What is the extent of the \lstinline[language=Pseudo]|spawn work()| task? The answer is it depends on quite a number of factors, as previously illustrated in \Cref{fig:motivating-example}.
 
