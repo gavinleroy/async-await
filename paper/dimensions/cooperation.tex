@@ -1,19 +1,19 @@
 \subsubsection{\Awareness}
 \label{ssec:designdims:cooperation}
 
-Integrated cancellation approaches all center around triggering cancellations at await points. A key distinction is whether a cancelled task is aware that it is being cancelled, in order to handle or ignore the cancellation at a given await point. 
-
 \begin{wrapfigure}{r}{0.54\linewidth}
   \includegraphics[width=\linewidth]{f/cooperation.pdf}
   \caption{An example program demonstrating the \awareness dimension. A branching execution trace is paired with an indicator of whether an invariant is satisfied. An \aware approach allows the canceled task to restore the invariant before proceeding with cancellation, while an \unaware approach remains cancelled with the invariant broken.}
   \label{fig:cooperation}
 \end{wrapfigure}
 
+Integrated cancellation approaches all center around triggering cancellations at await points. A key distinction is whether a cancelled task is aware that it is being cancelled, in order to handle or ignore the cancellation at a given await point. 
+
 The most straightforward approach is \unaware cancellation, where a task has no opportunity to react to being cancelled. This approach is taken by Rust in both Tokio and Smol. In Rust, cancellation essentially means never executing a coroutine again after it has yielded. With a direct handle on the coroutine, this simply means not polling the coroutine, or explicitly dropping it. If the coroutine is within a task, then the task must be marked as cancelled, and the runtime will similarly refuse to reschedule the task.
 
 By contrast, Python and Swift both implement a form of \aware cancellation. In Python (both Asyncio and Trio), when a task is cancelled, a cancellation exception is thrown into the task. An async function can wrap any await point in a try/except block which can catch this cancellation exception, performing cleanup or consuming the exception.
 %
-In Swift, when a task is cancelled, a flag is set indicating that the task is cancelled. Functions can then opt-in to raising a cancellation exception when this flag is set.
+In Swift, when a task is cancelled, a flag is set indicating that the task is cancelled. Functions can then opt-in to raising a cancellation exception when this flag is set. It is encouraged to indicate a cancelled task by raising a \code|CancellationException|, which the standard library \code|Task.sleep| does.
 
 \paragraph{Design rationale.} A benefit of \unaware cancellation is that tasks can be reliably cancelled. The principal case that delays \unaware cancellation is a compute-bound task which does not cooperatively yield to the runtime. With \aware cancellation, functions can either ignore cancellation or fail to opt-in, which we discuss further in \Cref{ssec:designdims:direction}.
 

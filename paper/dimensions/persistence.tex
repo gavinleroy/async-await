@@ -1,7 +1,7 @@
 \subsubsection{\Persistence}
 \label{ssec:designdims:persistence}
 
-One final element of cancellation is its \Persistence: when a task is cancelled, does the cancellation request persist (e.g., subsequent async work is also marked as cancelled), or is cancellation requested once? We will describe these options as \persistent cancellation and \transient cancellation. The \persistence dimension is important for cancel \aware languages, because on cancellation a \task may perform additional async work.
+One final element of cancellation is its \persistence: when a task is cancelled, does the cancellation request persist (e.g., subsequent async work is also marked as cancelled), or is cancellation requested once? We will describe these options as \persistent cancellation and \transient cancellation. The \persistence dimension is important for cancel \aware languages, because on cancellation a \task may perform additional async work.
 
 Swift and Python+Trio use \persistent cancellation. Swift and Trio both implement a cancellation flag shared amongst a task graph, and that flag is permanently active once set. Swift's flag is part of its public \abbr{api}, while Trio's flag is an implementation detail. Consequently, if an async computation ignores its cancellation, then subsequent awaits may again raise a cancellation exception; for both Swift and Trio any subsequent await point may result in a cancellation exception.
 
@@ -19,4 +19,4 @@ The main argument for \transient cancellation is for \tasks to perform async res
 % \footnotemark{} If a cancellation request persists to spawned dependencies, then the library's provided socket \code|.send()| method may always result in a reraised cancelled exception, with no bytes sent.
 However, \transient cancellation has a greater risk for cancellation signals to go unnoticed. If one \task suppresses a cancellation signal, then all others in the graph may never become aware of the attempt.%
 
-Runtimes with \persistent cancellation typically come with a cancellation shielding operator to allow for async cleanup. For example, the Python+Trio code in \Cref{fig:timeout-simple-trio} demonstrates the \code|move_on_after| primitive that allows async cleanup code to temporarily ignore cancellation, while ensuring liveness by moving on after a fixed duration.
+Runtimes with \persistent cancellation typically come with a cancellation \emph{shielding} operator to allow for asynchronous cleanup. For example, the Python+Trio primitive \code|move_on_after| (demonstrated in \Cref{fig:timeout-simple-trio}) exposes a \code|shield| keyword argument that, when \code|True|, suppresses cancellation signals in nested code. This allows async cleanup code to temporarily ignore cancellation while still ensuring liveness by moving on after a fixed duration.
