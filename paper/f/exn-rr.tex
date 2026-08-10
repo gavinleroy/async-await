@@ -1,26 +1,5 @@
 \noindent
 \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
-$\langle \sigma, E[\mathbfsf{try}\  G[\mathbfsf{throw}\ v]\ \mathbfsf{catch}\ (\mathbf{fn}\ x \to e)] \rangle$ & [Catch-Exn] \\
-$\longrightarrow \langle \sigma, E[(\mathbf{fn}\ x \to e)\ v] \rangle$ &
-\end{tabular*}\vspace{1em}
-
-\noindent
-\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
-$\langle \sigma, G[\mathbfsf{throw}\ v] \rangle \longrightarrow \langle \sigma, \mathbfsf{throw}\ v \rangle$ & [Uncaught-Exn] \\
-\multicolumn{2}{@{}l@{}}{
-  $\begin{array}{l}
-  \where\ G \neq [\cdot]
-  \end{array}$
-}
-\end{tabular*}\vspace{1em}
-
-\noindent
-\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
-$\langle \sigma, E[\mathbfsf{try}\ v\ \mathbfsf{catch}\ e_h] \rangle \longrightarrow \langle \sigma, E[v] \rangle$ & [Catch-Value]
-\end{tabular*}\vspace{1em}
-
-\noindent
-\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
-  $\langle \sigma, E[\mathbfsf{throw\_in}(\mathbf{fn}\ x \to E_{\mathit{inner}}[x], v)] \rangle$ &  [Throw-In] \\
+  $\langle \sigma, E[\mathbfsf{throw\text{-}in}(\mathbf{fn}\ x \to E_{\mathit{inner}}[x], v)] \rangle$ &  [Throw-In] \\
 $\longrightarrow \langle \sigma, E[E_{\mathit{inner}}[\mathbfsf{throw}\ v]] \rangle$ &
 \end{tabular*}

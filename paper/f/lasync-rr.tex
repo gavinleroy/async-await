@@ -1,12 +1,12 @@
 \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
-  $\langle t, \sigma_0, Q, T, P \uplus \{ \langle \ell, E[\text{os\_io}(t_{\mathit{delay}}, v)] \rangle \circ FS \} \rangle$ & [OS-IO] \\
+  $\langle t, \sigma_0, Q, T, P \uplus \{ \langle \ell, E[\text{os\text{-}io}(t_{\mathit{delay}}, v)] \rangle \circ FS \} \rangle$ & [OS-IO] \\
   $\longrightarrow \langle \text{step}(t), \sigma_1, Q, T, P \uplus \{ F_{\mathit{new}} \circ \langle \ell, E[x_{\mathit{io}}] \rangle \circ FS \} \rangle$ & \\
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
-  \textbf{where } (\sigma_1, x_{io}) = \text{task\_alloc}(\sigma_0) \\
-  \qquad e_{try} = \mathbfsf{try}\ none \mathbin{;} \text{task\_set\_done}(x_{io}, v)\ \mathbfsf{catch}\ e_{err} \to \text{task\_set\_failed}(x_{io}, e_{err}) \\
-  \qquad e_{done} = e_{\mathit{try}} \mathbin{;} \text{os\_start\_soon}(\text{task\_get\_dependents}(x_{io})) \\
-  \qquad F_{new} = \langle x_{\mathit{io}}, \text{os\_start\_later}(\text{os\_time}() + t_{\mathit{delay}}, x_{\mathit{io}}, \text{fun } () \to e_{done}) \rangle
+  \textbf{where } (\sigma_1, x_{io}) = \text{task\text{-}alloc}(\sigma_0) \\
+  \qquad e_{try} = \mathbfsf{try}\ none \mathbin{;} \text{task\text{-}set\text{-}done}(x_{io}, v)\ \mathbfsf{catch}\ e_{err} \to \text{task\text{-}set\text{-}failed}(x_{io}, e_{err}) \\
+  \qquad e_{done} = e_{\mathit{try}} \mathbin{;} \text{os\text{-}start\text{-}soon}(\text{task\text{-}get\text{-}dependents}(x_{io})) \\
+  \qquad F_{new} = \langle x_{\mathit{io}}, \text{os\text{-}start\text{-}later}(\text{os\text{-}time}() + t_{\mathit{delay}}, x_{\mathit{io}}, \text{fun } () \to e_{done}) \rangle
   \end{array}$
 }
 \end{tabular*}
