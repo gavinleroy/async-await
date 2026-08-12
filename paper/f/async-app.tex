@@ -18,7 +18,6 @@ $\begin{array}[t]{@{}r@{\ }l@{}l@{}l@{}l@{}}
 
 \vspace{1em}
 \noindent
-
 $\begin{array}[t]{@{}r@{\ }l@{\ }l@{}l@{}}
                 & \elided{\sigma_0, Q, & P \uplus \{ \langle \ell, E[(\mathbfsf{async\ fn}\ \many{x} \to e_{\mathit{body}})\ \many{v}] \rangle & {}\circ FS \}} \\
 \longrightarrow & \elided{\sigma_3, \ceag{Q \qpush (x_{\mathit{task}}, \kappa)}, & P \uplus \{ \langle \ell, E[x_{\mathit{task}}] \rangle & {}\circ FS \}}
@@ -40,6 +39,7 @@ $\begin{array}[t]{@{}r@{\ }l@{\ }l@{}l@{}}
 \end{tabular*}
 
 \vspace{1em}
+\noindent
 $\begin{array}[t]{@{}r@{\ }l@{}}
                 & \langle \sigma_0, E[(\mathbfsf{async\ fn}\ \many{x} \to e_{\mathit{body}})\ \many{v}] \rangle \\
 \longrightarrow & \langle \sigma_1, E[\ceag{\mathbfsf{reset}\ (\mathbfsf{shift}\ k \to k \mathbin{;} e_{\mathit{subst}})}] \rangle
@@ -47,7 +47,7 @@ $\begin{array}[t]{@{}r@{\ }l@{}}
 \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
-  \where\ \many{x}_{\mathit{fresh}} = \many{\mathsf{gensym}(),~ \sigma_1 = \sigma_0[\many{x}_{\mathit{fresh}} \mapsto \many{v}],~ e_{\mathit{subst}} = e_{\mathit{body}}[\many{x}_{\mathit{fresh}}/\many{x}]} \\
+  \where\ \many{x}_{\mathit{fresh}} = \many{\mathsf{gensym}(),~ \sigma_1 = \sigma_0[\many{x}_{\mathit{fresh}} \mapsto \many{v}],~ e_{\mathit{subst}} = e_{\mathit{body}}[\many{x}_{\mathit{fresh}}/\many{x}]}
   \end{array}$
 }
 \end{tabular*}
