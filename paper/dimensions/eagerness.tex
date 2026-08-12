@@ -8,7 +8,7 @@ An asynchronous function either implicitly (in the runtime implementation) or ex
 
 \begin{figure}[t]
   \centering
-  \includegraphics[width=0.8\linewidth]{f/eagerness.pdf}
+  \includegraphics[width=0.82\linewidth]{f/eagerness.pdf}
   \cprotect\caption{An example program demonstrating the \eagerness dimension, executed with Rust (\lazy), \CSharp (\eager), and Swift (\seager) when using \emph{async let.} Each column shows the line of execution, the text printed to stdout, and changes to the values of the variables \code|a| and \code|b|. Coroutines are represented as a state machine, with the active state colored in green. Tasks are represented as a boxed state machine. The dotted vertical lines represent nondeterminism, or an event that could happen anywhere within the indicated range.}
   \label{fig:eagerness}
 \end{figure}

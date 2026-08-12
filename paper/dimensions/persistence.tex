@@ -1,17 +1,17 @@
 \subsubsection{\Persistence}
 \label{ssec:designdims:persistence}
 
+\begin{wrapfigure}{r}{0.62\linewidth}
+  \includegraphics[width=\linewidth]{f/persistence.pdf}
+  \cprotect\caption{An example program demonstrating \persistence. After the \code|work| task is cancelled, then the first await raises a cancellation exception. Under \Transient semantics (Python+Asyncio), subsequent awaits proceed as normal. Under \Persistent semantics (Python+Trio), subsequent awaits still raise a cancelled exception, stopping further execution.}
+  \label{fig:persistence:shield}
+\end{wrapfigure}
+
 One final element of cancellation is its \persistence: when a task is cancelled, does the cancellation request persist (e.g., subsequent async work is also marked as cancelled), or is cancellation requested once? We will describe these options as \persistent cancellation and \transient cancellation. The \persistence dimension is important for cancel \aware languages, because on cancellation a \task may perform additional async work.
 
 Swift and Python+Trio use \persistent cancellation. Swift and Trio both implement a cancellation flag shared amongst a task graph, and that flag is permanently active once set. Swift's flag is part of its public \abbr{api}, while Trio's flag is an implementation detail. Consequently, if an async computation ignores its cancellation, then subsequent awaits may again raise a cancellation exception; for both Swift and Trio any subsequent await point may result in a cancellation exception.
 
 Rust and Python+Asyncio use \transient cancellation. In Rust's case, because cancellation is \noncoop, cancellation is unrecoverable. For Asyncio, cancellation is recoverable, so if an async computation ignores a cancellation request, then it can continue spawning and awaiting tasks unimpeded. Importantly, \tasks spawned after the initial cancellation request would be unaware of the previous cancellation attempt.
-
-\begin{wrapfigure}{r}{0.55\linewidth}
-  \includegraphics[width=\linewidth]{f/persistence.pdf}
-  \cprotect\caption{An example program demonstrating \persistence. After the \code|work| task is cancelled, then the first await raises a cancellation exception. Under \Transient semantics (Python+Asyncio), subsequent awaits proceed as normal. Under \Persistent semantics (Python+Trio), subsequent awaits still raise a cancelled exception, stopping further execution.}
-  \label{fig:persistence:shield}
-\end{wrapfigure}
 
 \paragraph{Design rationale.} For \noncoop cancellation, \persistence is a moot point, so the main question is which design best fits \coop cancellation. This perhaps comes down to a philosophy on why tasks would choose to ignore their cancellation, and what risks are incurred as a result.
 
