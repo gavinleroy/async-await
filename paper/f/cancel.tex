@@ -15,7 +15,7 @@ $\begin{array}[t]{@{}r@{\ }l@{}l@{}}
 \noindent
 $\begin{array}[t]{@{}r@{\ }l@{}l@{}l@{\ }l@{}l@{}l@{}}
                 & \elided{(\ell, \kappa) & {}\circ{} & Q, & P \uplus \{ & & \epsilon \}}\\
-\longrightarrow & \elided{               &           & Q, & P \uplus \{ \cawa{\langle \ell,}\, \cdir{\mathsf{throw\text{-}in}(\kappa, \textsf{``stop''})}\, \cawa{\rangle} & {}\circ{} & \epsilon \}}
+\longrightarrow & \elided{               &           & Q, & P \uplus \{ \cawa{\langle \ell,}\kern3.5 \cdir{\mathbfsf{throw\textbfsf{-}in}(\kappa, \textsf{``stop''})}\kern3.5 \cawa{\rangle} & {}\circ{} & \epsilon \}}
 \end{array}$\hfill$\text{[Trio-Schedule-Cancelled]}$\par
 \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
 \multicolumn{2}{@{}l@{}}{
@@ -29,7 +29,7 @@ $\begin{array}[t]{@{}r@{\ }l@{}l@{}l@{\ }l@{}l@{}l@{}}
 \noindent
 $\begin{array}[t]{@{}r@{\ }l@{}l@{}l@{\ }l@{}l@{}l@{}}
                 & \elided{\sigma_0, (\ell, \kappa) & {}\circ{} & Q, & P \uplus \{ & & \epsilon \}} \\
-  \longrightarrow & \elided{\sigma_1,                &           & Q, & P \uplus \{ \cawa{\langle \ell,}\, \cdir{\mathsf{throw\text{-}in}(\kappa, \textsf{``stop''})}\, \cawa{\rangle} & {}\circ{} & \epsilon \}}
+  \longrightarrow & \elided{\sigma_1,                &           & Q, & P \uplus \{ \cawa{\langle \ell,}\kern3.5 \cdir{\mathbfsf{throw\textbfsf{-}in}(\kappa, \textsf{``stop''})}\kern3.5 \cawa{\rangle} & {}\circ{} & \epsilon \}}
 \end{array}$\hfill$\text{[Asyncio-Schedule-Cancelled]}$\par
 \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
 \multicolumn{2}{@{}l@{}}{
@@ -50,7 +50,7 @@ $\begin{array}[t]{@{}r@{\ }l@{}l@{}l@{}l@{}l@{}}
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
   \where\ \mathsf{true} = \mathsf{task\text{-}cancelled}(\sigma, \ell)\, \cper{\ghost} \\
-  \qquad e_{\mathit{fail}} = \semmacro{task\text{-}set\text{-}failed}(\ell, ()) \mathbin{;} \mathbfsf{sys\text{-}start\text{-}soon}(\semmacro{task\text{-}get\text{-}dependents}(\ell))
+  \qquad e_{\mathit{fail}} = \semmacro{task\text{-}set\text{-}failed}(\ell, ()) \mathbin{;} \mathbfsf{sys\textbfsf{-}start\textbfsf{-}soon}(\semmacro{task\text{-}get\text{-}dependents}(\ell))
   \end{array}$
 }
 \end{tabular*}
