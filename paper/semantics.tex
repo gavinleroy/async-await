@@ -26,7 +26,7 @@
   \label{fig:lang:core}
 \end{figure}
 
-The preceding taxonomy helps us make sense of the space of straight-line asynchrony, but it does not provide a account of each language's async holistically. In this section we model the core async features of each of the languages under study. An example of the payoff is \Cref{fig:explain-tree}, which precisely accounts for the divergent behaviors of \Cref{fig:motivating-example}. The rest of the section explains the key components of the figure.
+The preceding taxonomy helps us make sense of the space of straight-line asynchrony, but it does not provide an account of each language's async holistically. In this section we model the core async features of each of the languages under study. An example of the payoff is \Cref{fig:explain-tree}, which precisely accounts for the divergent behaviors of \Cref{fig:motivating-example}. The rest of the section explains the key components of the figure.
 
 Rather than describe each language separately, our semantics is designed to both capture the commonalities and highlight the differences between async in these languages. To do this, we unify the languages' implementation of asynchrony using delimited continuations rather than faithfully modeling each implementation using state machines and other such mechanisms. The full semantics is too large to include in its entirety; we provide the elided rules in the appendix.
 
@@ -35,9 +35,9 @@ We provide an executable version of the model in Redex~\cite{racket:redex}, incl
 
 \subsection{Base Language}
 
-\Cref{fig:lang:lc,fig:lang:exn} provide the grammar and semantics of the core calculi that comprise our base for the async extensions. The core language \lc contains mutable references and delimited continuations via the $\mathbfsf{shift}$ and $\mathbfsf{reset}$ operators described by \citet{danvy_functional_nodate}. The grammar for \lc is provided in \Cref{fig:lang:lc}. Reduction rules for synchronous grammars are defined over a mutable heap, $\sigma$, and an expression $e$, $\langle\sigma,e\rangle$.
+\Cref{fig:lang:lc,fig:lang:exn} provide the grammar and semantics of the core calculi that comprise our base for the async extensions. The core language \lc contains mutable references and delimited continuations via the $\mathbfsf{shift}$ and $\mathbfsf{reset}$ operators described by \citet{danvy_functional_nodate}. \Cref{fig:lang:lc} provides the grammar for \lc. Reduction rules for synchronous grammars are defined over a mutable heap, $\sigma$, and an expression $e$, $\langle\sigma,e\rangle$.
 
-For languages with exceptions, we extend \lc with $\mathbfsf{try}$/$\mathbfsf{catch}$ and $\mathbfsf{throw}$ forms and refer to this language as \exn. The grammar extension for \exn is provided in \Cref{fig:lang:exn}, and the reduction rule for the non-standard $\mathbfsf{throw\textbfsf{-}in}$ form in \Cref{fig:lang:exn:red}. The non-standard $\mathbfsf{throw\textbfsf{-}in}$ resumes a continuation with an exception instead of a value and is modeled after Python's \code{.throw()} coroutine method.
+For languages with exceptions, we extend \lc with $\mathbfsf{try}$/$\mathbfsf{catch}$ and $\mathbfsf{throw}$ forms and refer to this language as \exn. \Cref{fig:lang:exn} provides the grammar extension for \exn, and \Cref{fig:lang:exn:red} provides the reduction rule for the nonstandard form $\mathbfsf{throw\textbfsf{-}in}$, which we model after Python's \code{.throw()} coroutine method. The form $\mathbfsf{throw\textbfsf{-}in}$ resumes a continuation with an exception instead of a value.
 
 \begin{figure}[t]
   \begin{subfigure}[t]{\textwidth}
@@ -57,7 +57,7 @@ For languages with exceptions, we extend \lc with $\mathbfsf{try}$/$\mathbfsf{ca
     \cprotect\caption{The order of extension for each async runtime.}
     \label{fig:langs:lineage}
   \end{subfigure}
-  \cprotect\caption{The grammar extensions and order of extension for \lasync and the seven async systems under study. Python and Rust are \textit{extended by} \lasync because they provide native coroutines. The runtimes for those languages are defined as libraries. The other languages Swift/\Js/\CSharp \textit{extend} \lasync because they do not provide native coroutines and their async runtimes are built in to the language runtime.}
+  \cprotect\caption{The grammar extensions and order of extension for \lasync and the seven async systems under study. Python and Rust are \textit{extended by} \lasync because they provide native coroutines. The runtimes for those languages are defined as libraries. The other languages: Swift, \Js, \CSharp, \textit{extend} \lasync because they do not provide native coroutines and their async runtimes are built into the language runtime.}
   \label{fig:platform}
 \end{figure}
 
@@ -66,9 +66,9 @@ For languages with exceptions, we extend \lc with $\mathbfsf{try}$/$\mathbfsf{ca
 We now describe the configuration of the shared async grammar, which can extend any base language. \Cref{fig:lasync:grammar} defines the shared grammar constructs that encode the async runtime building blocks discussed in \Cref{sec:designdims}. We will refer to this extension as the async platform, \lasync.
 
 We introduce the notion of an async \textit{frame}, $F$, written $\langle \ell,\,e\rangle$, which consists of an expression $e$, along with a frame label, $\ell$.\footnotemark A \textit{frame label}, $\ell$, is either the name of the \task this frame corresponds to, or \textit{sync} to denote a synchronous frame. A \textit{frame stack}, $FS$, is a list of frames---essentially a thread. An empty frame stack is written $\epsilon$, and we write $F \circ FS$ to denote a frame stack whose head is $F$ and tail is $FS$. A \textit{process}, $P$, is a collection of frame stacks. We will use the syntax $P \uplus FS$ to select one frame stack in $P$ to run. A \textit{task queue}, $Q$, stores the async work waiting to be run; $Q$ comprises tuples that have a label and a continuation, $(\ell,\kappa)$.
-% A \textit{signals queue}, $T$, stores async work that is waiting on \abbr{i/o} operations, the work will be rescheduled in the future at timestamp $t$, at the earliest. $T$ comprises tuples that have a time, a label, and a continuation, $(t,\ell,\kappa)$.
-% We will use the same stack notation for $Q$ and $T$ as we do for $FS$. We will additonally write $Q \qpush (\ell,\,\kappa)$ to append to the end of the queue (applicable to both $Q$ and $T$).%
-We will use the same stack notation for $Q$ as we do for $FS$. We will additonally write $Q \qpush (\ell,\,\kappa)$ to append to the end of the queue.%
+A \textit{signals queue}, $T$, stores async work that is waiting on \abbr{i/o} operations, the work is rescheduled at the earliest at timestamp $t$. $T$ comprises tuples that have a time, a label, and a continuation, $(t,\ell,\kappa)$.
+We will use the same stack notation for $Q$ and $T$ as we do for $FS$. We will additonally write $Q \qpush (\ell,\,\kappa)$ to append to the end of the queue.%
+% We will use the same stack notation for $Q$ as we do for $FS$. We will additonally write $Q \qpush (\ell,\,\kappa)$ to append to the end of the queue.%
 \footnotetext{We use a labeled async frame to explicitly associate executing code with a task. An alternative formalism would be to delimit tasks using a labeled context. We these two options as equivalent and chose the former.}
 
 The async platform provides a few additional administrative instructions that we will describe here. The $\mathbfsf{sys\textbfsf{-}block}(e)$ expression provides the barrier between synchronous code and asynchronous code. Languages may use a block expression to block a synchronous frame until the asynchronous expression has completed running. The block expression marks the runtime entry (e.g., creating a thread pool), and when it returns, the runtime exit (e.g., destroying the thread pool and runtime queues).
@@ -87,6 +87,7 @@ The goal of the operational semantics is to highlight the differences between la
   \input{./f/metafunctions.tex}
   \caption{Metafunctions and macros used in the reduction rules. Metafunctions evaluate to a term, while macros expand into expressions. We set macros in italics to distinguish them from metafunctions.}
   \label{table:metafunctions}
+  \vspace{-2em}
 \end{table}
 
 \subsection{Start/End of Life}
