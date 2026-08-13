@@ -1,15 +1,15 @@
 $$
 \begin{array}{l}
 \begin{array}{rcl @{\hspace{3em}} rcl}
-  \mathsf{Time}\ t              & \in & \mathbb{N}_0 \cup \{\infty\}                              & \mathsf{Frame}\ F         & ::= & \langle \ell, e \rangle \\
-\mathsf{Label}\ \ell          & ::= & x \mid \mathbfsf{sync}                    & \mathsf{Frame\ Stack}\ FS & ::= & \epsilon \mid F \circ FS \\
-\mathsf{Continuation}\ \kappa & ::= & \mathbfsf{fn}\ x_{\mathit{unit}} \to e    & \mathsf{Process}\ P       & ::= & \{ FS_1, \dots, FS_n \} \\
-\mathsf{Signal\ Queue}\ T     & ::= & \epsilon \mid (t, \ell, \kappa) \circ T & \mathsf{Task\ Queue}\ Q   & ::= & \epsilon \mid (\ell, \kappa) \circ Q 
+  \sfid{Time}\ t              & \in & \mathbb{N}_0 \cup \{\infty\}                              & \sfid{Frame}\ F         & ::= & \langle \ell, e \rangle \\
+\sfid{Label}\ \ell          & ::= & x \mid \bsfid{sync}                    & \sfid{Frame\ Stack}\ FS & ::= & \epsilon \mid F \circ FS \\
+\sfid{Continuation}\ \kappa & ::= & \bsfid{fn}\ x_{\mathit{unit}} \to e    & \sfid{Process}\ P       & ::= & \{ FS_1, \dots, FS_n \} \\
+\sfid{Signal\ Queue}\ T     & ::= & \epsilon \mid (t, \ell, \kappa) \circ T & \sfid{Task\ Queue}\ Q   & ::= & \epsilon \mid (\ell, \kappa) \circ Q 
 \end{array} \\
 \\
 \begin{array}{rcl}
-e & ::= & \dots \mid \mathbfsf{sys\textbfsf{-}io}(e, e) \mid \mathbfsf{sys\textbfsf{-}start\textbfsf{-}soon}(\many{\ell,e}) \mid \mathbfsf{sys\textbfsf{-}start\textbfsf{-}later}(e, \ell, e)
-% e & ::= & \dots \mid \mathbfsf{sys\textbfsf{-}block}(e) \mid \mathbfsf{sys\textbfsf{-}time}() \mid \mathbfsf{sys\textbfsf{-}io}(e, e) \mid \mathbfsf{sys\textbfsf{-}start\textbfsf{-}soon}(\many{\ell,e}) \mid \mathbfsf{sys\textbfsf{-}start\textbfsf{-}later}(e, \ell, e)
+e & ::= & \dots \mid \bsfid{sys-io}(e, e) \mid \bsfid{sys-start-soon}(\many{\ell,e}) \mid \bsfid{sys-start-later}(e, \ell, e)
+% e & ::= & \dots \mid \bsfid{sys-block}(e) \mid \mathbfsf{sys-time}() \mid \mathbfsf{sys-io}(e, e) \mid \mathbfsf{sys-start-soon}(\many{\ell,e}) \mid \mathbfsf{sys-start-later}(e, \ell, e)
 \end{array}
 \end{array}
 $$

@@ -490,6 +490,13 @@
 \csdef{legenditem@dir}{\legendmark{P1C3}\direction}
 \csdef{legenditem@per}{\legendmark{P1C7}\persistence}
 
+% For typesetting identifiers with hyphens
+\DeclareRobustCommand{\iid}[1]{\text{\normalfont\textit{#1}}}
+\DeclareRobustCommand{\sfid}[1]{\text{\normalfont\textsf{#1}}}
+\DeclareRobustCommand{\sfiid}[1]{\text{\normalfont\textsf{\textit{#1}}}}
+\DeclareRobustCommand{\bsfid}[1]{\text{\normalfont\textsf{\textbf{#1}}}}
+\DeclareRobustCommand{\bsfiid}[1]{\text{\normalfont\textsf{\textbf{\textit{#1}}}}}
+
 \newcommand{\makelegend}[1]{%
   \par\vspace{-0.5em}%
   {\centering\sffamily\small%
