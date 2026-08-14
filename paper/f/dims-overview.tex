@@ -30,58 +30,58 @@
 \DimSection{Start of Life}
 
 \DimRowTitle{Eagerness}{How to evaluate an async function application.} &
-\DimCell{lazy}{Evaluate to a coroutine without executing further.}{Python\LangSep Rust} &
-\DimCell{eager}{Evaluate in current thread, and schedule as task on await.}{\CSharp\LangSep \Js\LangSep Swift~\emph{(immediate)}} &
-\DimCell{semi-eager}{Evaluate to task, and schedule task for execution.}{Swift~\emph{(async let)}} \\
+\DimCell{\lazy}{Evaluate to a coroutine without executing further.}{Python\LangSep Rust} &
+\DimCell{\eager}{Evaluate in current thread, and schedule as task on await.}{\CSharp\LangSep \Js\LangSep Swift~\emph{(immediate)}} &
+\DimCell{\seager}{Evaluate to task, and schedule task for execution.}{Swift~\emph{(async let)}} \\
 \addlinespace[1ex]
 
 
 \DimRowTitle{Suspension}{Guarantees on whether await points suspend.} &
-\DimCell{static}{Await points guaranteed to suspend.}{\Js} &
-\DimCell{dynamic}{No guarantees on awaiting tasks.}{\CSharp\LangSep Swift\LangSep Tokio\LangSep Smol\LangSep Asyncio\LangSep Trio} & \\
+\DimCell{\static}{Await points guaranteed to suspend.}{\Js} &
+\DimCell{\dynamic}{No guarantees on awaiting tasks.}{\CSharp\LangSep Swift\LangSep Tokio\LangSep Smol\LangSep Asyncio\LangSep Trio} & \\
 
 \DimSeparator
 
 \DimSection{End of Life}
 
 \DimRowTitle{Extent}{The default interval of time during which a task may exist.} &
-\DimCell{indefinite}{Tasks by default may exist until the end of the runtime.}{\Js\LangSep \CSharp\LangSep Tokio\LangSep Smol\LangSep Asyncio} &
-\DimCell{dynamic}{Tasks by default may exist until the end of their spawning scope.}{Swift\LangSep Trio} & \\
+\DimCell{\indef}{Tasks by default may exist until the end of the runtime.}{\Js\LangSep \CSharp\LangSep Tokio\LangSep Smol\LangSep Asyncio} &
+\DimCell{\dyn}{Tasks by default may exist until the end of their spawning scope.}{Swift\LangSep Trio} & \\
 \addlinespace[1ex]
 
 \DimRowTitle{Reference Strength}{[For \indef \extent{}] \newline The type of reference to a task held by the runtime.} &
-\DimCell{strong}{The runtime holds a strong reference.}{\Js\LangSep \CSharp\LangSep Tokio} &
-\DimCell{weak}{The runtime holds a weak reference.}{Asyncio\LangSep Smol} & \\
+\DimCell{\strong}{The runtime holds a strong reference.}{\Js\LangSep \CSharp\LangSep Tokio} &
+\DimCell{\weak}{The runtime holds a weak reference.}{Asyncio\LangSep Smol} & \\
 \addlinespace[1ex]
 
 \DimRowTitle{Destruction}{How a task is cleaned up at the end of its extent.} &
-\DimCell{awaited}{The task is awaited to completion.}{\Js\LangSep Trio} &
-\DimCell{cancelled}{The task is cancelled, and then possibly awaited.}{Swift\LangSep Tokio\LangSep Smol\LangSep Asyncio} &
-\DimCell{terminated}{The program exits.}{\CSharp} \\
+\DimCell{\awaited}{The task is awaited to completion.}{\Js\LangSep Trio} &
+\DimCell{\cancelled}{The task is cancelled, and then possibly awaited.}{Swift\LangSep Tokio\LangSep Smol\LangSep Asyncio} &
+\DimCell{\terminated}{The program exits.}{\CSharp} \\
 \addlinespace[1ex]
 
 \DimRowTitle{Propagation}{What happens to exceptions in unawaited tasks.} &
-\DimCell{destruction}{Exceptions are reraised by dependents.}{Trio} &
-\DimCell{never}{The exception is kept within the task.}{\Js\LangSep \CSharp\LangSep Tokio\LangSep Smol\LangSep Asyncio\LangSep Swift} & \\
+\DimCell{\destruct}{Exceptions are reraised by dependents.}{Trio} &
+\DimCell{\never}{The exception is kept within the task.}{\Js\LangSep \CSharp\LangSep Tokio\LangSep Smol\LangSep Asyncio\LangSep Swift} & \\
 
 \DimSeparator
 
 \DimSection{Cancellation}
 
 \DimRowTitle{Awareness}{Whether a task is able to respond to being cancelled.} &
-\DimCell{unaware}{The task cannot respond to being cancelled.}{Rust} &
-\DimCell{aware}{The task can respond to being cancelled.}{Asyncio\LangSep Trio\LangSep Swift} & \\
+\DimCell{\unaware}{The task cannot respond to being cancelled.}{Rust} &
+\DimCell{\aware}{The task can respond to being cancelled.}{Asyncio\LangSep Trio\LangSep Swift} & \\
 \addlinespace[1ex]
 
 \DimRowTitle{Direction}{How cancellation is communicated through the task graph.} &
-\DimCell{top-down}{Starting from the root task, and communicated from dependents to dependencies.}{Rust} &
-\DimCell{bottom-up}{Starting from the root's dependencies and communicated to dependents.}{Asyncio\LangSep Trio} &
-\DimCell{simultaneous}{To all transitive dependencies at once.}{Swift} \\
+\DimCell{\tdown}{Starting from the root task, and communicated from dependents to dependencies.}{Rust} &
+\DimCell{\bup}{Starting from the root's dependencies and communicated to dependents.}{Asyncio\LangSep Trio} &
+\DimCell{\simu}{To all transitive dependencies at once.}{Swift} \\
 \addlinespace[1ex]
 
 \DimRowTitle{Persistence}{[For \aware cancellation] \newline How long a cancellation of a task lasts.} &
-\DimCell{transient}{A task can ignore cancellation and proceed as normal.}{Asyncio} &
-\DimCell{persistent}{A task can ignore cancellation but remains cancelled.}{Trio\LangSep Swift} & \\
+\DimCell{\transient}{A task can ignore cancellation and proceed as normal.}{Asyncio} &
+\DimCell{\persistent}{A task can ignore cancellation but remains cancelled.}{Trio\LangSep Swift} & \\
 
 \end{tabularx}
 \caption{Overview of the asynchronous programming design dimensions}
