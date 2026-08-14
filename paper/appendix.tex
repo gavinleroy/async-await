@@ -9,6 +9,7 @@ The translation from pseudocode to each language is straightforward:
   \item Function calls translate into function calls
   \item \code|spawn| is translated into a \code|spawn| for runtimes that have it (Asyncio, Trio, Tokio, Smol) and a \emph{noop} for languages that don't (\CSharp, \Js, Swift)
   \item All throwing function are assumed to have a \code|try| in front of them following Swift semantics
+  \item  \code|timeout| translates to the respective implementation of the minimal semantics in \Cref{sec:straightline-async}.
 \end{enumerate}
 
 \subsection{Design Documents Describing Straight-Line Asynchrony}
@@ -131,10 +132,10 @@ async Task Main() {
   await a; await b;
 } // => ABC
 \end{lstlisting}
-    \cprotect\subcaption{\CSharp{} function applications are \eager. When \code{work} is called the executing thread transfers control to the body of the async function until it is suspended. The print order of this program is always ``ABC''.}
-    % \label{fig:designdims:eagerness:eager}
+  %   \cprotect\subcaption{\CSharp{} function applications are \eager. When \code{work} is called the executing thread transfers control to the body of the async function until it is suspended. The print order of this program is always ``ABC''.}
+  %   % \label{fig:designdims:eagerness:eager}
   \end{minipage}
-  \caption{Examples of \lazy, \seager, and \eager async function application.}
+  % \caption{Examples of \lazy, \seager, and \eager async function application.}
   % \label{fig:designdims:eagerness}
 \end{figure}
 
@@ -190,17 +191,17 @@ fn main() {
   });
 } // => CAAABBB
 \end{lstlisting}
-    \cprotect\subcaption{}
-    % \label{fig:designdims:suspend:dynamic}
+  %   \cprotect\subcaption{}
+  %   % \label{fig:designdims:suspend:dynamic}
   \end{minipage}
-  \caption{Examples of \static and \dynamic \suspension.}
+  % \caption{Examples of \static and \dynamic \suspension.}
   % \label{fig:designdims:suspend}
 \end{figure}
 
 \subsection{\Extent Programs}
 
-
-\begin{lrbox}{\aastateA}
+\begin{figure}[H]
+  \begin{subfigure}[t]{0.49\textwidth}
 \begin{lstlisting}[language=Swift,numbers=none]
 func innerWork() async {
     try? await Task.sleep(
@@ -209,47 +210,24 @@ func innerWork() async {
 }
 
 func work() async throws {
-\end{lstlisting}
-\end{lrbox}
-
-\begin{lrbox}{\aastateB}
-\begin{lstlisting}[language=Swift,numbers=none,escapechar=|]
-    async let a /* |$T_1$| */ = innerWork()
+    async let a = innerWork()
     try await Task.sleep(
       for: .milliseconds(1))
     print("exiting")
-\end{lstlisting}
-\end{lrbox}
-
-
-\begin{lrbox}{\aastateC}
-\begin{lstlisting}[language=Swift,numbers=none]
 }
 
 try await work()
 \end{lstlisting}
-\end{lrbox}
-
-\begin{figure}[H]
-  \begin{subfigure}[t]{0.49\textwidth}
-\begin{tikzpicture}[baseline=(current bounding box.north)]
-    \node[codeblock] (state0) {\usebox{\aastateA}};
-    \node[codeblock] (stateA) at ([yshift=-2pt]state0.south west) {\usebox{\aastateB}};
-    \node[codeblock] (stateB) at ([yshift=-1pt]stateA.south west) {\usebox{\aastateC}};
-    \node[dashedbox, fit=(stateA)] {};
-\end{tikzpicture}
-      \cprotect\caption{\Tasks have \dyn \extent in Swift. References to the \task $T_1$ cannot be made after its calling construct, the \code{work} function outlined in \dashed{gray,} terminates --- including references made by the runtime system. The program prints ``exiting'' and then ``done.''}
-    % \label{fig:designdims:scope:region}
     \end{subfigure}\hfill%
     \begin{subfigure}[t]{0.49\textwidth}
-\begin{lstlisting}[language=CSharp,numbers=none,escapechar=|]
+\begin{lstlisting}[language=CSharp,numbers=none]
 public static async Task InnerWork() {
   await Task.Delay(100);
   Console.Write("done");
 }
 
 async Task Work() {
-  var a  /* |$T_1$| */ = InnerWork();
+  var a = InnerWork();
   await Task.Delay(1);
   Console.Write("exiting");
 }
@@ -258,10 +236,10 @@ async Task Main() {
   await Work();
 }
 \end{lstlisting}
-\cprotect\caption{\Tasks have \indef \extent in \CSharp. \Task $T_1$ may continue to be referenced after the \code{Work} function has terminated. References made by the runtime are \strong references. This program prints ``exiting,'' and the print in \code{InnerWork} is never executed.}
+% \cprotect\caption{\Tasks have \indef \extent in \CSharp. \Task $T_1$ may continue to be referenced after the \code{Work} function has terminated. References made by the runtime are \strong references. This program prints ``exiting,'' and the print in \code{InnerWork} is never executed.}
     % \label{fig:designdims:scope:program}
   \end{subfigure}
-  \caption{Examples of \dyn and \indef \extent.}
+  % \caption{Examples of \dyn and \indef \extent.}
   % \label{fig:designdims:scope}
 \end{figure}
 
@@ -337,7 +315,284 @@ async Task Main() {
 
 \subsection{Semantics}\label{app:semantics}
 
-The full grammar for \lc is provided in \Cref{fig:app:lc-grammar}, and the complete reduction rules for \exn in \Cref{fig:app:exn-rules}. For the standard reduction rules of \lc, see the executable Redex model in the supplementary material.
+This section completes the formal model of \Cref{sec:semantics}: definitions for all metafunctions and macros, followed by the grammar and reduction rules of each language, ordered by extension (\Cref{fig:langs:lineage}). Rules shown in the main-text figures are repeated so that each language's definition is self-contained. One additional notational convenience: $Q_0 \seqconcat (\ell, \kappa) \circ Q_1$ selects an entry at an arbitrary position of a queue, where $\seqconcat$ denotes queue concatenation; rules that match $(\ell, \kappa) \circ Q$ pop the queue head. We use the same notation for the signal queue $T$. Each grammar extension also extends the evaluation contexts pointwise into every argument position of its new forms; we omit those clauses.
+
+\subsubsection{Metafunctions and Macros}\label{app:semantics:metafunctions}
+
+The tables below extend \Cref{table:metafunctions} to every metafunction and macro used by the model; definitions follow. Definitions use the list and struct forms of the base-language grammar (\Cref{app:semantics:lc}). The model's queue helpers are subsumed by our notation---popping the head $(\ell, \kappa) \circ Q$, appending $Q \qpush (\ell, \kappa)$, selecting $Q_0 \seqconcat (\ell, \kappa) \circ Q_1$, and matching $Q = \epsilon$---as are the store operations $\sigma(x)$, $\sigma[x \mapsto v]$, and substitution $e[x'/x]$. Two entries, $\semmacro{task\text{-}is\text{-}cancelled}$ and $\mathsf{store\text{-}pending\text{-}tasks}$, belong to the platform's interface for language extensions but are unused by the rules presented.
+
+\noindent
+\begin{tabularx}{\linewidth}{@{}l>{\raggedright\arraybackslash}X@{}}
+\toprule
+Metafunction & Description \\
+\midrule
+$\mathsf{task\text{-}alloc} : \sigma \to (\sigma, x)$ & Allocate a new task struct bound under gensymed name $x$ in $\sigma$ \\
+$\mathsf{task\text{-}alloc\text{-}dependency} : \sigma \times \ell \to (\sigma, x)$ & As $\mathsf{task\text{-}alloc}$, additionally registering the new task as a dependency of $\ell$ (no registration when $\ell = \sfid{sync}$) \\
+$\mathsf{task\text{-}add\text{-}dependency} : \sigma \times \ell_1 \times \ell_2 \to \sigma$ & Add task $\ell_2$ as a dependency of $\ell_1$ \\
+$\mathsf{task?} : v \to b$ & $\mathit{true}$ iff $v$ is a task struct \\
+$\mathsf{task\text{-}name} : v \to \ell$ & The store name of task struct $v$ \\
+$\mathsf{task\text{-}settled} : \sigma \times v \to b$ & $\mathit{true}$ iff task $v$ has resolved to success or failure in $\sigma$ \\
+$\mathsf{task\text{-}cancelled} : \sigma \times \ell \to b$ & $\mathit{true}$ iff task $\ell$, or any transitive dependent, is cancelled \\
+$\mathsf{task\text{-}uncancel} : \sigma \times \ell \to \sigma$ & Remove cancellation from task $\ell$ in $\sigma$ \\
+$\mathsf{store\text{-}find\text{-}unawaited\text{-}error} : \sigma \to \mathsf{some}(v) \mid \mathsf{none}$ & Find a failed task in $\sigma$ whose error was never awaited \\
+$\mathsf{store\text{-}uncancelled\text{-}tasks} : \sigma \to \many{x}$ & Names of all tasks in $\sigma$ whose own cancellation flag is unset \\
+$\mathsf{store\text{-}pending\text{-}tasks} : \sigma \to \many{v}$ & All task structs in $\sigma$ still running \\
+$\mathsf{idle} : P \to b$ & $\mathit{true}$ iff no thread is runnable: every frame stack is empty or is the root parked on $\mathbfsf{sys\textbfsf{-}block}$ \\
+$\mathsf{io\text{-}completion} : \kappa \to b$ & $\mathit{true}$ iff $\kappa$ is the completion continuation installed by a $\mathbfsf{sys\textbfsf{-}io}$ operation \\
+$\mathsf{fv}$ & The set of names referenced by its arguments (the collection root set of \semrule{Sys-GC}) \\
+$\mathsf{gensym} : () \to x$ & Generate a fresh name, unused in the surrounding configuration \\
+$\delta : \oplus \times \many{c} \to c$ & The host-language denotation of primitive $\oplus$ on constants $\many{c}$ \\
+\bottomrule
+\end{tabularx}
+
+\vspace{1em}
+\noindent
+\begin{tabularx}{\linewidth}{@{}l>{\raggedright\arraybackslash}X@{}}
+\toprule
+Macro & Description \\
+\midrule
+$\semmacro{task\text{-}set\text{-}done} : x \times e \rightsquigarrow e$ & Evaluate $e$ and use value as $x$'s resolved success value \\
+$\semmacro{task\text{-}set\text{-}failed} : x \times e \rightsquigarrow e$ & Evaluate $e$ and use value as $x$'s resolved failure value \\
+$\semmacro{task\text{-}set\text{-}cancelled} : e \rightsquigarrow e$ & Set the cancellation flag of the task that $e$ evaluates to \\
+$\semmacro{task\text{-}set\text{-}awaited} : e \rightsquigarrow e$ & Mark the task that $e$ evaluates to as having been awaited \\
+$\semmacro{task\text{-}is\text{-}completed} : e \rightsquigarrow e$ & $\mathit{true}$ iff task is resolved (success or failure) \\
+$\semmacro{task\text{-}is\text{-}cancelled} : e \rightsquigarrow e$ & Read the cancellation flag of the task that $e$ evaluates to \\
+$\semmacro{task\text{-}get\text{-}result} : e \rightsquigarrow e$ & Return task's final value; reraise if task failed \\
+$\semmacro{task\text{-}get\text{-}dependents} : e \rightsquigarrow e$ & Return dependents of the task that $e$ evaluates to \\
+$\semmacro{task\text{-}add\text{-}dependent} : v \times \ell \times e \rightsquigarrow e$ & Register $\ell$ (continuation $e$) as a dependent of awaitable $v$ \\
+$\semmacro{task\text{-}continue\text{-}with} : v \times x \rightsquigarrow e$ & Resume continuation bound by $x$ with settled value of task $v$ \\
+$\semmacro{task\text{-}cancel\text{-}dependencies} : x \rightsquigarrow e$ & Cancel task $x$ and its descendants \\
+$\semmacro{task\text{-}wait\text{-}on\text{-}dependencies} : x \rightsquigarrow e$ & Wait for all dependencies of $x$ to settle \\
+$\semmacro{task\text{-}reraise\text{-}dependency\text{-}failures} : x \rightsquigarrow e$ & Reraise dependency failures \\
+$\semmacro{for\text{-}each} : v \times e \rightsquigarrow e$ & Apply $v$ to each element of the list that $e$ evaluates to, in order \\
+\bottomrule
+\end{tabularx}
+
+\vspace{1em}
+\paragraph{The Task Struct}
+A task is a struct of eight boxed fields; each field holds a pointer ($\mathsf{ptr}(x)$, as allocated by $\mathbfsf{ref}$) to a heap cell, so $!e.f$ reads and $e.f := e$ writes the underlying cell. A freshly allocated task is running, unawaited, uncancelled, with no relatives and no waiters:
+$$
+\begin{array}{l@{\ }l}
+v_{\mathit{task}} = \mathbfsf{struct}\,\{
+  & \mathit{self} = \mathsf{ptr}(x_{\mathit{task}}),
+    \mathit{parents} = \mathsf{ptr}(x_{\mathit{pa}}),
+    \mathit{children} = \mathsf{ptr}(x_{\mathit{ch}}),
+    \mathit{status} = \mathsf{ptr}(x_{\mathit{st}}), \\
+  & \mathit{value} = \mathsf{ptr}(x_{\mathit{va}}),
+    \mathit{awaited} = \mathsf{ptr}(x_{\mathit{aw}}),
+    \mathit{cancelled} = \mathsf{ptr}(x_{\mathit{ca}}),
+    \mathit{waiters} = \mathsf{ptr}(x_{\mathit{wa}})\ \}
+\end{array}
+$$
+The $\mathit{parents}$ cell holds the task's dependents (the tasks awaiting it) and $\mathit{children}$ its dependencies, both as lists of task pointers; $\mathit{waiters}$ holds a list of label--continuation pairs $(\ell, \kappa)$ as consumed by $\mathbfsf{sys\textbfsf{-}start\textbfsf{-}soon}$; $\mathit{status}$ ranges over $\textsf{``running''}$, $\textsf{``done''}$, and $\textsf{``failed''}$. Failure branches below throw $\textsf{``IME''}$ (internal model error); they are unreachable when the platform invariants hold.
+
+\paragraph{Macro Definitions}
+Each macro expands to an object-language expression over the task struct.
+
+\noindent
+$\begin{array}{@{}l@{}}
+\semmacro{task\text{-}set\text{-}done}(x, e) \rightsquigarrow\
+  x.\mathit{value} := e \mathbin{;}\ x.\mathit{status} := \textsf{``done''}
+\end{array}$
+
+\vspace{0.75em}
+\noindent
+$\begin{array}{@{}l@{}}
+\semmacro{task\text{-}set\text{-}failed}(x, e) \rightsquigarrow\
+  x.\mathit{value} := e \mathbin{;}\ x.\mathit{status} := \textsf{``failed''}
+\end{array}$
+
+\vspace{0.75em}
+\noindent
+$\begin{array}{@{}l@{}}
+\semmacro{task\text{-}set\text{-}cancelled}(e) \rightsquigarrow\
+  e.\mathit{cancelled} := \mathbfsf{true}
+\qquad
+\semmacro{task\text{-}set\text{-}awaited}(e) \rightsquigarrow\
+  e.\mathit{awaited} := \mathbfsf{true}
+\end{array}$
+
+\vspace{0.75em}
+\noindent
+$\begin{array}{@{}l@{}}
+\semmacro{task\text{-}is\text{-}cancelled}(e) \rightsquigarrow\ {!e.\mathit{cancelled}}
+\qquad
+\semmacro{task\text{-}get\text{-}dependents}(e) \rightsquigarrow\ {!e.\mathit{waiters}}
+\end{array}$
+
+\vspace{0.75em}
+\noindent
+$\begin{array}{@{}l@{}}
+\semmacro{task\text{-}is\text{-}completed}(e) \rightsquigarrow \\
+\quad \mathbfsf{let}\ x_{\mathit{st}} = {!e.\mathit{status}}\ \mathbfsf{in}\
+  \mathbfsf{if}\ x_{\mathit{st}} = \textsf{``done''}\
+  \mathbfsf{then}\ \mathbfsf{true}\
+  \mathbfsf{else}\ x_{\mathit{st}} = \textsf{``failed''}
+\end{array}$
+
+\vspace{0.75em}
+\noindent
+$\begin{array}{@{}l@{}}
+\semmacro{task\text{-}get\text{-}result}(e) \rightsquigarrow \\
+\quad \mathbfsf{let}\ x = e\ \mathbfsf{in} \\
+\quad \mathbfsf{if}\ {!x.\mathit{status}} = \textsf{``done''}\
+      \mathbfsf{then}\ {!x.\mathit{value}} \\
+\quad \mathbfsf{else}\ \mathbfsf{if}\ {!x.\mathit{status}} = \textsf{``failed''}\
+      \mathbfsf{then}\ \mathbfsf{throw}\ {!x.\mathit{value}}\
+      \mathbfsf{else}\ \mathbfsf{throw}\ \textsf{``IME''}
+\end{array}$
+
+\vspace{0.75em}
+\noindent
+$\begin{array}{@{}l@{}}
+\semmacro{task\text{-}add\text{-}dependent}(v, \ell, e) \rightsquigarrow \\
+\quad v.\mathit{parents} := \mathsf{ptr}(\ell) \mathbin{::} {!v.\mathit{parents}} \mathbin{;} \\
+\quad \ell.\mathit{children} := v.\mathit{self} \mathbin{::} {!\ell.\mathit{children}} \mathbin{;} \\
+\quad v.\mathit{waiters} := (\ell, e) \mathbin{::} {!v.\mathit{waiters}}
+\end{array}$
+
+\vspace{0.75em}
+\noindent
+$\begin{array}{@{}l@{}}
+\semmacro{task\text{-}continue\text{-}with}(v, k) \rightsquigarrow \\
+\quad \mathbfsf{fn}\ x_{\mathit{unit}} \to x_{\mathit{unit}} \mathbin{;} \\
+\quad\quad \mathbfsf{try}\ (\
+  \mathbfsf{let}\ x_{\mathit{st}} = {!v.\mathit{status}}\ \mathbfsf{in}\
+  \mathbfsf{let}\ x_{\mathit{val}} = {!v.\mathit{value}}\ \mathbfsf{in} \\
+\quad\quad\quad \mathbfsf{if}\ x_{\mathit{st}} = \textsf{``done''}\
+      \mathbfsf{then}\ k\ x_{\mathit{val}} \\
+\quad\quad\quad \mathbfsf{else}\ \mathbfsf{if}\ x_{\mathit{st}} = \textsf{``failed''}\
+      \mathbfsf{then}\ \mathbfsf{throw\textbfsf{-}in}(k, x_{\mathit{val}})\
+      \mathbfsf{else}\ \mathbfsf{throw}\ \textsf{``IME''}\ ) \\
+\quad\quad \mathbfsf{catch}\ v_{\mathit{err}} \to \mathbfsf{throw\textbfsf{-}in}(k, v_{\mathit{err}})
+\end{array}$
+
+\vspace{0.75em}
+\noindent
+$\begin{array}{@{}l@{}}
+\semmacro{task\text{-}cancel\text{-}dependencies}(x) \rightsquigarrow \\
+\quad \semmacro{for\text{-}each}(\mathbfsf{fn}\ x_t \to
+  \semmacro{task\text{-}set\text{-}cancelled}({!x_t}),\ {!x.\mathit{children}})
+\end{array}$
+
+\vspace{0.75em}
+\noindent
+$\begin{array}{@{}l@{}}
+\semmacro{task\text{-}wait\text{-}on\text{-}dependencies}(x) \rightsquigarrow \\
+\quad \semmacro{for\text{-}each}(\mathbfsf{fn}\ x_p \to
+  \mathbfsf{let}\ x_t = {!x_p}\ \mathbfsf{in} \\
+\quad\quad \mathbfsf{if}\ \semmacro{task\text{-}is\text{-}completed}(x_t)\
+      \mathbfsf{then}\ ()\
+      \mathbfsf{else}\ \mathbfsf{shift}\ k \to
+        \semmacro{task\text{-}add\text{-}dependent}(x_t, x, k), \\
+\quad\quad {!x.\mathit{children}})
+\end{array}$
+
+\vspace{0.75em}
+\noindent
+$\begin{array}{@{}l@{}}
+\semmacro{task\text{-}reraise\text{-}dependency\text{-}failures}(x) \rightsquigarrow \\
+\quad \semmacro{for\text{-}each}(\mathbfsf{fn}\ x_p \to
+  \semmacro{task\text{-}get\text{-}result}({!x_p}),\ {!x.\mathit{children}})
+\end{array}$
+
+\vspace{0.75em}
+\noindent
+$\begin{array}{@{}l@{}}
+\semmacro{for\text{-}each}(v, e) \rightsquigarrow \\
+\quad (\mathbfsf{fix}\ \mathbfsf{fn}\ x_{\mathit{loop}}\ x_{\mathit{lst}} \to \\
+\quad\quad \mathbfsf{if}\ \mathbfsf{empty?}(x_{\mathit{lst}})\
+      \mathbfsf{then}\ ()\
+      \mathbfsf{else}\ (v\ \mathbfsf{head}(x_{\mathit{lst}}) \mathbin{;}
+        x_{\mathit{loop}}\ \mathbfsf{tail}(x_{\mathit{lst}})))\ e
+\end{array}$
+
+\paragraph{Metafunction Definitions}
+At the meta level we write $\sigma(x).f$ for the pointer stored in field $f$ of the task struct $\sigma(x)$, and $!_{\sigma}\, v.f$ for the cell contents $\sigma(x_f)$ where $v.f = \mathsf{ptr}(x_f)$.
+
+\vspace{0.75em}
+\noindent
+$\begin{array}{@{}l@{}}
+\mathsf{task\text{-}alloc}(\sigma_0) = (\sigma_1[x_{\mathit{task}} \mapsto v_{\mathit{task}}],\ x_{\mathit{task}}) \\
+\quad \where\ x_{\mathit{task}}, x_{\mathit{pa}}, x_{\mathit{ch}}, x_{\mathit{st}}, x_{\mathit{va}}, x_{\mathit{aw}}, x_{\mathit{ca}}, x_{\mathit{wa}} = \many{\mathsf{gensym}()},~ v_{\mathit{task}}\ \text{as above} \\
+\quad\qquad \sigma_1 = \sigma_0[x_{\mathit{pa}} \mapsto [\,],\ x_{\mathit{ch}} \mapsto [\,],\ x_{\mathit{st}} \mapsto \textsf{``running''},\ x_{\mathit{va}} \mapsto (), \\
+\quad\qquad\qquad\quad\ \ x_{\mathit{aw}} \mapsto \mathbfsf{false},\ x_{\mathit{ca}} \mapsto \mathbfsf{false},\ x_{\mathit{wa}} \mapsto [\,]]
+\end{array}$
+
+\vspace{0.75em}
+\noindent
+$\begin{array}{@{}l@{}}
+\mathsf{task\text{-}alloc\text{-}dependency}(\sigma, \sfid{sync}) = \mathsf{task\text{-}alloc}(\sigma) \\
+\mathsf{task\text{-}alloc\text{-}dependency}(\sigma, x) = (\mathsf{task\text{-}add\text{-}dependency}(\sigma_1, x, x_{\mathit{task}}),\ x_{\mathit{task}}) \\
+\quad \where\ (\sigma_1, x_{\mathit{task}}) = \mathsf{task\text{-}alloc}(\sigma)
+\end{array}$
+
+\vspace{0.75em}
+\noindent
+$\begin{array}{@{}l@{}}
+\mathsf{task\text{-}add\text{-}dependency}(\sigma, \sfid{sync}, \ell) = \sigma \\
+\mathsf{task\text{-}add\text{-}dependency}(\sigma, x_1, \ell_2) = \sigma[x_{\mathit{ch}} \mapsto \mathsf{ptr}(\ell_2) \mathbin{::} \sigma(x_{\mathit{ch}})]
+\quad \where\ \mathsf{ptr}(x_{\mathit{ch}}) = \sigma(x_1).\mathit{children}
+\end{array}$
+
+\vspace{0.75em}
+\noindent
+$\begin{array}{@{}l@{}}
+\mathsf{task?}(v) = \mathit{true}\ \text{iff}\ v\ \text{matches the eight-field task struct shape above} \\
+\mathsf{task\text{-}name}(v) = x \quad \where\ \mathsf{ptr}(x) = v.\mathit{self} \\
+\mathsf{task\text{-}settled}(\sigma, v) = \big(\,!_{\sigma}\, v.\mathit{status} \in \{\textsf{``done''}, \textsf{``failed''}\}\big) \\
+\mathsf{io\text{-}completion}(\kappa) = \mathit{true}\ \text{iff}\ \kappa\ \text{is the expansion of a}\ \mathbfsf{sys\textbfsf{-}io}\ \text{completion continuation}
+\end{array}$
+
+\vspace{0.75em}
+\noindent
+$\begin{array}{@{}l@{}}
+\mathsf{task\text{-}cancelled}(\sigma, x) = \ !_{\sigma}\, \sigma(x).\mathit{cancelled}
+  \;\lor \textstyle\bigvee_{\mathsf{ptr}(x_p)\, \in\, !_{\sigma} \sigma(x).\mathit{parents}}\, \mathsf{task\text{-}cancelled}(\sigma, x_p)
+\end{array}$
+
+\vspace{0.75em}
+\noindent
+$\begin{array}{@{}l@{}}
+\mathsf{task\text{-}uncancel}(\sigma, x) = \sigma[x_{\mathit{ca}} \mapsto \mathbfsf{false}]
+\quad \where\ \mathsf{ptr}(x_{\mathit{ca}}) = \sigma(x).\mathit{cancelled}
+\end{array}$
+
+\vspace{0.75em}
+\noindent
+$\begin{array}{@{}l@{}}
+\mathsf{store\text{-}find\text{-}unawaited\text{-}error}(\sigma) = \mathsf{some}(v_{\mathit{err}})\
+  \text{if some task struct}\ v\ \text{bound in}\ \sigma\ \text{has} \\
+\quad !_{\sigma}\, v.\mathit{status} = \textsf{``failed''},\
+  \ !_{\sigma}\, v.\mathit{value} = v_{\mathit{err}},\
+  \text{and}\ !_{\sigma}\, v.\mathit{awaited} = \mathbfsf{false};\quad
+  \mathsf{none}\ \text{otherwise}
+\end{array}$
+
+\vspace{0.75em}
+\noindent
+$\begin{array}{@{}l@{}}
+\mathsf{store\text{-}uncancelled\text{-}tasks}(\sigma) =
+  [\, x \mid (x \mapsto v) \in \sigma,\ \mathsf{task?}(v),\
+     \ !_{\sigma}\, v.\mathit{cancelled} = \mathbfsf{false} \,] \\
+\mathsf{store\text{-}pending\text{-}tasks}(\sigma) =
+  [\, v \mid (x \mapsto v) \in \sigma,\ \mathsf{task?}(v),\
+     \ !_{\sigma}\, v.\mathit{status} = \textsf{``running''} \,]
+\end{array}$
+
+\vspace{0.75em}
+\noindent
+$\begin{array}{@{}l@{}}
+\mathsf{idle}(P) = \forall\, FS \in P.\
+  FS = \epsilon\ \lor\
+  \big(FS = \langle \sfid{sync}, E[\mathbfsf{sys\textbfsf{-}block}(v)] \rangle \circ \epsilon\
+  \ \text{with}\ \mathsf{task?}(v)\big)
+\end{array}$
+
+
+\subsubsection{The Base Language \lc}\label{app:semantics:lc}
+
+The full grammar for \lc is provided in \Cref{fig:app:lc-grammar}. The executable model additionally provides data structures and primitive operations, which the grammar figure elides; the extension below completes it. Evaluation contexts extend pointwise into every argument position of the new forms. Field names range over $f$; for a struct, the projection $e.f$ yields the value stored in field $f$. Lists are built from $[\,]$ and $v \mathbin{::} v$, both of which are values and thus require no reduction rules. The inert constructors $\mathbfsf{ok}(e)$ and $\mathbfsf{err}(e)$ are consumed only by the model's typechecker and have no reduction rules. We write $=$ uniformly for the model's numeric and string equality operators.
 
 \begin{figure}[h]
   \input{./f/lc-gr-full.tex}
@@ -345,12 +600,1439 @@ The full grammar for \lc is provided in \Cref{fig:app:lc-grammar}, and the compl
   \label{fig:app:lc-grammar}
 \end{figure}
 
+$$
+\begin{array}{r@{\ }c@{\ }l}
+\mathsf{Expr}\ e       & ::=  & \ldots \mid \mathbfsf{set!}\ x\ e \mid \mathbfsf{letrec}\ \many{x = e}\ \mathbfsf{in}\ e \\
+                       & \mid & [\,] \mid e \mathbin{::} e \mid (e, e) \mid \mathbfsf{head}(e) \mid \mathbfsf{tail}(e) \mid \mathbfsf{empty?}(e) \\
+                       & \mid & \mathbfsf{struct}\,\{\many{f = e}\} \mid e.f \mid \oplus(\many{e}) \mid \mathbfsf{ok}(e) \mid \mathbfsf{err}(e) \\
+\mathsf{Value}\ v      & ::=  & \ldots \mid [\,] \mid v \mathbin{::} v \mid (v, v) \mid \mathbfsf{struct}\,\{\many{f = v}\} \\
+\mathsf{Op}\ \oplus    & \in  & \{ +,\ -,\ =,\ <,\ >,\ \leq,\ \geq,\ \mathsf{number{\to}string},\ \mathsf{string\text{-}append} \}
+\end{array}
+$$
+
+\paragraph{Core Forms}
+The store-based \semrule{App} rule mirrors the presentation of \semrule{Async-App} in \Cref{fig:sem:app}: parameters are bound in the heap under fresh names rather than substituted directly.
+
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+$\langle \sigma, E[x] \rangle \longrightarrow \langle \sigma, E[\sigma(x)] \rangle$ & [Var]
+\end{tabular*}\vspace{1em}
+
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+$\langle \sigma, E[\mathbfsf{if}\ v\ \mathbfsf{then}\ e_1\ \mathbfsf{else}\ e_2] \rangle \longrightarrow \langle \sigma, E[e_1] \rangle$ & [If-True] \\
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ v \neq \mathbfsf{false}
+  \end{array}$
+}
+\end{tabular*}\vspace{1em}
+
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+$\langle \sigma, E[\mathbfsf{if}\ \mathbfsf{false}\ \mathbfsf{then}\ e_1\ \mathbfsf{else}\ e_2] \rangle \longrightarrow \langle \sigma, E[e_2] \rangle$ & [If-False]
+\end{tabular*}\vspace{1em}
+
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+$\langle \sigma_0, E[(\mathbfsf{fn}\ \many{x} \to e_{\mathit{body}})\ \many{v}] \rangle \longrightarrow \langle \sigma_1, E[e_{\mathit{subst}}] \rangle$ & [App] \\
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ \many{x}_{\mathit{fresh}} = \many{\mathsf{gensym}(),~ \sigma_1 = \sigma_0[\many{x}_{\mathit{fresh}} \mapsto \many{v}],~ e_{\mathit{subst}} = e_{\mathit{body}}[\many{x}_{\mathit{fresh}}/\many{x}]}
+  \end{array}$
+}
+\end{tabular*}\vspace{1em}
+
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+$\langle \sigma_0, E[\mathbfsf{let}\ \many{x = v}\ \mathbfsf{in}\ e_{\mathit{body}}] \rangle \longrightarrow \langle \sigma_1, E[e_{\mathit{subst}}] \rangle$ & [Let] \\
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ \many{x}_{\mathit{fresh}} = \many{\mathsf{gensym}(),~ \sigma_1 = \sigma_0[\many{x}_{\mathit{fresh}} \mapsto \many{v}],~ e_{\mathit{subst}} = e_{\mathit{body}}[\many{x}_{\mathit{fresh}}/\many{x}]}
+  \end{array}$
+}
+\end{tabular*}\vspace{1em}
+
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+$\langle \sigma_0, E[\mathbfsf{letrec}\ \many{x = v}\ \mathbfsf{in}\ e_{\mathit{body}}] \rangle \longrightarrow \langle \sigma_1, E[e_{\mathit{subst}}] \rangle$ & [Letrec] \\
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ \many{x}_{\mathit{fresh}} = \many{\mathsf{gensym}(),~ \many{v}_{\mathit{subst}} = \many{v[\many{x}_{\mathit{fresh}}/\many{x}]}} \\
+  \qquad \sigma_1 = \sigma_0[\many{x}_{\mathit{fresh}} \mapsto \many{v}_{\mathit{subst}}],~ e_{\mathit{subst}} = e_{\mathit{body}}[\many{x}_{\mathit{fresh}}/\many{x}]
+  \end{array}$
+}
+\end{tabular*}\vspace{1em}
+
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+$\langle \sigma_0, E[\mathbfsf{set!}\ x\ v] \rangle \longrightarrow \langle \sigma_1, E[()] \rangle$ & [Set] \\
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ \sigma_1 = \sigma_0[x \mapsto v]
+  \end{array}$
+}
+\end{tabular*}\vspace{1em}
+
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+$\langle \sigma, E[\many{v} \mathbin{;} v_{\mathit{final}}] \rangle \longrightarrow \langle \sigma, E[v_{\mathit{final}}] \rangle$ & [Seq]
+\end{tabular*}\vspace{1em}
+
+\paragraph{Delimited Control}
+\semrule{Shift} captures the delimited context $M$, up to the nearest enclosing $\mathbfsf{reset}$, as a heap-allocated function.
+
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+$\langle \sigma, E[\mathbfsf{reset}\ v] \rangle \longrightarrow \langle \sigma, E[v] \rangle$ & [Reset-Val]
+\end{tabular*}\vspace{1em}
+
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+$\langle \sigma_0, E[\mathbfsf{reset}\ M[\mathbfsf{shift}\ x_k \to e]] \rangle \longrightarrow \langle \sigma_1, E[\mathbfsf{reset}\ e_{\mathit{subst}}] \rangle$ & [Shift] \\
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ x_{\mathit{fresh}} = \mathsf{gensym}(),~ x_{\mathit{arg}} = \mathsf{gensym}() \\
+  \qquad \sigma_1 = \sigma_0[x_{\mathit{fresh}} \mapsto \mathbfsf{fn}\ x_{\mathit{arg}} \to \mathbfsf{reset}\ M[x_{\mathit{arg}}]] \\
+  \qquad e_{\mathit{subst}} = e[x_{\mathit{fresh}}/x_k]
+  \end{array}$
+}
+\end{tabular*}
+\vspace{1em}
+\paragraph{Data Structures}
+Projection is the only struct rule; the list and pair constructors are values and reduce in their argument positions only.
+
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+$\langle \sigma, E[\mathbfsf{struct}\,\{\many{f = v}\}.f_i] \rangle \longrightarrow \langle \sigma, E[v_i] \rangle$ & [Field] \\
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ (f_i = v_i) \in \many{f = v}
+  \end{array}$
+}
+\end{tabular*}\vspace{1em}
+
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+$\langle \sigma, E[\mathbfsf{head}(v_0 \mathbin{::} v_1)] \rangle \longrightarrow \langle \sigma, E[v_0] \rangle$ & [Head]
+\end{tabular*}\vspace{1em}
+
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+$\langle \sigma, E[\mathbfsf{tail}(v_0 \mathbin{::} v_1)] \rangle \longrightarrow \langle \sigma, E[v_1] \rangle$ & [Tail]
+\end{tabular*}\vspace{1em}
+
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+$\langle \sigma, E[\mathbfsf{empty?}([\,])] \rangle \longrightarrow \langle \sigma, E[\mathbfsf{true}] \rangle$ & [Empty-True]
+\end{tabular*}\vspace{1em}
+
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+$\langle \sigma, E[\mathbfsf{empty?}(v_0 \mathbin{::} v_1)] \rangle \longrightarrow \langle \sigma, E[\mathbfsf{false}] \rangle$ & [Empty-False]
+\end{tabular*}\vspace{1em}
+
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+$\langle \sigma_0, E[\mathbfsf{ref}\ v] \rangle \longrightarrow \langle \sigma_1, E[\mathsf{ptr}(x_{\mathit{fresh}})] \rangle$ & [Ref] \\
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ x_{\mathit{fresh}} = \mathsf{gensym}(),~ \sigma_1 = \sigma_0[x_{\mathit{fresh}} \mapsto v]
+  \end{array}$
+}
+\end{tabular*}\vspace{1em}
+
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+$\langle \sigma, E[!\,\mathsf{ptr}(x)] \rangle \longrightarrow \langle \sigma, E[\sigma(x)] \rangle$ & [Deref]
+\end{tabular*}\vspace{1em}
+
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+$\langle \sigma_0, E[\mathsf{ptr}(x) := v] \rangle \longrightarrow \langle \sigma_1, E[()] \rangle$ & [Assign] \\
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ \sigma_1 = \sigma_0[x \mapsto v]
+  \end{array}$
+}
+\end{tabular*}\vspace{1em}
+
+\paragraph{Primitive Operations}
+The metafunction $\delta$ denotes the host-language interpretation of a primitive operator applied to constant operands. The single rule \semrule{Prim-Op} collapses the model's nine primitive rules, one per operator.
+
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+$\langle \sigma, E[\oplus(\many{c})] \rangle \longrightarrow \langle \sigma, E[c_{\mathit{res}}] \rangle$ & [Prim-Op] \\
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ c_{\mathit{res}} = \delta(\oplus, \many{c})
+  \end{array}$
+}
+\end{tabular*}
+
+\subsubsection{Exceptions: \exn}
+
+The complete reduction rules for \exn are provided in \Cref{fig:app:exn-rules}; the exception-propagation context $G$ appears in \Cref{fig:lang:exn}.
+
 \begin{figure}[h]
   \input{./f/exn-rr-full.tex}
   \cprotect\caption{The complete reduction rules for \exn.}
   \label{fig:app:exn-rules}
 \end{figure}
 
+\subsubsection{Rust and Python}
+
+Base Rust and Python provide coroutines without a runtime. Python extends \exn; Rust extends \lc. \semrule{Await-Coro} awaits a coroutine value that has not yet been started: the coroutine body runs inline in the caller's context. Awaiting a \task handle is defined separately by each runtime.
+
+$$
+\begin{array}{r@{\ }c@{\ }l}
+e & ::= & \ldots \mid \mathbfsf{await}\ e \\
+v & ::= & \ldots \mid \mathbfsf{async}\ \mathbfsf{fn}\ \many{x} \to e
+\end{array}
+$$
+
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{}}
+                & \langle \sigma_0, E[(\mathbfsf{async\ fn}\ \many{x} \to e_{\mathit{body}})\ \many{v}] \rangle \\
+\longrightarrow & \langle \sigma_1, E[\ceag{\mathbfsf{reset}\ (\mathbfsf{shift}\ k \to k \mathbin{;} e_{\mathit{subst}})}] \rangle
+\end{array}$\hfill$\text{[Rust/Python-Async-App]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ \many{x}_{\mathit{fresh}} = \many{\mathsf{gensym}(),~ \sigma_1 = \sigma_0[\many{x}_{\mathit{fresh}} \mapsto \many{v}],~ e_{\mathit{subst}} = e_{\mathit{body}}[\many{x}_{\mathit{fresh}}/\many{x}]}
+  \end{array}$
+}
+\end{tabular*}
+
+\vspace{1em}
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+$\langle \sigma, E[\mathbfsf{await}\ (\mathbfsf{fn}\ x \to \mathbfsf{reset}\ (x \mathbin{;} e))] \rangle \longrightarrow \langle \sigma, E[e] \rangle$ & [Rust/Python-Await-Coro]
+\end{tabular*}
+\vspace{0.7em}
+\makelegend{eag}
+
+\subsubsection{The Async Platform \lasync}\label{app:semantics:platform}
+
+The complete \lasync grammar extends the illustrative subset of \Cref{fig:lasync:grammar} with the $\mathbfsf{sys\textbfsf{-}block}$ and $\mathbfsf{sys\textbfsf{-}time}$ forms, the evaluation contexts $E$, and the machine configuration $C$:
+
+$$
+\begin{array}{l}
+\begin{array}{rcl @{\hspace{3em}} rcl}
+  \mathsf{Time}\ t              & \in  & \mathbb{N}_0 \cup \{\infty\}              & \mathsf{Frame}\ F         & ::= & \langle \ell, e \rangle \\
+  \mathsf{Label}\ \ell          & ::=  & x \mid \mathbfsf{sync}                    & \mathsf{Frame\ Stack}\ FS & ::= & \epsilon \mid F \circ FS \\
+  \mathsf{Continuation}\ \kappa & ::=  & \mathbfsf{fn}\ x_{\mathit{unit}} \to e   & \mathsf{Process}\ P       & ::= & \{ FS_1, \dots, FS_n \} \\
+  \mathsf{Signal\ Queue}\ T     & ::=  & \epsilon \mid (t, \ell, \kappa) \circ T  & \mathsf{Task\ Queue}\ Q   & ::= & \epsilon \mid (\ell, \kappa) \circ Q \\
+  \multicolumn{6}{c}{\mathsf{Config}\ C \ ::=\ \langle t, \sigma, Q, T, P \rangle}
+\end{array} \\
+\\
+\begin{array}{rcl}
+e & ::=  & \dots \mid \mathbfsf{sys\textbfsf{-}block}(e) \mid \mathbfsf{sys\textbfsf{-}time}() \mid \mathbfsf{sys\textbfsf{-}io}(e, e) \\
+  & \mid & \mathbfsf{sys\textbfsf{-}start\textbfsf{-}soon}(\many{\ell,e}) \mid \mathbfsf{sys\textbfsf{-}start\textbfsf{-}later}(e, \ell, e) \\
+E & ::=  & \dots \mid \mathbfsf{sys\textbfsf{-}block}(E) \mid \mathbfsf{sys\textbfsf{-}io}(E, e) \mid \mathbfsf{sys\textbfsf{-}io}(v, E) \mid \mathbfsf{sys\textbfsf{-}start\textbfsf{-}soon}(E) \\
+  & \mid & \mathbfsf{sys\textbfsf{-}start\textbfsf{-}later}(E, \ell, e) \mid \mathbfsf{sys\textbfsf{-}start\textbfsf{-}later}(v, \ell, E)
+\end{array}
+\end{array}
+$$
+
+The platform is parameterized by two scheduling flags. Under \emph{serial dispatch} the rules \semrule{Sys-Schedule}, \semrule{Sys-Schedule-Cancelled}, and \semrule{Sys-Signal} carry the side conditions marked \textit{(serial dispatch only)}: queued work may be dispatched only when every thread is idle ($\mathsf{idle}(P)$), and a signal may fire only when, additionally, the task queue is drained ($Q = \epsilon$)---reproducing an event loop's run-to-completion, microtask-before-macrotask discipline. Under a \emph{single-threaded} instantiation the process $P$ holds a single frame stack and \semrule{Sync-Step} runs synchronous code to completion atomically. \Js{} is single-threaded with serial dispatch; Asyncio and Trio are single-threaded without serial dispatch; \CSharp{}, Swift, Tokio, and Smol are multithreaded.
+
+\paragraph{Frames and Threads}
+\semrule{Sync-Step} lifts a step of the base-language relation, written $\longrightarrow_{\mathit{base}}$, into the frame at the top of a thread.
+
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{}l@{}}
+                & \elided{ \sigma_0, P \uplus \{ \langle \ell, e_0 \rangle & {}\circ FS \}} \\
+\longrightarrow & \elided{ \sigma_1, P \uplus \{ \langle \ell, e_1 \rangle & {}\circ FS \}}
+\end{array}$\hfill$\text{[Sync-Step]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ e_0 \notin \mathsf{Value},~ \langle \sigma_0, e_0 \rangle \longrightarrow_{\mathit{base}} \langle \sigma_1, e_1 \rangle
+  \end{array}$
+}
+\end{tabular*}
+
+\vspace{1em}
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{\ }l@{}l@{}}
+                & \elided{ t, & P \uplus \{ \langle \ell, E[\mathbfsf{sys\textbfsf{-}time}()] \rangle & {}\circ FS \}} \\
+\longrightarrow & \elided{ t, & P \uplus \{ \langle \ell, E[t] \rangle & {}\circ FS \}}
+\end{array}$\hfill$\text{[OS-Time]}$\par
+
+\vspace{1em}
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{}l@{}}
+                & \elided{ P \uplus \{ \langle \ell, () \rangle & {}\circ FS \}} \\
+\longrightarrow & \elided{ P \uplus \{ & \hphantom{{}\circ{}} FS \}}
+\end{array}$\hfill$\text{[Sys-Thread-Pop-Frame]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ \ell \neq \sfid{sync}
+  \end{array}$
+}
+\end{tabular*}
+
+\vspace{1em}
+\paragraph{\abbr{i/o} and Scheduling Requests}
+The gray fragments in \semrule{OS-IO} are present only in the instantiations over \exn; the \lc-based instantiations (Tokio, Smol) omit the try/catch, cf.\ \Cref{fig:sem:spawn}.
+
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{}l@{}l@{}l@{}}
+                & \elided{ \sigma_0, P \uplus \{ & & \langle \ell, E[\mathbfsf{sys\textbfsf{-}io}(t_{\mathit{delay}}, v)] \rangle & {}\circ FS \}} \\
+\longrightarrow & \elided{ \sigma_1, P \uplus \{ \langle x_{\mathit{io}}, e_{\mathit{sig}} \rangle & {}\circ{} & \langle \ell, E[x_{\mathit{io}}] \rangle & {}\circ FS \}}
+\end{array}$\hfill$\text{[OS-IO]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ (\sigma_1, x_{\mathit{io}}) = \mathsf{task\text{-}alloc}(\sigma_0) \\
+  \qquad \kappa = \mathbfsf{fn}\ x_{\mathit{unit}} \to \\
+  \qquad \qquad \difff{\mathbfsf{try}}\ x_{\mathit{unit}} \mathbin{;} \semmacro{task\text{-}set\text{-}done}(x_{\mathit{io}}, v)\ \difff{\mathbfsf{catch}\ v_{\mathit{err}} \to \semmacro{task\text{-}set\text{-}failed}(x_{\mathit{io}}, v_{\mathit{err}})} \mathbin{;} \\
+  \qquad \qquad \mathbfsf{sys\textbfsf{-}start\textbfsf{-}soon}(\semmacro{task\text{-}get\text{-}dependents}(x_{\mathit{io}})) \\
+  \qquad e_{\mathit{sig}} = \mathbfsf{sys\textbfsf{-}start\textbfsf{-}later}(\mathbfsf{sys\textbfsf{-}time}() + t_{\mathit{delay}},\ x_{\mathit{io}},\ \kappa)
+  \end{array}$
+}
+\end{tabular*}
+
+\vspace{1em}
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{\ }l@{}l@{}}
+                & \elided{ Q, & P \uplus \{ \langle \ell, E[\mathbfsf{sys\textbfsf{-}start\textbfsf{-}soon}(\many{(\ell_{\mathit{dep}}, \kappa_{\mathit{dep}})})] \rangle & {}\circ FS \}} \\
+\longrightarrow & \elided{ Q \qpush \many{(\ell_{\mathit{dep}}, \kappa_{\mathit{dep}})}, & P \uplus \{ \langle \ell, E[()] \rangle & {}\circ FS \}}
+\end{array}$\hfill$\text{[OS-Start-Soon]}$\par
+
+\vspace{1em}
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{\ }l@{}l@{}}
+                & \elided{ T, & P \uplus \{ \langle \ell, E[\mathbfsf{sys\textbfsf{-}start\textbfsf{-}later}(t_{\mathit{sig}}, \ell_{\mathit{sig}}, \kappa)] \rangle & {}\circ FS \}} \\
+\longrightarrow & \elided{ T \qpush (t_{\mathit{sig}}, \ell_{\mathit{sig}}, \kappa), & P \uplus \{ \langle \ell, E[()] \rangle & {}\circ FS \}}
+\end{array}$\hfill$\text{[OS-Start-Later]}$\par
+\vspace{1em}
+\paragraph{Runtime Entry, Exit, and Collection}
+\semrule{OS-Block-Done} is the platform's default exit rule: the root frame unblocks only at quiescence---both queues drained and all workers idle. Languages override it to exit earlier (\CSharp, Tokio, Smol) or to first cancel outstanding work (Asyncio, Trio). \semrule{Sys-GC} reclaims a heap binding referenced nowhere else; $\mathsf{fv}$ gives the names referenced by its arguments. The task queue $Q$ appears in the root set, so a queued task is always retained (\strong \references).
+
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{}l@{}}
+                & \elided{ \sigma, \epsilon, \epsilon, \{ \langle \sfid{sync}, E[\mathbfsf{sys\textbfsf{-}block}(v_{\mathit{task}})] \rangle & {}\circ \epsilon,\ \many{\epsilon} \}} \\
+\longrightarrow & \elided{ \sigma, \epsilon, \epsilon, \{ \langle \sfid{sync}, E[\semmacro{task\text{-}get\text{-}result}(v_{\mathit{task}})] \rangle & {}\circ \epsilon,\ \many{\epsilon} \}}
+\end{array}$\hfill$\text{[OS-Block-Done]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ \bsfid{true} = \mathsf{task?}(v_{\mathit{task}}),~ \bsfid{true} = \mathsf{task\text{-}settled}(\sigma, v_{\mathit{task}})
+  \end{array}$
+}
+\end{tabular*}
+
+\vspace{1em}
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{\ }l@{}l@{}}
+                & \elided{ t_0, & \sigma, \epsilon, T, \{ \langle \sfid{sync}, E[\mathbfsf{sys\textbfsf{-}block}(v_{\mathit{task}})] \rangle & {}\circ \epsilon,\ \many{\epsilon} \}} \\
+\longrightarrow & \elided{ t_{\mathit{sig}}, & \sigma, \epsilon, T, \{ \langle \sfid{sync}, E[\mathbfsf{sys\textbfsf{-}block}(v_{\mathit{task}})] \rangle & {}\circ \epsilon,\ \many{\epsilon} \}}
+\end{array}$\hfill$\text{[OS-Block-Wait]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ \bsfid{true} = \mathsf{task?}(v_{\mathit{task}}),~ \mathsf{false} = \mathsf{task\text{-}settled}(\sigma, v_{\mathit{task}}) \\
+  \qquad (t_{\mathit{sig}}, \ell, \kappa) \in T,~ t_0 < t_{\mathit{sig}}
+  \end{array}$
+}
+\end{tabular*}
+
+\vspace{1em}
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{\ }l@{}}
+                & \elided{ \sigma_0, & Q, T, P } \\
+\longrightarrow & \elided{ \sigma_1, & Q, T, P }
+\end{array}$\hfill$\text{[Sys-GC]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ \sigma_0 = \sigma_1, x \mapsto v,~ x \notin \mathsf{fv}(\sigma_1, Q, T, P)
+  \end{array}$
+}
+\end{tabular*}
+
+\vspace{1em}
+\paragraph{Dispatch}
+The two \semrule{Sys-Schedule-Cancelled} variants are the platform defaults for the \lc and \exn bases respectively; the runtimes override them as shown in \Cref{fig:sem:cancel}.
+
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{}l@{}l@{\ }l@{}l@{}l@{}}
+                & \elided{\sigma, (\ell, \kappa) & {}\circ{} & Q, & P \uplus \{ & & \epsilon \}} \\
+\longrightarrow & \elided{\sigma,                &           & Q, & P \uplus \{ \langle \ell, \kappa\ () \rangle & {}\circ{} & \epsilon \}}
+\end{array}$\hfill$\text{[Sys-Schedule]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ \mathsf{false} = \mathsf{task\text{-}cancelled}(\sigma, \ell) \\
+  \qquad \bsfid{true} = \mathsf{idle}(P) \quad \textit{(serial dispatch only)}
+  \end{array}$
+}
+\end{tabular*}
+
+\vspace{1em}
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{}l@{}l@{\ }l@{}}
+                & \elided{\sigma, (\ell, \kappa) & {}\circ{} & Q, & P \uplus \{ \epsilon \}} \\
+\longrightarrow & \elided{\sigma,                &           & Q, & P \uplus \{ \epsilon \}}
+\end{array}$\hfill$\text{[Sys-Schedule-Cancelled (\lc)]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ \bsfid{true} = \mathsf{task\text{-}cancelled}(\sigma, \ell) \\
+  \qquad \bsfid{true} = \mathsf{idle}(P) \quad \textit{(serial dispatch only)}
+  \end{array}$
+}
+\end{tabular*}
+
+\vspace{1em}
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{}l@{}l@{\ }l@{}l@{}l@{}}
+                & \elided{\sigma, (\ell, \kappa) & {}\circ{} & Q, & P \uplus \{ & & \epsilon \}} \\
+\longrightarrow & \elided{\sigma,                &           & Q, & P \uplus \{ \langle \ell, \mathbfsf{throw\textbfsf{-}in}(\kappa, \textsf{``stop''}) \rangle & {}\circ{} & \epsilon \}}
+\end{array}$\hfill$\text{[Sys-Schedule-Cancelled (\exn)]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ \bsfid{true} = \mathsf{task\text{-}cancelled}(\sigma, \ell) \\
+  \qquad \bsfid{true} = \mathsf{idle}(P) \quad \textit{(serial dispatch only)}
+  \end{array}$
+}
+\end{tabular*}
+
+\vspace{1em}
+\paragraph{Signals and Halting}
+\semrule{Sys-Signal} fuses clock advance with signal delivery: any pending timer may fire, and the clock jumps forward to $\max(t_0, t_{\mathit{sig}})$---$\mathbfsf{sys\textbfsf{-}io}$ promises \emph{at least} its delay. \semrule{Sys-Signal-Cancel} delivers a cancelled owner's timer immediately, without advancing the clock. \semrule{Sys-Signal-Cancel} and \semrule{Sys-Halt} exist only for the \exn-based instantiations.
+
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{\ }l@{\ }l@{\ }l@{}}
+                & \elided{ t_0, \sigma, & Q, & T_0 \seqconcat (t_{\mathit{sig}}, \ell, \kappa) \circ T_1, & P } \\
+\longrightarrow & \elided{ t_1, \sigma, & Q \qpush (\ell, \kappa), & T_0 \seqconcat T_1, & P }
+\end{array}$\hfill$\text{[Sys-Signal]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ \mathsf{false} = \mathsf{task\text{-}cancelled}(\sigma, \ell),~ t_1 = \max(t_0, t_{\mathit{sig}}) \\
+  \qquad Q = \epsilon,~ \bsfid{true} = \mathsf{idle}(P) \quad \textit{(serial dispatch only)}
+  \end{array}$
+}
+\end{tabular*}
+
+\vspace{1em}
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{\ }l@{\ }l@{\ }l@{}}
+                & \elided{ t, \sigma, & Q, & T_0 \seqconcat (t_{\mathit{sig}}, \ell, \kappa) \circ T_1, & P } \\
+\longrightarrow & \elided{ t, \sigma, & Q \qpush (\ell, \kappa), & T_0 \seqconcat T_1, & P }
+\end{array}$\hfill$\text{[Sys-Signal-Cancel]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ \bsfid{true} = \mathsf{task\text{-}cancelled}(\sigma, \ell)
+  \end{array}$
+}
+\end{tabular*}
+
+\vspace{1em}
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{}l@{}}
+                & \elided{ P \uplus \{ \langle \ell, \mathbfsf{throw}\ v \rangle & {}\circ \epsilon \}} \\
+\longrightarrow & \elided{ \{ \langle \sfid{sync}, \mathbfsf{throw}\ v \rangle & {}\circ \epsilon \} \uplus \{ \many{\epsilon} \}}
+\end{array}$\hfill$\text{[Sys-Halt]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ |\many{\epsilon}| = |P|
+  \end{array}$
+}
+\end{tabular*}
+\subsubsection{\CSharp}
+
+\CSharp{} extends \lasync over \exn, multithreaded, and defines no cancellation rules. \semrule{\CSharp-OS-Block-Done} overrides the platform exit rule: the runtime exits as soon as the awaited task settles, discarding queued tasks and pending timers and clearing the worker threads (\terminated \destruction).
+
+$$
+\begin{array}{r@{\ }c@{\ }l}
+e & ::= & \ldots \mid \mathbfsf{await}\ e \\
+v & ::= & \ldots \mid \mathbfsf{async}\ \mathbfsf{fn}\ \many{x} \to e
+\end{array}
+$$
+
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{}l@{}l@{}l@{}}
+                & \elided{\sigma_0, P \uplus \{ & & \langle \ell, E[(\mathbfsf{async\ fn}\ \many{x} \to e_{\mathit{body}})\ \many{v}] \rangle & {}\circ FS \}} \\
+\longrightarrow & \elided{\sigma_2, P \uplus \{ \ceag{\langle x_{\mathit{task}}, e_{\mathit{task}} \rangle} & {}\circ{} & \langle \ell, E[x_{\mathit{task}}] \rangle & {}\circ FS \}}
+\end{array}$\hfill$\text{[\CSharp/\Js-Async-App]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ \many{x}_{\mathit{fresh}} = \many{\mathsf{gensym}(),~ \sigma_1 = \sigma_0[\many{x}_{\mathit{fresh}} \mapsto \many{v}],~ e_{\mathit{subst}} = e_{\mathit{body}}[\many{x}_{\mathit{fresh}}/\many{x}]} \\
+  \qquad (\sigma_2, x_{\mathit{task}}) = \mathsf{task\text{-}alloc}(\sigma_1)\;\cext{\ghost} \\
+  \qquad e_{\mathit{task}} = \mathbfsf{reset}\ ( \\
+  \qquad \qquad \mathbfsf{try}\ \semmacro{task\text{-}set\text{-}done}(x_{\mathit{task}}, e_{\mathit{subst}})\ \mathbfsf{catch}\ v_{\mathit{err}} \to \semmacro{task\text{-}set\text{-}failed}(x_{\mathit{task}}, v_{\mathit{err}}) \\
+  \quad\;\;\cdes{\ghost}\;\cext{\ghost}\;\cpro{\ghost}\;
+  \mathbfsf{sys\textbfsf{-}start\textbfsf{-}soon}(\semmacro{task\text{-}get\text{-}dependents}(x_{\mathit{task}})))
+  \end{array}$
+}
+\end{tabular*}
+
+\vspace{1em}
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{}l@{}}
+                & \elided{ P \uplus \{ \langle \ell, E[\mathbfsf{await}\ v_{\mathit{aw}}] \rangle & {}\circ FS \}} \\
+\longrightarrow & \elided{ P \uplus \{ \langle \ell, E[e_{\mathit{await}}] \rangle & {}\circ FS \}}
+\end{array}$\hfill$\text{[\CSharp/Swift/Asyncio/Trio-Await]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ e_{\mathit{await}} = \begin{array}[t]{@{}l@{\;}l@{}}
+      \mathbfsf{if}   & \semmacro{task\text{-}is\text{-}completed}(v_{\mathit{aw}})\ \mathbfsf{then}\ \semmacro{task\text{-}get\text{-}result}(v_{\mathit{aw}}) \\
+      \mathbfsf{else} & {\csus{\mathbfsf{shift}\ k \to}}\ \semmacro{task\text{-}add\text{-}dependent}(v_{\mathit{aw}},
+\ell, \semmacro{task\text{-}continue\text{-}with}(v_{\mathit{aw}}, k))
+    \end{array}
+  \end{array}$
+}
+\end{tabular*}
+
+\vspace{1em}
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{\ }l@{\ }l@{}l@{}}
+                & \elided{\sigma, Q, & T, & \{ \langle \sfid{sync}, E[\mathbfsf{sys\textbfsf{-}block}(v_{\mathit{task}})] \rangle \circ \epsilon \} \uplus P } \\
+\longrightarrow & \elided{\sigma, \cdes{\epsilon}, & {}\cdes{\epsilon}, & \{ \langle \sfid{sync}, E[\semmacro{task\text{-}get\text{-}result}(v_{\mathit{task}})] \rangle \circ \epsilon \} \uplus \cdes{\many{\epsilon}} }
+\end{array}$\hfill$\text{[\CSharp-OS-Block-Done]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ \bsfid{true} = \mathsf{task?}(v_{\mathit{task}}),~ \bsfid{true} = \mathsf{task\text{-}settled}(\sigma, v_{\mathit{task}}),~ |\many{\epsilon}| = |P|
+  \end{array}$
+}
+\end{tabular*}
+\vspace{0.7em}
+\makelegend{eag,ext,des,pro,sus}
+
+\subsubsection{\Js}
+
+\Js{} extends \lasync over \exn, single-threaded with serial dispatch, and defines no cancellation rules. Its \semrule{Async-App} is shared with \CSharp{} (above); its \semrule{Await} always suspends (\static \suspension). The event loop is the root thread: \semrule{\Js-Sys-Schedule} dispatches the head of $Q$ as a frame stacked on the root frame parked at $\mathbfsf{sys\textbfsf{-}block}$; requiring the parked frame to be the \emph{entire} stack makes run-to-completion structural.
+
+$$
+\begin{array}{r@{\ }c@{\ }l}
+e & ::= & \ldots \mid \mathbfsf{await}\ e \\
+v & ::= & \ldots \mid \mathbfsf{async}\ \mathbfsf{fn}\ \many{x} \to e
+\end{array}
+$$
+
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{}l@{}l@{}l@{}}
+                & \elided{\sigma_0, P \uplus \{ & & \langle \ell, E[(\mathbfsf{async\ fn}\ \many{x} \to e_{\mathit{body}})\ \many{v}] \rangle & {}\circ FS \}} \\
+\longrightarrow & \elided{\sigma_2, P \uplus \{ \ceag{\langle x_{\mathit{task}}, e_{\mathit{task}} \rangle} & {}\circ{} & \langle \ell, E[x_{\mathit{task}}] \rangle & {}\circ FS \}}
+\end{array}$\hfill$\text{[\CSharp/\Js-Async-App]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ \many{x}_{\mathit{fresh}} = \many{\mathsf{gensym}(),~ \sigma_1 = \sigma_0[\many{x}_{\mathit{fresh}} \mapsto \many{v}],~ e_{\mathit{subst}} = e_{\mathit{body}}[\many{x}_{\mathit{fresh}}/\many{x}]} \\
+  \qquad (\sigma_2, x_{\mathit{task}}) = \mathsf{task\text{-}alloc}(\sigma_1)\;\cext{\ghost} \\
+  \qquad e_{\mathit{task}} = \mathbfsf{reset}\ ( \\
+  \qquad \qquad \mathbfsf{try}\ \semmacro{task\text{-}set\text{-}done}(x_{\mathit{task}}, e_{\mathit{subst}})\ \mathbfsf{catch}\ v_{\mathit{err}} \to \semmacro{task\text{-}set\text{-}failed}(x_{\mathit{task}}, v_{\mathit{err}}) \\
+  \quad\;\;\cdes{\ghost}\;\cext{\ghost}\;\cpro{\ghost}\;
+  \mathbfsf{sys\textbfsf{-}start\textbfsf{-}soon}(\semmacro{task\text{-}get\text{-}dependents}(x_{\mathit{task}})))
+  \end{array}$
+}
+\end{tabular*}
+
+\vspace{1em}
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{}l@{}}
+                & \elided{ P \uplus \{ \langle \ell, E[\mathbfsf{await}\ v_{\mathit{aw}}] \rangle & {}\circ FS \}} \\
+\longrightarrow & \elided{ P \uplus \{ \langle \ell, E[e_{\mathit{await}}] \rangle & {}\circ FS \}}
+\end{array}$\hfill$\text{[\Js-Await]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ e_{\mathit{await}} = \begin{array}[t]{@{}l@{\;}l@{\;}l@{}}
+    {\csus{\mathbfsf{shift}\ k
+    \to}} & \mathbfsf{if}   & \semmacro{task\text{-}is\text{-}completed}(v_{\mathit{aw}})\ \mathbfsf{then}\ \semmacro{task\text{-}get\text{-}result}(v_{\mathit{aw}}) \\
+           & \mathbfsf{else} & \semmacro{task\text{-}add\text{-}dependent}(v_{\mathit{aw}},
+\ell, \semmacro{task\text{-}continue\text{-}with}(v_{\mathit{aw}}, k))
+    \end{array}
+  \end{array}$
+}
+\end{tabular*}
+
+\vspace{1em}
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{}l@{}l@{\ }l@{}l@{}l@{}}
+                & \elided{(\ell, \kappa) & {}\circ{} & Q, & P \uplus \{ & & F_{\mathit{loop}} \circ \epsilon \}} \\
+\longrightarrow & \elided{               &           & Q, & P \uplus \{ \langle \ell, \kappa\ () \rangle & {}\circ{} & F_{\mathit{loop}} \circ \epsilon \}}
+\end{array}$\hfill$\text{[\Js-Sys-Schedule]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ F_{\mathit{loop}} = \langle \sfid{sync}, E[\mathbfsf{sys\textbfsf{-}block}(v_{\mathit{task}})] \rangle,~ \bsfid{true} = \mathsf{task?}(v_{\mathit{task}})
+  \end{array}$
+}
+\end{tabular*}
+\vspace{0.7em}
+\makelegend{eag,ext,des,pro,sus}
+
+\subsubsection{Swift}
+
+Swift extends \lasync over \exn, multithreaded. Its cancellation is cooperative: a $\mathsf{timeout}$ deadline only sets a flag, and because $\mathsf{task\text{-}cancelled}$ walks parents, an entire subtree observes an ancestor's flag. Swift disables the platform's \semrule{Sys-Schedule-Cancelled}: nothing is injected at dispatch, and \semrule{Swift-Sys-Schedule} pops the head of $Q$ \emph{regardless} of the cancellation flag---a flagged body still runs. Cancellation is delivered only inside the sleep implementation: after waking, the continuation installed by \semrule{Swift-OS-IO} checks $\mathsf{cancelled?}()$ and raises instead of completing. Swift's remaining overrides, \semrule{Sys-Signal} and \semrule{Sys-Signal-Cancel}, coincide with the platform rules.
+
+$$
+\begin{array}{r@{\ }c@{\ }l}
+e & ::= & \ldots \mid \mathbfsf{await}\ e \mid \mathbfsf{timeout}(e, e) \mid \mathbfsf{cancelled?}() \\
+v & ::= & \ldots \mid \mathbfsf{async}\ \mathbfsf{fn}\ \many{x} \to e
+\end{array}
+$$
+
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{\ }l@{}l@{}}
+                & \elided{\sigma_0, Q, & P \uplus \{ \langle \ell, E[(\mathbfsf{async\ fn}\ \many{x} \to e_{\mathit{body}})\ \many{v}] \rangle & {}\circ FS \}} \\
+\longrightarrow & \elided{\sigma_3, \ceag{Q \qpush (x_{\mathit{task}}, \kappa)}, & P \uplus \{ \langle \ell, E[x_{\mathit{task}}] \rangle & {}\circ FS \}}
+\end{array}$\hfill$\text{[Swift-Async-App]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ \many{x}_{\mathit{fresh}} = \many{\mathsf{gensym}(),~ \sigma_1 = \sigma_0[\many{x}_{\mathit{fresh}} \mapsto \many{v}],~ e_{\mathit{subst}} = e_{\mathit{body}}[\many{x}_{\mathit{fresh}}/\many{x}]} \\
+  \qquad (\sigma_2, x_{\mathit{task}}) = \mathsf{task\text{-}alloc}(\sigma_1) \\
+  \qquad \cext{\sigma_3 = \mathsf{task\text{-}add\text{-}dependency}(\sigma_2, \ell, x_{\mathit{task}})} \\
+  \qquad e_{\mathit{task}} = \mathbfsf{reset}\ ( \\
+  \qquad \qquad \mathbfsf{try}\ \semmacro{task\text{-}set\text{-}done}(x_{\mathit{task}}, e_{\mathit{subst}})\ \mathbfsf{catch}\ v_{\mathit{err}} \to \semmacro{task\text{-}set\text{-}failed}(x_{\mathit{task}}, v_{\mathit{err}}) \mathbin{;} \\
+  \qquad \qquad \cdes{\semmacro{task\text{-}cancel\text{-}dependencies}(x_{\mathit{task}}) \mathbin{;}} \\
+  \qquad \qquad \cext{\semmacro{task\text{-}wait\text{-}on\text{-}dependencies}(x_{\mathit{task}}) \mathbin{;}}\;\cpro{\ghost}\\
+  \qquad \qquad \mathbfsf{sys\textbfsf{-}start\textbfsf{-}soon}(\semmacro{task\text{-}get\text{-}dependents}(x_{\mathit{task}}))) \\
+  \qquad \kappa = \mathbfsf{fn}\ x_\mathit{unit} \to x_\mathit{unit}\mathbin{;}\ e_{\mathit{task}}
+  \end{array}$
+}
+\end{tabular*}
+
+\vspace{1em}
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{}l@{}}
+                & \elided{ P \uplus \{ \langle \ell, E[\mathbfsf{await}\ v_{\mathit{aw}}] \rangle & {}\circ FS \}} \\
+\longrightarrow & \elided{ P \uplus \{ \langle \ell, E[e_{\mathit{await}}] \rangle & {}\circ FS \}}
+\end{array}$\hfill$\text{[\CSharp/Swift/Asyncio/Trio-Await]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ e_{\mathit{await}} = \begin{array}[t]{@{}l@{\;}l@{}}
+      \mathbfsf{if}   & \semmacro{task\text{-}is\text{-}completed}(v_{\mathit{aw}})\ \mathbfsf{then}\ \semmacro{task\text{-}get\text{-}result}(v_{\mathit{aw}}) \\
+      \mathbfsf{else} & {\csus{\mathbfsf{shift}\ k \to}}\ \semmacro{task\text{-}add\text{-}dependent}(v_{\mathit{aw}},
+\ell, \semmacro{task\text{-}continue\text{-}with}(v_{\mathit{aw}}, k))
+    \end{array}
+  \end{array}$
+}
+\end{tabular*}
+\vspace{0.7em}
+\makelegend{eag,ext,des,pro,sus}
+
+\vspace{1em}
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{\ }l@{}l@{}}
+                & \elided{ t, T, & P \uplus \{ \langle \ell, E[\mathsf{timeout}(t_{\mathit{delay}}, v_{\mathit{task}})] \rangle & {}\circ FS \}} \\
+\longrightarrow & \elided{ t, T \qpush (t + t_{\mathit{delay}}, \ell_{\mathit{task}}, \kappa_{\mathit{timer}}), & P \uplus \{ \langle \ell, E[\mathbfsf{await}\ v_{\mathit{task}}] \rangle & {}\circ FS \}}
+\end{array}$\hfill$\text{[Swift-Timeout]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ \bsfid{true} = \mathsf{task?}(v_{\mathit{task}}),~ \ell_{\mathit{task}} = \mathsf{task\text{-}name}(v_{\mathit{task}}) \\
+  \qquad \kappa_{\mathit{timer}} = \mathbfsf{fn}\ x_{\mathit{unit}} \to x_{\mathit{unit}} \mathbin{;} \cdir{\semmacro{task\text{-}set\text{-}cancelled}(v_{\mathit{task}})}
+  \end{array}$
+}
+\end{tabular*}
+
+\vspace{1em}
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{}l@{}}
+                & \elided{ P \uplus \{ \langle \ell, E[\cdir{\mathsf{cancelled?}()}] \rangle & {}\circ FS \}} \\
+\longrightarrow & \elided{ P \uplus \{ \langle \ell, E[\cawa{e_{\mathit{bool}}}] \rangle & {}\circ FS \}}
+\end{array}$\hfill$\text{[Swift-Cancelled?]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+    \where\ e_{\mathit{bool}} = \mathsf{task\text{-}cancelled}(\sigma, \ell)\,\cper{\ghost}
+  \end{array}$
+}
+\end{tabular*}
+
+\vspace{1em}
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{}l@{}l@{}l@{}}
+                & \elided{ \sigma_0, P \uplus \{ & & \langle \ell, E[\mathbfsf{sys\textbfsf{-}io}(t_{\mathit{delay}}, v)] \rangle & {}\circ FS \}} \\
+\longrightarrow & \elided{ \sigma_1, P \uplus \{ \langle x_{\mathit{io}}, e_{\mathit{sig}} \rangle & {}\circ{} & \langle \ell, E[x_{\mathit{io}}] \rangle & {}\circ FS \}}
+\end{array}$\hfill$\text{[Swift-OS-IO]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ (\sigma_1, x_{\mathit{io}}) = \cext{\mathsf{task\text{-}alloc\text{-}dependency}(\sigma_0, \ell)} \\
+  \qquad \kappa = \mathbfsf{fn}\ x_{\mathit{unit}} \to \\
+  \qquad \qquad \mathbfsf{try}\ x_{\mathit{unit}} \mathbin{;} \cawa{\mathbfsf{if}\ \mathsf{cancelled?}()\ \mathbfsf{then}\ \mathbfsf{throw}\ \textsf{``stop''}\ \mathbfsf{else}}\ \semmacro{task\text{-}set\text{-}done}(x_{\mathit{io}}, v) \\
+  \qquad \qquad \mathbfsf{catch}\ v_{\mathit{err}} \to \semmacro{task\text{-}set\text{-}failed}(x_{\mathit{io}}, v_{\mathit{err}}) \mathbin{;} \\
+  \qquad \qquad \mathbfsf{sys\textbfsf{-}start\textbfsf{-}soon}(\semmacro{task\text{-}get\text{-}dependents}(x_{\mathit{io}})) \\
+  \qquad e_{\mathit{sig}} = \mathbfsf{sys\textbfsf{-}start\textbfsf{-}later}(\mathbfsf{sys\textbfsf{-}time}() + t_{\mathit{delay}},\ x_{\mathit{io}},\ \kappa)
+  \end{array}$
+}
+\end{tabular*}
+
+\vspace{1em}
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{}l@{}l@{\ }l@{}l@{}l@{}}
+                & \elided{(\ell, \kappa) & {}\circ{} & Q, & P \uplus \{ & & \epsilon \}} \\
+\longrightarrow & \elided{               &           & Q, & P \uplus \{ \langle \ell, \kappa\ () \rangle & {}\circ{} & \epsilon \}}
+\end{array}$\hfill$\text{[Swift-Sys-Schedule]}$\par
+\vspace{0.7em}
+\makelegend{ext,awa,dir,per}
+\subsubsection{Tokio}
+
+Tokio extends \lasync over base Rust, multithreaded. Rust lacks exceptions: failures are values, so a cancelled task settles to an $\textsf{``Err''}$ struct rather than raising, and \semrule{Await} resumes dependents by direct application of the continuation rather than by \semmacro{task\text{-}continue\text{-}with}. The rules make explicit the $\textsf{``Ok''}$ result wrapper modeling Rust's \code|JoinHandle| results, which the main text elides; the gray fragments of \semrule{Spawn} are present only in Asyncio's instantiation. \semrule{Tokio-Cancel} only sets the flag (\code|abort()|); \semrule{Tokio/Smol-Schedule-Cancelled} settles the flagged task at dispatch.
+
+$$
+\begin{array}{r@{\ }c@{\ }l}
+e & ::= & \ldots \mid \mathbfsf{spawn}\ e \mid \mathbfsf{cancel}\ e
+\end{array}
+$$
+
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{\ }l@{}l@{}}
+                & \elided{ \sigma_0, Q, & P \uplus \{ \langle \ell, E[\mathsf{spawn}\ v_{\mathit{coro}}] \rangle & {}\circ FS \}} \\
+\longrightarrow & \elided{ \sigma_1, \ceag{Q \qpush (x_{\mathit{task}}, \kappa)}, & P \uplus \{ \langle \ell, E[x_{\mathit{task}}] \rangle & {}\circ FS \}}
+\end{array}$\hfill$\text{[Asyncio/Tokio/Smol-Spawn]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ (\sigma_1, x_{\mathit{task}}) = \mathsf{task\text{-}alloc}(\sigma_0) \\
+  \qquad e_{\mathit{task}} = \mathbfsf{reset}\ ( \\
+  \qquad \qquad \difff{\mathbfsf{try}}\ \semmacro{task\text{-}set\text{-}done}(x_{\mathit{task}}, \mathbfsf{await}\ v_{\mathit{coro}})\ \difff{\mathbfsf{catch}\ v_{\mathit{err}} \to \semmacro{task\text{-}set\text{-}failed}(x_{\mathit{task}}, v_{\mathit{err}})} \mathbin{;} \\
+  \quad\;\;\cdes{\ghost}\;\cext{\ghost}\;\cpro{\ghost}\;
+  \mathbfsf{sys\textbfsf{-}start\textbfsf{-}soon}(\semmacro{task\text{-}get\text{-}dependents}(x_{\mathit{task}}))) \\
+  \qquad \kappa = \mathbfsf{fn}\ x_{\mathit{unit}} \to x_{\mathit{unit}} \mathbin{;} e_{\mathit{task}}
+  \end{array}$
+}
+\end{tabular*}
+
+\vspace{1em}
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{}l@{}}
+                & \elided{ P \uplus \{ \langle \ell, E[\mathbfsf{await}\ v_{\mathit{aw}}] \rangle & {}\circ FS \}} \\
+\longrightarrow & \elided{ P \uplus \{ \langle \ell, E[e_{\mathit{await}}] \rangle & {}\circ FS \}}
+\end{array}$\hfill$\text{[Tokio/Smol-Await]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ \bsfid{true} = \mathsf{task?}(v_{\mathit{aw}}),~ \kappa_{\mathit{res}} = \mathbfsf{fn}\ x_{\mathit{unit}} \to k\ (\semmacro{task\text{-}get\text{-}result}(v_{\mathit{aw}})) \\
+  \qquad e_{\mathit{await}} = \begin{array}[t]{@{}l@{\;}l@{}}
+      \mathbfsf{if}   & \semmacro{task\text{-}is\text{-}completed}(v_{\mathit{aw}})\ \mathbfsf{then}\ \semmacro{task\text{-}get\text{-}result}(v_{\mathit{aw}}) \\
+      \mathbfsf{else} & {\csus{\mathbfsf{shift}\ k \to}}\ \semmacro{task\text{-}add\text{-}dependent}(v_{\mathit{aw}}, \ell, \kappa_{\mathit{res}})
+    \end{array}
+  \end{array}$
+}
+\end{tabular*}
+\vspace{0.7em}
+\makelegend{eag,ext,des,pro,sus}
+
+\vspace{1em}
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{}l@{}}
+                & \elided{ P \uplus \{ \langle \ell, E[\mathsf{cancel}\ v_{\mathit{task}}] \rangle & {}\circ FS \}} \\
+\longrightarrow & \elided{ P \uplus \{ \langle \ell, E[\semmacro{task\text{-}set\text{-}cancelled}(v_{\mathit{task}})] \rangle & {}\circ FS \}}
+\end{array}$\hfill$\text{[Tokio-Cancel]}$\par
+
+\vspace{1em}
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{}l@{}l@{}l@{}l@{}}
+                & \elided{\sigma, (\ell, \kappa) & {}\circ{} & Q, P \uplus \{ & & \epsilon \}} \\
+\longrightarrow & \elided{\sigma,                &           & Q, P \uplus \{ \langle \ell, \cawa{e_{\mathit{fail}}} \rangle & {}\circ{} & \epsilon \}}
+\end{array}$\hfill$\text{[Tokio/Smol-Schedule-Cancelled]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ \bsfid{true} = \mathsf{task\text{-}cancelled}(\sigma, \ell)\, \cper{\ghost} \\
+  \qquad e_{\mathit{fail}} = \semmacro{task\text{-}set\text{-}done}(\ell, \mathbfsf{struct}\,\{\mathit{type} = \textsf{``Err''},\ \mathit{value} = ()\}) \mathbin{;} \\
+  \qquad \qquad\quad\ \mathbfsf{sys\textbfsf{-}start\textbfsf{-}soon}(\semmacro{task\text{-}get\text{-}dependents}(\ell))
+  \end{array}$
+}
+\end{tabular*}
+\vspace{0.7em}
+\makelegend{awa,per}
+
+\paragraph{Runtime Entry and Exit}
+\semrule{OS-Block-Coro} models \code|block_on|: the entry coroutine is driven inline on the calling thread, never through the executor queue. When the entry task settles, \semrule{OS-Block-Done} exits immediately, discarding queued tasks and pending timers un-polled; mid-poll workers in $P$ keep running.
+
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{}l@{}l@{}l@{}}
+                & \elided{\sigma_0, P \uplus \{ & & F_{\sfid{sync}} & {}\circ \epsilon \}} \\
+\longrightarrow & \elided{\sigma_1, P \uplus \{ \ceag{\langle x_{\mathit{task}}, e_{\mathit{task}} \rangle} & {}\circ{} & F'_{\sfid{sync}} & {}\circ \epsilon \}}
+\end{array}$\hfill$\text{[Tokio/Smol-OS-Block-Coro]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ F_{\sfid{sync}} = \langle \sfid{sync}, E[\mathbfsf{sys\textbfsf{-}block}(v_{\mathit{coro}})] \rangle,~
+  F'_{\sfid{sync}} = \langle \sfid{sync}, E[\mathbfsf{sys\textbfsf{-}block}(x_{\mathit{task}})] \rangle \\
+  \qquad v_{\mathit{coro}} = \mathbfsf{fn}\ x \to e,~ (\sigma_1, x_{\mathit{task}}) = \mathsf{task\text{-}alloc}(\sigma_0) \\
+  \qquad e_{\mathit{ok}} = \mathbfsf{struct}\,\{\mathit{type} = \textsf{``Ok''},\ \mathit{value} = \mathbfsf{await}\ v_{\mathit{coro}}\} \\
+  \qquad e_{\mathit{task}} = \mathbfsf{reset}\ (\semmacro{task\text{-}set\text{-}done}(x_{\mathit{task}}, e_{\mathit{ok}}) \mathbin{;} \mathbfsf{sys\textbfsf{-}start\textbfsf{-}soon}(\semmacro{task\text{-}get\text{-}dependents}(x_{\mathit{task}})))
+  \end{array}$
+}
+\end{tabular*}
+
+\vspace{1em}
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{\ }l@{\ }l@{}l@{}}
+                & \elided{\sigma, Q, & T, & P \uplus \{ \langle \sfid{sync}, E[\mathbfsf{sys\textbfsf{-}block}(v_{\mathit{task}})] \rangle & {}\circ \epsilon \}} \\
+\longrightarrow & \elided{\sigma, \cdes{\epsilon}, & {}\cdes{\epsilon}, & P \uplus \{ \langle \sfid{sync}, E[e_{\mathit{result}}] \rangle & {}\circ \epsilon \}}
+\end{array}$\hfill$\text{[Tokio/Smol-OS-Block-Done]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ \bsfid{true} = \mathsf{task?}(v_{\mathit{task}}),~ \bsfid{true} = \mathsf{task\text{-}settled}(\sigma, v_{\mathit{task}}) \\
+  \qquad e_{\mathit{result}} = (\semmacro{task\text{-}get\text{-}result}(v_{\mathit{task}})).\mathit{value}
+  \end{array}$
+}
+\end{tabular*}
+\vspace{0.7em}
+\makelegend{eag,des}
+
+\paragraph{Scheduling}
+Tokio's dispatch pops an \emph{arbitrary} ready thunk---an over-approximation of its work-stealing scheduler, which gives no cross-task \abbr{fifo} guarantee. The entry future's resumptions run as a frame on the parked root thread (\semrule{Sys-Schedule-Main}), and a cancelled owner's timer drains from $T$ to $Q$ immediately---deadline ignored, clock unchanged---where \semrule{Schedule-Cancelled} settles it.
+
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{\ }l@{}l@{}l@{}}
+                & \elided{\sigma, Q_0 \seqconcat (\ell, \kappa) \circ Q_1, & P \uplus \{ & & \epsilon \}} \\
+\longrightarrow & \elided{\sigma, Q_0 \seqconcat Q_1, & P \uplus \{ \langle \ell, \kappa\ () \rangle & {}\circ{} & \epsilon \}}
+\end{array}$\hfill$\text{[Tokio-Sys-Schedule]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+    \where\ \mathsf{false} = \mathsf{task\text{-}cancelled}(\sigma, \ell)
+  \end{array}$
+}
+\end{tabular*}
+
+\vspace{1em}
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{\ }l@{}l@{}l@{}}
+                & \elided{Q_0 \seqconcat (\ell_{\mathit{main}}, \kappa) \circ Q_1, & P \uplus \{ & & F_{\mathit{block}} \circ \epsilon \}} \\
+\longrightarrow & \elided{Q_0 \seqconcat Q_1, & P \uplus \{ \langle \ell_{\mathit{main}}, \kappa\ () \rangle & {}\circ{} & F_{\mathit{block}} \circ \epsilon \}}
+\end{array}$\hfill$\text{[Tokio/Smol-Sys-Schedule-Main]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+    \where\ F_{\mathit{block}} = \langle \sfid{sync}, E[\mathbfsf{sys\textbfsf{-}block}(v_{\mathit{task}})] \rangle,~
+    \ell_{\mathit{main}} = \mathsf{task\text{-}name}(v_{\mathit{task}})
+  \end{array}$
+}
+\end{tabular*}
+
+\vspace{1em}
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{\ }l@{}}
+                & \elided{\sigma, Q, & T_0 \seqconcat (t_{\mathit{c}}, \ell, \kappa) \circ T_1} \\
+\longrightarrow & \elided{\sigma, Q \qpush (\ell, \kappa), & T_0 \seqconcat T_1}
+\end{array}$\hfill$\text{[Tokio/Smol-Sys-Signal-Cancel]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+    \where\ \bsfid{true} = \mathsf{task\text{-}cancelled}(\sigma, \ell)\,\cper{\ghost}
+  \end{array}$
+}
+\end{tabular*}
+\vspace{0.7em}
+\makelegend{per}
+
+\subsubsection{Smol}
+
+Smol shares Tokio's base and grammar: it extends \lasync over Rust, multithreaded, with value-level failures, the $\textsf{``Ok''}$/$\textsf{``Err''}$ result wrappers, and the same \semrule{Spawn}, \semrule{Await}, \semrule{Schedule-Cancelled}, entry/exit, and \semrule{Sys-Schedule-Main} rules, repeated below. It differs in cancellation and dispatch: \semrule{Smol-Cancel} models \code|cancel().await|---it sets the flag and evaluates to a waiter task that awaits the target---while \semrule{Smol-Cancel-Unstarted} settles a never-dispatched task $\textsf{``Err''}$ inline, removing its queue entry and returning an already-settled unit task. Smol keeps the platform's \abbr{fifo} \semrule{Sys-Schedule}, but adds \semrule{Smol-Sys-Schedule-Reactor}: an i/o-completion thunk (recognized by $\mathsf{io\text{-}completion}$) may dispatch from any queue position, modeling the reactor thread bypassing the executor's \abbr{fifo}.
+
+$$
+\begin{array}{r@{\ }c@{\ }l}
+e & ::= & \ldots \mid \mathbfsf{spawn}\ e \mid \mathbfsf{cancel}\ e
+\end{array}
+$$
+
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{\ }l@{}l@{}}
+                & \elided{ \sigma_0, Q, & P \uplus \{ \langle \ell, E[\mathsf{spawn}\ v_{\mathit{coro}}] \rangle & {}\circ FS \}} \\
+\longrightarrow & \elided{ \sigma_1, \ceag{Q \qpush (x_{\mathit{task}}, \kappa)}, & P \uplus \{ \langle \ell, E[x_{\mathit{task}}] \rangle & {}\circ FS \}}
+\end{array}$\hfill$\text{[Asyncio/Tokio/Smol-Spawn]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ (\sigma_1, x_{\mathit{task}}) = \mathsf{task\text{-}alloc}(\sigma_0) \\
+  \qquad e_{\mathit{task}} = \mathbfsf{reset}\ ( \\
+  \qquad \qquad \difff{\mathbfsf{try}}\ \semmacro{task\text{-}set\text{-}done}(x_{\mathit{task}}, \mathbfsf{await}\ v_{\mathit{coro}})\ \difff{\mathbfsf{catch}\ v_{\mathit{err}} \to \semmacro{task\text{-}set\text{-}failed}(x_{\mathit{task}}, v_{\mathit{err}})} \mathbin{;} \\
+  \quad\;\;\cdes{\ghost}\;\cext{\ghost}\;\cpro{\ghost}\;
+  \mathbfsf{sys\textbfsf{-}start\textbfsf{-}soon}(\semmacro{task\text{-}get\text{-}dependents}(x_{\mathit{task}}))) \\
+  \qquad \kappa = \mathbfsf{fn}\ x_{\mathit{unit}} \to x_{\mathit{unit}} \mathbin{;} e_{\mathit{task}}
+  \end{array}$
+}
+\end{tabular*}
+
+\vspace{1em}
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{}l@{}}
+                & \elided{ P \uplus \{ \langle \ell, E[\mathbfsf{await}\ v_{\mathit{aw}}] \rangle & {}\circ FS \}} \\
+\longrightarrow & \elided{ P \uplus \{ \langle \ell, E[e_{\mathit{await}}] \rangle & {}\circ FS \}}
+\end{array}$\hfill$\text{[Tokio/Smol-Await]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ \bsfid{true} = \mathsf{task?}(v_{\mathit{aw}}),~ \kappa_{\mathit{res}} = \mathbfsf{fn}\ x_{\mathit{unit}} \to k\ (\semmacro{task\text{-}get\text{-}result}(v_{\mathit{aw}})) \\
+  \qquad e_{\mathit{await}} = \begin{array}[t]{@{}l@{\;}l@{}}
+      \mathbfsf{if}   & \semmacro{task\text{-}is\text{-}completed}(v_{\mathit{aw}})\ \mathbfsf{then}\ \semmacro{task\text{-}get\text{-}result}(v_{\mathit{aw}}) \\
+      \mathbfsf{else} & {\csus{\mathbfsf{shift}\ k \to}}\ \semmacro{task\text{-}add\text{-}dependent}(v_{\mathit{aw}}, \ell, \kappa_{\mathit{res}})
+    \end{array}
+  \end{array}$
+}
+\end{tabular*}
+\vspace{0.7em}
+\makelegend{eag,ext,des,pro,sus}
+
+\vspace{1em}
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{\ }l@{}l@{}}
+                & \elided{ \sigma_0, Q_0 \seqconcat (\ell_{\mathit{t}}, \kappa) \circ Q_1, & P \uplus \{ \langle \ell, E[\mathsf{cancel}\ v_{\mathit{task}}] \rangle & {}\circ FS \}} \\
+\longrightarrow & \elided{ \sigma_1, Q_0 \seqconcat Q_1, & P \uplus \{ \langle \ell, E[e_{\mathit{res}}] \rangle & {}\circ FS \}}
+\end{array}$\hfill$\text{[Smol-Cancel-Unstarted]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ \ell_{\mathit{t}} = \mathsf{task\text{-}name}(v_{\mathit{task}}),~ (\sigma_1, x_{\mathit{done}}) = \mathsf{task\text{-}alloc}(\sigma_0) \\
+  \qquad e_{\mathit{res}} = \semmacro{task\text{-}set\text{-}done}(\ell_{\mathit{t}}, \mathbfsf{struct}\,\{\mathit{type} = \textsf{``Err''},\ \mathit{value} = ()\}) \mathbin{;} \\
+  \qquad \qquad\quad \mathbfsf{sys\textbfsf{-}start\textbfsf{-}soon}(\semmacro{task\text{-}get\text{-}dependents}(\ell_{\mathit{t}})) \mathbin{;} \semmacro{task\text{-}set\text{-}done}(x_{\mathit{done}}, ()) \mathbin{;} x_{\mathit{done}}
+  \end{array}$
+}
+\end{tabular*}
+
+\vspace{1em}
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{}l@{}}
+                & \elided{ P \uplus \{ \langle \ell, E[\mathsf{cancel}\ v_{\mathit{task}}] \rangle & {}\circ FS \}} \\
+\longrightarrow & \elided{ P \uplus \{ \langle \ell, E[\semmacro{task\text{-}set\text{-}cancelled}(v_{\mathit{task}}) \mathbin{;} e_{\mathit{waiter}}] \rangle & {}\circ FS \}}
+\end{array}$\hfill$\text{[Smol-Cancel]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ e_{\mathit{waiter}} = \mathsf{spawn}\ (\mathbfsf{fn}\ x \to \mathbfsf{reset}\ (x \mathbin{;} \mathbfsf{await}\ v_{\mathit{task}}))
+  \end{array}$
+}
+\end{tabular*}
+
+\vspace{1em}
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{}l@{}l@{}l@{}l@{}}
+                & \elided{\sigma, (\ell, \kappa) & {}\circ{} & Q, P \uplus \{ & & \epsilon \}} \\
+\longrightarrow & \elided{\sigma,                &           & Q, P \uplus \{ \langle \ell, \cawa{e_{\mathit{fail}}} \rangle & {}\circ{} & \epsilon \}}
+\end{array}$\hfill$\text{[Tokio/Smol-Schedule-Cancelled]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ \bsfid{true} = \mathsf{task\text{-}cancelled}(\sigma, \ell)\, \cper{\ghost} \\
+  \qquad e_{\mathit{fail}} = \semmacro{task\text{-}set\text{-}done}(\ell, \mathbfsf{struct}\,\{\mathit{type} = \textsf{``Err''},\ \mathit{value} = ()\}) \mathbin{;} \\
+  \qquad \qquad\quad\ \mathbfsf{sys\textbfsf{-}start\textbfsf{-}soon}(\semmacro{task\text{-}get\text{-}dependents}(\ell))
+  \end{array}$
+}
+\end{tabular*}
+\vspace{0.7em}
+\makelegend{awa,per}
+
+\paragraph{Runtime Entry and Exit}
+As for Tokio: \code|block_on| drives the entry coroutine inline on the calling thread, and the runtime exits as soon as the entry task settles, discarding $Q$ and $T$.
+
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{}l@{}l@{}l@{}}
+                & \elided{\sigma_0, P \uplus \{ & & F_{\sfid{sync}} & {}\circ \epsilon \}} \\
+\longrightarrow & \elided{\sigma_1, P \uplus \{ \ceag{\langle x_{\mathit{task}}, e_{\mathit{task}} \rangle} & {}\circ{} & F'_{\sfid{sync}} & {}\circ \epsilon \}}
+\end{array}$\hfill$\text{[Tokio/Smol-OS-Block-Coro]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ F_{\sfid{sync}} = \langle \sfid{sync}, E[\mathbfsf{sys\textbfsf{-}block}(v_{\mathit{coro}})] \rangle,~
+  F'_{\sfid{sync}} = \langle \sfid{sync}, E[\mathbfsf{sys\textbfsf{-}block}(x_{\mathit{task}})] \rangle \\
+  \qquad v_{\mathit{coro}} = \mathbfsf{fn}\ x \to e,~ (\sigma_1, x_{\mathit{task}}) = \mathsf{task\text{-}alloc}(\sigma_0) \\
+  \qquad e_{\mathit{ok}} = \mathbfsf{struct}\,\{\mathit{type} = \textsf{``Ok''},\ \mathit{value} = \mathbfsf{await}\ v_{\mathit{coro}}\} \\
+  \qquad e_{\mathit{task}} = \mathbfsf{reset}\ (\semmacro{task\text{-}set\text{-}done}(x_{\mathit{task}}, e_{\mathit{ok}}) \mathbin{;} \mathbfsf{sys\textbfsf{-}start\textbfsf{-}soon}(\semmacro{task\text{-}get\text{-}dependents}(x_{\mathit{task}})))
+  \end{array}$
+}
+\end{tabular*}
+
+\vspace{1em}
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{\ }l@{\ }l@{}l@{}}
+                & \elided{\sigma, Q, & T, & P \uplus \{ \langle \sfid{sync}, E[\mathbfsf{sys\textbfsf{-}block}(v_{\mathit{task}})] \rangle & {}\circ \epsilon \}} \\
+\longrightarrow & \elided{\sigma, \cdes{\epsilon}, & {}\cdes{\epsilon}, & P \uplus \{ \langle \sfid{sync}, E[e_{\mathit{result}}] \rangle & {}\circ \epsilon \}}
+\end{array}$\hfill$\text{[Tokio/Smol-OS-Block-Done]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ \bsfid{true} = \mathsf{task?}(v_{\mathit{task}}),~ \bsfid{true} = \mathsf{task\text{-}settled}(\sigma, v_{\mathit{task}}) \\
+  \qquad e_{\mathit{result}} = (\semmacro{task\text{-}get\text{-}result}(v_{\mathit{task}})).\mathit{value}
+  \end{array}$
+}
+\end{tabular*}
+\vspace{0.7em}
+\makelegend{eag,des}
+
+\paragraph{Scheduling}
+The reactor rule dispatches from any queue position; ordinary thunks use the platform's \abbr{fifo} \semrule{Sys-Schedule}.
+
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{\ }l@{}l@{}l@{}}
+                & \elided{\sigma, Q_0 \seqconcat (\ell_{\mathit{io}}, \kappa) \circ Q_1, & P \uplus \{ & & \epsilon \}} \\
+\longrightarrow & \elided{\sigma, Q_0 \seqconcat Q_1, & P \uplus \{ \langle \ell_{\mathit{io}}, \kappa\ () \rangle & {}\circ{} & \epsilon \}}
+\end{array}$\hfill$\text{[Smol-Sys-Schedule-Reactor]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+    \where\ \bsfid{true} = \mathsf{io\text{-}completion}(\kappa),~
+    \mathsf{false} = \mathsf{task\text{-}cancelled}(\sigma, \ell_{\mathit{io}})
+  \end{array}$
+}
+\end{tabular*}
+
+\vspace{1em}
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{\ }l@{}l@{}l@{}}
+                & \elided{Q_0 \seqconcat (\ell_{\mathit{main}}, \kappa) \circ Q_1, & P \uplus \{ & & F_{\mathit{block}} \circ \epsilon \}} \\
+\longrightarrow & \elided{Q_0 \seqconcat Q_1, & P \uplus \{ \langle \ell_{\mathit{main}}, \kappa\ () \rangle & {}\circ{} & F_{\mathit{block}} \circ \epsilon \}}
+\end{array}$\hfill$\text{[Tokio/Smol-Sys-Schedule-Main]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+    \where\ F_{\mathit{block}} = \langle \sfid{sync}, E[\mathbfsf{sys\textbfsf{-}block}(v_{\mathit{task}})] \rangle,~
+    \ell_{\mathit{main}} = \mathsf{task\text{-}name}(v_{\mathit{task}})
+  \end{array}$
+}
+\end{tabular*}
+
+\vspace{1em}
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{\ }l@{}}
+                & \elided{\sigma, Q, & T_0 \seqconcat (t_{\mathit{c}}, \ell, \kappa) \circ T_1} \\
+\longrightarrow & \elided{\sigma, Q \qpush (\ell, \kappa), & T_0 \seqconcat T_1}
+\end{array}$\hfill$\text{[Tokio/Smol-Sys-Signal-Cancel]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+    \where\ \bsfid{true} = \mathsf{task\text{-}cancelled}(\sigma, \ell)\,\cper{\ghost}
+  \end{array}$
+}
+\end{tabular*}
+\vspace{0.7em}
+\makelegend{per}
+
+\subsubsection{Asyncio}
+
+Asyncio extends \lasync over Python's \exn-based coroutines, single-threaded. Its \semrule{Await} refines the shared dynamic rule: before checking readiness it marks the awaited task, the bookkeeping behind Asyncio's \emph{log} \propagation---an unawaited failure is only ever logged (see \semrule{Asyncio-OS-Block-Exit}, where the empty pill marks the absent unawaited-failure check). The $\mathsf{task?}$ guard lets bare coroutines fall through to \semrule{Rust/Python-Await-Coro}. \semrule{Asyncio-Schedule-Cancelled} resumes a cancelled task with an exception and \emph{uncancels} it (\transient \persistence).
+
+$$
+\begin{array}{r@{\ }c@{\ }l}
+e & ::= & \ldots \mid \mathbfsf{spawn}\ e \mid \mathbfsf{cancel}\ e
+\end{array}
+$$
+
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{\ }l@{}l@{}}
+                & \elided{ \sigma_0, Q, & P \uplus \{ \langle \ell, E[\mathsf{spawn}\ v_{\mathit{coro}}] \rangle & {}\circ FS \}} \\
+\longrightarrow & \elided{ \sigma_1, \ceag{Q \qpush (x_{\mathit{task}}, \kappa)}, & P \uplus \{ \langle \ell, E[x_{\mathit{task}}] \rangle & {}\circ FS \}}
+\end{array}$\hfill$\text{[Asyncio/Tokio/Smol-Spawn]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ (\sigma_1, x_{\mathit{task}}) = \mathsf{task\text{-}alloc}(\sigma_0) \\
+  \qquad e_{\mathit{task}} = \mathbfsf{reset}\ ( \\
+  \qquad \qquad \difff{\mathbfsf{try}}\ \semmacro{task\text{-}set\text{-}done}(x_{\mathit{task}}, \mathbfsf{await}\ v_{\mathit{coro}})\ \difff{\mathbfsf{catch}\ v_{\mathit{err}} \to \semmacro{task\text{-}set\text{-}failed}(x_{\mathit{task}}, v_{\mathit{err}})} \mathbin{;} \\
+  \quad\;\;\cdes{\ghost}\;\cext{\ghost}\;\cpro{\ghost}\;
+  \mathbfsf{sys\textbfsf{-}start\textbfsf{-}soon}(\semmacro{task\text{-}get\text{-}dependents}(x_{\mathit{task}}))) \\
+  \qquad \kappa = \mathbfsf{fn}\ x_{\mathit{unit}} \to x_{\mathit{unit}} \mathbin{;} e_{\mathit{task}}
+  \end{array}$
+}
+\end{tabular*}
+
+\vspace{1em}
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{}l@{}}
+                & \elided{ P \uplus \{ \langle \ell, E[\mathbfsf{await}\ v_{\mathit{aw}}] \rangle & {}\circ FS \}} \\
+\longrightarrow & \elided{ P \uplus \{ \langle \ell, E[e_{\mathit{await}}] \rangle & {}\circ FS \}}
+\end{array}$\hfill$\text{[Asyncio-Await]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ \bsfid{true} = \mathsf{task?}(v_{\mathit{aw}}) \\
+  \qquad e_{\mathit{await}} = \begin{array}[t]{@{}l@{\;}l@{}}
+      \multicolumn{2}{@{}l@{}}{\cpro{\semmacro{task\text{-}set\text{-}awaited}(v_{\mathit{aw}}) \mathbin{;}}} \\
+      \mathbfsf{if}   & \semmacro{task\text{-}is\text{-}completed}(v_{\mathit{aw}})\ \mathbfsf{then}\ \semmacro{task\text{-}get\text{-}result}(v_{\mathit{aw}}) \\
+      \mathbfsf{else} & {\csus{\mathbfsf{shift}\ k \to}}\ \semmacro{task\text{-}add\text{-}dependent}(v_{\mathit{aw}},
+\ell, \semmacro{task\text{-}continue\text{-}with}(v_{\mathit{aw}}, k))
+    \end{array}
+  \end{array}$
+}
+\end{tabular*}
+
+\vspace{1em}
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{}l@{}}
+                & \elided{ P \uplus \{ \langle \ell, E[\mathsf{cancel}\ v_{\mathit{task}}] \rangle & {}\circ FS \}} \\
+\longrightarrow & \elided{ P \uplus \{ \langle \ell, E[\semmacro{task\text{-}set\text{-}cancelled}(v_{\mathit{task}})] \rangle & {}\circ FS \}}
+\end{array}$\hfill$\text{[Asyncio-Cancel]}$\par
+\vspace{0.7em}
+\makelegend{eag,ext,des,pro,sus}
+
+\vspace{1em}
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{}l@{}l@{\ }l@{}l@{}l@{}}
+                & \elided{\sigma_0, (\ell, \kappa) & {}\circ{} & Q, & P \uplus \{ & & F_{\mathit{loop}} \circ \epsilon \}} \\
+\longrightarrow & \elided{\sigma_1, & & Q, & P \uplus \{ \cawa{\langle \ell,}\kern3.5pt \cdir{\bsfid{throw-in}(\kappa, \textsf{``stop''})}\kern3.5pt \cawa{\rangle} & {}\circ{} & F_{\mathit{loop}} \circ \epsilon \}}
+\end{array}$\hfill$\text{[Asyncio-Schedule-Cancelled]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ F_{\mathit{loop}} = \langle \sfid{sync}, E[\mathbfsf{sys\textbfsf{-}block}(v_{\mathit{task}})] \rangle,~ \bsfid{true} = \mathsf{task?}(v_{\mathit{task}}) \\
+  \qquad \bsfid{true} = \mathsf{task\text{-}cancelled}(\sigma_0, \ell),~
+  \cper{\sigma_1 = \mathsf{task\text{-}uncancel}(\sigma_0, \ell)}
+  \end{array}$
+}
+\end{tabular*}
+\vspace{0.7em}
+\makelegend{awa,dir,per}
+
+\paragraph{Scheduling and Collection}
+The loop is single-threaded: \semrule{Asyncio-Sys-Schedule} runs the head of $Q$ as a frame stacked on the root frame parked at $\mathbfsf{sys\textbfsf{-}block}$. \semrule{Asyncio-Sys-GC} overrides the platform's collection rule with \weak \references: $Q$ is excluded from the root set, so an otherwise-unreachable task may be collected together with its pending queue entry.
+
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{}l@{}l@{\ }l@{}l@{}l@{}}
+                & \elided{\sigma, (\ell, \kappa) & {}\circ{} & Q, & P \uplus \{ & & F_{\mathit{loop}} \circ \epsilon \}} \\
+\longrightarrow & \elided{\sigma, & & Q, & P \uplus \{ \langle \ell, \kappa\ () \rangle & {}\circ{} & F_{\mathit{loop}} \circ \epsilon \}}
+\end{array}$\hfill$\text{[Asyncio-Sys-Schedule]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ F_{\mathit{loop}} = \langle \sfid{sync}, E[\mathbfsf{sys\textbfsf{-}block}(v_{\mathit{task}})] \rangle,~ \bsfid{true} = \mathsf{task?}(v_{\mathit{task}}) \\
+  \qquad \mathsf{false} = \mathsf{task\text{-}cancelled}(\sigma, \ell)
+  \end{array}$
+}
+\end{tabular*}
+
+\vspace{1em}
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{\ }l@{}}
+                & \elided{ \sigma_0, & Q_0 \seqconcat (x, \kappa) \circ Q_1 } \\
+\longrightarrow & \elided{ \sigma_1, & Q_0 \seqconcat Q_1 }
+\end{array}$\hfill$\text{[Asyncio-Sys-GC]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ \sigma_0 = \sigma_1, x \mapsto v,~ x \notin \mathsf{fv}(\sigma_1, T, P)
+  \end{array}$
+}
+\end{tabular*}
+
+\vspace{1em}
+\paragraph{Runtime Entry and Exit}
+\code|asyncio.run| drives the entry coroutine inline on the root thread (\semrule{OS-Block-Coro}). Once the entry task settles, the root cancels all still-uncancelled tasks (\semrule{OS-Block-Cancel}) and exits only when both queues are drained and no uncancelled task remains (\semrule{OS-Block-Exit}).
+
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{\ }l@{}l@{}l@{}}
+                & \elided{ \sigma_0, & P \uplus \{ & & F_{\sfid{sync}} \circ \epsilon \}} \\
+\longrightarrow & \elided{ \sigma_1, & P \uplus \{ \langle x_{\mathit{task}}, e_{\mathit{entry}} \rangle & {}\circ{} & F'_{\sfid{sync}} \circ \epsilon \}}
+\end{array}$\hfill$\text{[Asyncio-OS-Block-Coro]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ F_{\sfid{sync}} = \langle \sfid{sync}, E[\mathbfsf{sys\textbfsf{-}block}(v_{\mathit{coro}})] \rangle,~
+  F'_{\sfid{sync}} = \langle \sfid{sync}, E[\mathbfsf{sys\textbfsf{-}block}(x_{\mathit{task}})] \rangle \\
+  \qquad v_{\mathit{coro}} = \mathbfsf{fn}\ x \to \mathbfsf{reset}\ (x \mathbin{;} e),~ (\sigma_1, x_{\mathit{task}}) = \mathsf{task\text{-}alloc}(\sigma_0) \\
+  \qquad e_{\mathit{entry}} = \mathbfsf{reset}\ ( \\
+  \qquad \qquad \mathbfsf{try}\ \semmacro{task\text{-}set\text{-}done}(x_{\mathit{task}}, \mathbfsf{await}\ v_{\mathit{coro}})\ \mathbfsf{catch}\ v_{\mathit{err}} \to \semmacro{task\text{-}set\text{-}failed}(x_{\mathit{task}}, v_{\mathit{err}}) \mathbin{;} \\
+  \qquad \quad\;\cext{\ghost}\;\cpro{\ghost}\;
+  \mathbfsf{sys\textbfsf{-}start\textbfsf{-}soon}(\semmacro{task\text{-}get\text{-}dependents}(x_{\mathit{task}})))
+  \end{array}$
+}
+\end{tabular*}
+
+\vspace{1em}
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{}l@{}}
+                & \elided{ P \uplus \{ \langle \sfid{sync}, E[\mathbfsf{sys\textbfsf{-}block}(v_{\mathit{task}})] \rangle & {}\circ \epsilon \}} \\
+\longrightarrow & \elided{ P \uplus \{ \langle \sfid{sync}, E[\cdes{e_{\mathit{cxl}} \mathbin{;}}\ \mathbfsf{sys\textbfsf{-}block}(v_{\mathit{task}})] \rangle & {}\circ \epsilon \}}
+\end{array}$\hfill$\text{[Asyncio-OS-Block-Cancel]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ \bsfid{true} = \mathsf{task\text{-}settled}(\sigma, v_{\mathit{task}}) \\
+  \qquad (x_0, \ldots, x_n) = \mathsf{store\text{-}uncancelled\text{-}tasks}(\sigma) \\
+  \qquad e_{\mathit{cxl}} = \mathsf{cancel}\ x_0 \mathbin{;} \cdots \mathbin{;} \mathsf{cancel}\ x_n
+  \end{array}$
+}
+\end{tabular*}
+
+\vspace{1em}
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{\ }l@{}l@{}}
+                & \elided{ \epsilon, \epsilon, & P \uplus \{ \langle \sfid{sync}, E[\mathbfsf{sys\textbfsf{-}block}(v_{\mathit{task}})] \rangle & {}\circ \epsilon \}} \\
+\longrightarrow & \elided{ \epsilon, \epsilon, & P \uplus \{ \langle \sfid{sync}, E[\semmacro{task\text{-}get\text{-}result}(v_{\mathit{task}})] \rangle & {}\circ \epsilon \}}
+\end{array}$\hfill$\text{[Asyncio-OS-Block-Exit]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ \bsfid{true} = \mathsf{task\text{-}settled}(\sigma, v_{\mathit{task}}),~
+  \epsilon = \mathsf{store\text{-}uncancelled\text{-}tasks}(\sigma)\;\cpro{\ghost}
+  \end{array}$
+}
+\end{tabular*}
+\vspace{0.7em}
+\makelegend{ext,des,pro}
+
+\subsubsection{Trio}
+
+Trio extends \lasync over Python's \exn-based coroutines, single-threaded. It provides $\mathbfsf{timeout}$ in place of $\mathbfsf{cancel}$: cancellation arises only from scopes. \semrule{Trio-Spawn} registers the new task as a dependency of its spawner (\dyn \extent) and, after the body, waits on dependencies uncancelled and reraises their failures. \semrule{Trio-Timeout} registers a deadline timer \emph{owned by the child}, so a cancelled scope drains it via \semrule{Sys-Signal-Cancel}; the timer thunk is catch-armored to absorb a cancellation injected at its own dispatch. \semrule{Trio-OS-IO} allocates the i/o task as a child of its issuer, so cancel scopes reach pending i/o.
+
+$$
+\begin{array}{r@{\ }c@{\ }l}
+e & ::= & \ldots \mid \mathbfsf{spawn}\ e \mid \mathbfsf{timeout}(e, e)
+\end{array}
+$$
+
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{\ }l@{}l@{}}
+                & \elided{ \sigma_0, Q, & P \uplus \{ \langle \ell, E[\mathsf{spawn}\ v_{\mathit{coro}}] \rangle & {}\circ FS \}} \\
+\longrightarrow & \elided{ \sigma_1, \ceag{Q \qpush (x_{\mathit{task}}, \kappa)}, & P \uplus \{ \langle \ell, E[x_{\mathit{task}}] \rangle & {}\circ FS \}}
+\end{array}$\hfill$\text{[Trio-Spawn]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ (\sigma_1, x_{\mathit{task}}) = \mathsf{task\text{-}alloc}(\sigma_0) \\
+    \qquad \cext{\sigma_2 = \mathsf{task\text{-}add\text{-}dependency}(\sigma_1, \ell, x_{\mathit{task}})} \\
+  \qquad e_{\mathit{task}} = \mathbfsf{reset}\ ( \\
+  \qquad \qquad \mathbfsf{try}\ \semmacro{task\text{-}set\text{-}done}(x_{\mathit{task}}, \mathsf{await}\ v_{\mathit{coro}})\ \mathbfsf{catch}\ v_{\mathit{err}} \to \semmacro{task\text{-}set\text{-}failed}(x_{\mathit{task}}, v_{\mathit{err}}) \mathbin{;} \\
+  \qquad \quad\;\cdes{\ghost}\;\cext{\semmacro{task\text{-}wait\text{-}on\text{-}dependencies}(x_{\mathit{task}}) \mathbin{;}}\\
+  \qquad \qquad \cpro{\semmacro{task\text{-}reraise\text{-}dependency\text{-}failures}(x_{\mathit{task}}) \mathbin{;}} \\
+  \qquad \qquad \mathbfsf{sys\textbfsf{-}start\textbfsf{-}soon}(\semmacro{task\text{-}get\text{-}dependents}(x_{\mathit{task}}))) \\
+  \qquad \kappa = \mathbfsf{fn}\ x_{\mathit{unit}} \to x_{\mathit{unit}} \mathbin{;} e_{\mathit{task}}
+  \end{array}$
+}
+\end{tabular*}
+
+\vspace{1em}
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{}l@{}}
+                & \elided{ P \uplus \{ \langle \ell, E[\mathbfsf{await}\ v_{\mathit{aw}}] \rangle & {}\circ FS \}} \\
+\longrightarrow & \elided{ P \uplus \{ \langle \ell, E[e_{\mathit{await}}] \rangle & {}\circ FS \}}
+\end{array}$\hfill$\text{[\CSharp/Swift/Asyncio/Trio-Await]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ e_{\mathit{await}} = \begin{array}[t]{@{}l@{\;}l@{}}
+      \mathbfsf{if}   & \semmacro{task\text{-}is\text{-}completed}(v_{\mathit{aw}})\ \mathbfsf{then}\ \semmacro{task\text{-}get\text{-}result}(v_{\mathit{aw}}) \\
+      \mathbfsf{else} & {\csus{\mathbfsf{shift}\ k \to}}\ \semmacro{task\text{-}add\text{-}dependent}(v_{\mathit{aw}},
+\ell, \semmacro{task\text{-}continue\text{-}with}(v_{\mathit{aw}}, k))
+    \end{array}
+  \end{array}$
+}
+\end{tabular*}
+\vspace{0.7em}
+\makelegend{eag,ext,des,pro,sus}
+
+\vspace{1em}
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{\ }l@{}l@{}}
+                & \elided{ t, T, & P \uplus \{ \langle \ell, E[\mathsf{timeout}(t_{\mathit{delay}}, v_{\mathit{task}})] \rangle & {}\circ FS \}} \\
+\longrightarrow & \elided{ t, T \qpush (t + t_{\mathit{delay}}, \ell_{\mathit{task}}, \kappa_{\mathit{timer}}), & P \uplus \{ \langle \ell, E[\mathbfsf{await}\ v_{\mathit{task}}] \rangle & {}\circ FS \}}
+\end{array}$\hfill$\text{[Trio-Timeout]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ \bsfid{true} = \mathsf{task?}(v_{\mathit{task}}),~ \ell_{\mathit{task}} = \mathsf{task\text{-}name}(v_{\mathit{task}}) \\
+  \qquad \kappa_{\mathit{timer}} = \mathbfsf{fn}\ x_{\mathit{unit}} \to
+    \mathbfsf{try}\ x_{\mathit{unit}} \mathbin{;} \cdir{\semmacro{task\text{-}set\text{-}cancelled}(v_{\mathit{task}})}\ \mathbfsf{catch}\ v_{\mathit{err}} \to ()
+  \end{array}$
+}
+\end{tabular*}
+
+\vspace{1em}
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{\ }l@{}l@{}l@{}}
+                & \elided{ t, \sigma_0, & P \uplus \{ & & \langle \ell, E[\mathbfsf{sys\textbfsf{-}io}(t_{\mathit{delay}}, v)] \rangle \circ FS \}} \\
+\longrightarrow & \elided{ t, \sigma_1, & P \uplus \{ \langle x_{\mathit{io}}, e_{\mathit{sig}} \rangle & {}\circ{} & \langle \ell, E[x_{\mathit{io}}] \rangle \circ FS \}}
+\end{array}$\hfill$\text{[Trio-OS-IO]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ (\sigma_1, x_{\mathit{io}}) = \cext{\mathsf{task\text{-}alloc\text{-}dependency}(\sigma_0, \ell)} \\
+  \qquad \kappa_{\mathit{io}} = \mathbfsf{fn}\ x_{\mathit{unit}} \to \\
+  \qquad \qquad \mathbfsf{try}\ x_{\mathit{unit}} \mathbin{;} \semmacro{task\text{-}set\text{-}done}(x_{\mathit{io}}, v)\ \mathbfsf{catch}\ v_{\mathit{err}} \to \semmacro{task\text{-}set\text{-}failed}(x_{\mathit{io}}, v_{\mathit{err}}) \mathbin{;} \\
+  \qquad \qquad \mathbfsf{sys\textbfsf{-}start\textbfsf{-}soon}(\semmacro{task\text{-}get\text{-}dependents}(x_{\mathit{io}})) \\
+  \qquad e_{\mathit{sig}} = \mathbfsf{sys\textbfsf{-}start\textbfsf{-}later}(t + t_{\mathit{delay}},\ x_{\mathit{io}},\ \kappa_{\mathit{io}})
+  \end{array}$
+}
+\end{tabular*}
+
+\vspace{1em}
+\paragraph{Scheduling}
+Trio deliberately shuffles each batch of runnable tasks; \semrule{Trio-Sys-Schedule} over-approximates this with any-order dispatch onto the parked root. A cancelled task that has \emph{never run}---its thunk still has the spawn shape---is dispatched normally by \semrule{Trio-Sys-Schedule-Cancelled-Fresh}: Trio guarantees execution up to the first checkpoint. \semrule{Trio-Schedule-Cancelled} carries the complementary shape condition; together the two rules partition cancelled dispatch by thunk shape. The cancellation flag is \emph{not} cleared on delivery (\persistent \persistence).
+
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{\ }l@{}l@{}l@{}}
+                & \elided{ \sigma, Q_0 \seqconcat (\ell, \kappa) \circ Q_1, & P \uplus \{ & & F_{\mathit{loop}} \circ \epsilon \}} \\
+\longrightarrow & \elided{ \sigma, Q_0 \seqconcat Q_1, & P \uplus \{ \langle \ell, \kappa\ () \rangle & {}\circ{} & F_{\mathit{loop}} \circ \epsilon \}}
+\end{array}$\hfill$\text{[Trio-Sys-Schedule]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ F_{\mathit{loop}} = \langle \sfid{sync}, E[\mathbfsf{sys\textbfsf{-}block}(v_{\mathit{task}})] \rangle,~ \bsfid{true} = \mathsf{task?}(v_{\mathit{task}}) \\
+  \qquad \mathsf{false} = \mathsf{task\text{-}cancelled}(\sigma, \ell)
+  \end{array}$
+}
+\end{tabular*}
+
+\vspace{1em}
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{\ }l@{}l@{}l@{}}
+                & \elided{ \sigma, Q_0 \seqconcat (\ell, \kappa) \circ Q_1, & P \uplus \{ & & F_{\mathit{loop}} \circ \epsilon \}} \\
+\longrightarrow & \elided{ \sigma, Q_0 \seqconcat Q_1, & P \uplus \{ \langle \ell, \kappa\ () \rangle & {}\circ{} & F_{\mathit{loop}} \circ \epsilon \}}
+\end{array}$\hfill$\text{[Trio-Sys-Schedule-Cancelled-Fresh]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ F_{\mathit{loop}} = \langle \sfid{sync}, E[\mathbfsf{sys\textbfsf{-}block}(v_{\mathit{task}})] \rangle,~ \bsfid{true} = \mathsf{task?}(v_{\mathit{task}}) \\
+  \qquad \bsfid{true} = \mathsf{task\text{-}cancelled}(\sigma, \ell)\,\cper{\ghost},~
+  \cawa{\kappa = \mathbfsf{fn}\ x \to \mathbfsf{reset}\ e}
+  \end{array}$
+}
+\end{tabular*}
+
+\vspace{1em}
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{}l@{}l@{\ }l@{}l@{}l@{}}
+                & \elided{\sigma, (\ell, \kappa) & {}\circ{} & Q, & P \uplus \{ & & F_{\mathit{loop}} \circ \epsilon \}} \\
+\longrightarrow & \elided{\sigma, & & Q, & P \uplus \{ \cawa{\langle \ell,}\kern3.5pt \cdir{\bsfid{throw-in}(\kappa, \textsf{``stop''})}\kern3.5pt \cawa{\rangle} & {}\circ{} & F_{\mathit{loop}} \circ \epsilon \}}
+\end{array}$\hfill$\text{[Trio-Schedule-Cancelled]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ F_{\mathit{loop}} = \langle \sfid{sync}, E[\mathbfsf{sys\textbfsf{-}block}(v_{\mathit{task}})] \rangle,~ \bsfid{true} = \mathsf{task?}(v_{\mathit{task}}) \\
+  \qquad \bsfid{true} = \mathsf{task\text{-}cancelled}(\sigma, \ell)\,\cper{\ghost},~
+  \kappa \neq \mathbfsf{fn}\ x \to \mathbfsf{reset}\ e
+  \end{array}$
+}
+\end{tabular*}
+
+\vspace{1em}
+\paragraph{Runtime Entry and Exit}
+\code|trio.run| drives the entry coroutine inline on the root thread; the entry wrapper carries the wait-on/reraise tail---the implicit nursery. After the entry settles, \semrule{OS-Block-Cancel} sets the cancellation flag on all uncancelled tasks \emph{directly} (Trio's grammar has no $\mathbfsf{cancel}$ form, contrast Asyncio). \semrule{OS-Block-Exit} permits exit only when, additionally, no unawaited failure remains: an unawaited failure blocks exit and crashes the program (\destruct \propagation).
+
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{\ }l@{}l@{}l@{}}
+                & \elided{ \sigma_0, & P \uplus \{ & & F_{\sfid{sync}} \circ \epsilon \}} \\
+\longrightarrow & \elided{ \sigma_1, & P \uplus \{ \langle x_{\mathit{task}}, e_{\mathit{entry}} \rangle & {}\circ{} & F'_{\sfid{sync}} \circ \epsilon \}}
+\end{array}$\hfill$\text{[Trio-OS-Block-Coro]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ F_{\sfid{sync}} = \langle \sfid{sync}, E[\mathbfsf{sys\textbfsf{-}block}(v_{\mathit{coro}})] \rangle,~
+  F'_{\sfid{sync}} = \langle \sfid{sync}, E[\mathbfsf{sys\textbfsf{-}block}(x_{\mathit{task}})] \rangle \\
+  \qquad v_{\mathit{coro}} = \mathbfsf{fn}\ x \to \mathbfsf{reset}\ (x \mathbin{;} e),~ (\sigma_1, x_{\mathit{task}}) = \mathsf{task\text{-}alloc}(\sigma_0) \\
+  \qquad e_{\mathit{entry}} = \mathbfsf{reset}\ ( \\
+  \qquad \qquad \mathbfsf{try}\ \semmacro{task\text{-}set\text{-}done}(x_{\mathit{task}}, \mathbfsf{await}\ v_{\mathit{coro}})\ \mathbfsf{catch}\ v_{\mathit{err}} \to \semmacro{task\text{-}set\text{-}failed}(x_{\mathit{task}}, v_{\mathit{err}}) \mathbin{;} \\
+  \qquad \quad\;\cext{\semmacro{task\text{-}wait\text{-}on\text{-}dependencies}(x_{\mathit{task}}) \mathbin{;}}\\
+  \qquad \qquad \cpro{\semmacro{task\text{-}reraise\text{-}dependency\text{-}failures}(x_{\mathit{task}}) \mathbin{;}} \\
+  \qquad \qquad \mathbfsf{sys\textbfsf{-}start\textbfsf{-}soon}(\semmacro{task\text{-}get\text{-}dependents}(x_{\mathit{task}})))
+  \end{array}$
+}
+\end{tabular*}
+
+\vspace{1em}
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{}l@{}}
+                & \elided{ P \uplus \{ \langle \sfid{sync}, E[\mathbfsf{sys\textbfsf{-}block}(v_{\mathit{task}})] \rangle & {}\circ \epsilon \}} \\
+\longrightarrow & \elided{ P \uplus \{ \langle \sfid{sync}, E[\cdes{e_{\mathit{cxl}} \mathbin{;}}\ \mathbfsf{sys\textbfsf{-}block}(v_{\mathit{task}})] \rangle & {}\circ \epsilon \}}
+\end{array}$\hfill$\text{[Trio-OS-Block-Cancel]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ \bsfid{true} = \mathsf{task\text{-}settled}(\sigma, v_{\mathit{task}}) \\
+  \qquad (x_0, \ldots, x_n) = \mathsf{store\text{-}uncancelled\text{-}tasks}(\sigma) \\
+  \qquad e_{\mathit{cxl}} = \semmacro{task\text{-}set\text{-}cancelled}(x_0) \mathbin{;} \cdots \mathbin{;} \semmacro{task\text{-}set\text{-}cancelled}(x_n)
+  \end{array}$
+}
+\end{tabular*}
+
+\vspace{1em}
+\noindent
+$\begin{array}[t]{@{}r@{\ }l@{\ }l@{}l@{}}
+                & \elided{ \epsilon, \epsilon, & P \uplus \{ \langle \sfid{sync}, E[\mathbfsf{sys\textbfsf{-}block}(v_{\mathit{task}})] \rangle & {}\circ \epsilon \}} \\
+\longrightarrow & \elided{ \epsilon, \epsilon, & P \uplus \{ \langle \sfid{sync}, E[\semmacro{task\text{-}get\text{-}result}(v_{\mathit{task}})] \rangle & {}\circ \epsilon \}}
+\end{array}$\hfill$\text{[Trio-OS-Block-Exit]}$\par
+\noindent
+\begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
+\multicolumn{2}{@{}l@{}}{
+  $\begin{array}{l}
+  \where\ \bsfid{true} = \mathsf{task\text{-}settled}(\sigma, v_{\mathit{task}}),~
+  \epsilon = \mathsf{store\text{-}uncancelled\text{-}tasks}(\sigma) \\
+  \qquad \cpro{\mathsf{none} = \mathsf{store\text{-}find\text{-}unawaited\text{-}error}(\sigma)}
+  \end{array}$
+}
+\end{tabular*}
+\vspace{0.7em}
+\makelegend{ext,des,dir,pro,awa,per}
 % \lstinputlisting[language=Racket]{./models/core.rkt}
 % \lstinputlisting[language=Racket]{./models/lc.rkt}
 % \lstinputlisting[language=Racket]{./models/exn.rkt}
