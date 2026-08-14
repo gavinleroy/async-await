@@ -1,4 +1,4 @@
-\documentclass[acmsmall,screen]{acmart}\settopmatter{}
+\documentclass[acmsmall]{acmart}\settopmatter{}
 
 %%
 %% \BibTeX command to typeset BibTeX logo in the docs
@@ -6,11 +6,22 @@
 
 \bibliographystyle{ACM-Reference-Format}
 
+%%% The following is specific to  and the paper
+%%% 'A Design Space Exploration of Async/Await'
+%%% by Gavin Gray, Shriram Krishnamurthi, and Will Crichton.
+%%%
 \setcopyright{cc}
 \setcctype{by}
+\acmDOI{10.1145/3839519}
+\acmYear{2026}
 \acmJournal{PACMPL}
-\acmYear{2026} \acmVolume{10} \acmNumber{OOPSLA2} \acmArticle{387}
-\acmMonth{10} \acmDOI{10.1145/3839519}
+\acmVolume{10}
+\acmNumber{OOPSLA2}
+\acmArticle{387}
+\acmMonth{10}
+\acmSubmissionID{oopslab26main-p1146-p}
+\received{2026-03-17}
+\received[accepted]{2026-06-10}
 
 \usepackage{./sty/prelude}
 
@@ -19,24 +30,34 @@
 \begin{document}
 
 \title{A Design Space Exploration of Async/Await}
-% \title{Fear and Awaiting in the Async Menagerie}
 
 \author{Gavin Gray}
+\correspondingauthor
 \orcid{0000-0002-2960-1198}
-\email{gavin_gray@brown.edu}
-
-\author{Will Crichton}
-\orcid{0000-0001-8639-6541}
-\email{will_crichton@brown.edu}
-
-\author{Shriram Krishnamurthi}
-\orcid{0000-0001-5184-1975}
-\email{shriram@brown.edu}
 \affiliation{%
   \institution{Brown University}
   \city{Providence}
   \country{USA}
 }
+\email{gavin\_gray@brown.edu}
+
+\author{Shriram Krishnamurthi}
+\orcid{0000-0001-5184-1975}
+\affiliation{%
+  \institution{Brown University}
+  \city{Providence}
+  \country{USA}
+}
+\email{shriram@brown.edu}
+
+\author{Will Crichton}
+\orcid{0000-0001-8639-6541}
+\affiliation{%
+  \institution{Brown University}
+  \city{Providence}
+  \country{USA}
+}
+\email{will\_crichton@brown.edu}
 
 \setlength{\enumerateparindent}{\parindent}
 
