@@ -1,6 +1,6 @@
 \noindent
 $\begin{array}[t]{@{}r@{\ }l@{\ }l@{}l@{}}
-                & \elided{ \sigma_0, Q, & P \uplus \{ \langle \ell, E[\mathsf{spawn}\ v_{\mathit{coro}}] \rangle & {}\circ FS \}} \\
+                & \elided{ \sigma_0, Q, & P \uplus \{ \langle \ell, E[\bsfid{spawn}\ v_{\mathit{coro}}] \rangle & {}\circ FS \}} \\
 \longrightarrow & \elided{ \sigma_1, \ceag{Q \qpush (x_{\mathit{task}}, \kappa)}, & P \uplus \{ \langle \ell, E[x_{\mathit{task}}] \rangle & {}\circ FS \}}
 \end{array}$\hfill$\text{[Asyncio/Tokio/Smol-Spawn]}$\par
 \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
@@ -19,16 +19,16 @@ $\begin{array}[t]{@{}r@{\ }l@{\ }l@{}l@{}}
 \vspace{1em}
 \noindent
 $\begin{array}[t]{@{}r@{\ }l@{\ }l@{}l@{}}
-                & \elided{ \sigma_0, Q, & P \uplus \{ \langle \ell, E[\mathsf{spawn}\ v_{\mathit{coro}}] \rangle & {}\circ FS \}} \\
-\longrightarrow & \elided{ \sigma_1, \ceag{Q \qpush (x_{\mathit{task}}, \kappa)}, & P \uplus \{ \langle \ell, E[x_{\mathit{task}}] \rangle & {}\circ FS \}}
+                & \elided{ \sigma_0, Q, & P \uplus \{ \langle \ell, E[\bsfid{spawn}\ v_{\mathit{coro}}] \rangle & {}\circ FS \}} \\
+\longrightarrow & \elided{ \sigma_2, \ceag{Q \qpush (x_{\mathit{task}}, \kappa)}, & P \uplus \{ \langle \ell, E[x_{\mathit{task}}] \rangle & {}\circ FS \}}
 \end{array}$\hfill$\text{[Trio-Spawn]}$\par
 \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
   \where\ (\sigma_1, x_{\mathit{task}}) = \sfid{task-alloc}(\sigma_0) \\
-    \qquad \cext{\sigma_2 = \sfid{task-add-dependency}(\sigma_2, \ell, x_{\mathit{task}})} \\
+    \qquad \cext{\sigma_2 = \sfid{task-add-dependency}(\sigma_1, \ell, x_{\mathit{task}})} \\
   \qquad e_{\mathit{task}} = \bsfid{reset}\ ( \\
-  \qquad \qquad \bsfid{try}\ \semmacro{task-set-done}(x_{\mathit{task}}, \mathsf{await}\ v_{\mathit{coro}})\ \bsfid{catch}\ v_{\mathit{err}} \to \semmacro{task-set-failed}(x_{\mathit{task}}, v_{\mathit{err}}) \mathbin{;} \\
+  \qquad \qquad \bsfid{try}\ \semmacro{task-set-done}(x_{\mathit{task}}, \bsfid{await}\ v_{\mathit{coro}})\ \bsfid{catch}\ v_{\mathit{err}} \to \semmacro{task-set-failed}(x_{\mathit{task}}, v_{\mathit{err}}) \mathbin{;} \\
   \qquad \quad\;\cdes{\ghost}\;\cext{\semmacro{task-wait-on-dependencies}(x_{\mathit{task}}) \mathbin{;}}\\
   \qquad \qquad \cpro{\semmacro{task-reraise-dependency-failures}(x_{\mathit{task}}) \mathbin{;}} \\
   \qquad \qquad \bsfid{sys-start-soon}(\semmacro{task-get-dependents}(x_{\mathit{task}}))) \\

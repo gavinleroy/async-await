@@ -8,7 +8,7 @@ The translation from pseudocode to each language is straightforward:
 \begin{enumerate}
   \item Function calls translate into function calls
   \item \code|spawn| is translated into a \code|spawn| for runtimes that have it (Asyncio, Trio, Tokio, Smol) and a \emph{noop} for languages that don't (\CSharp, \Js, Swift)
-  \item All throwing function are assumed to have a \code|try| in front of them following Swift semantics
+  \item All throwing functions are assumed to have a \code|try| in front of them following Swift semantics
   \item  \code|timeout| translates to the respective implementation of the minimal semantics in \Cref{sec:straightline-async}.
 \end{enumerate}
 
@@ -44,16 +44,16 @@ function sleepCancellable(duration: number, opts?: { signal?: AbortSignal }): Pr
   });
 }
 
-async function timeoutCancellable<T>(  
+async function timeoutCancellable<T>(
   duration: number,
   controller: AbortController,
-  f: (signal: AbortSignal) => Promise<T>,    
+  f: (signal: AbortSignal) => Promise<T>,
 ): Promise<T | null> {
   const result = await Promise.race([
-    sleepCancellable(duration, { signal: controller.signal }), 
+    sleepCancellable(duration, { signal: controller.signal }),
     f(controller.signal)
   ]);
-  if (result === null) controller.abort();  
+  if (result === null) controller.abort();
   return result;
 }
 \end{lstlisting}
@@ -2085,6 +2085,6 @@ fn run_client_server(io: Io) !void {
     std.debug.print("msg received {s}\n", .{result});
 }
 \end{lstlisting}
-  \cprotect\caption{An example of Zig's unstabalized async/await features. Zig code is now parameterized over an implementation of the \code{Io} interface. Clients can instantiate the interface with a threaded, asynchronous, concurrent, or synchronous implementation.}
+  \cprotect\caption{An example of Zig's unstable async/await features. Zig code is now parameterized over an implementation of the \code{Io} interface. Clients can instantiate the interface with a threaded, asynchronous, concurrent, or synchronous implementation.}
   \label{fig:zig:async}
 \end{figure}

@@ -2,7 +2,7 @@
 
 \section{Design Dimensions}\label{sec:designdims}
 
-Every design for straight-line asynchrony is composed of dozens of individual design decisions that trade-off performance, correctness, usability, extensibility, interoperability, and so on. To scope this paper, we focus on design decisions that substantively influence the \emph{functionality} of asynchronous programs. As suggested by \Cref{fig:motivating-example}, we want to explain how similar-looking programs can have divergent behavior in terms of the order or presence of operations.
+Every design for straight-line asynchrony is composed of dozens of individual design decisions that trade off performance, correctness, usability, extensibility, interoperability, and so on. To scope this paper, we focus on design decisions that substantively influence the \emph{functionality} of asynchronous programs. As suggested by \Cref{fig:motivating-example}, we want to explain how similar-looking programs can have divergent behavior in terms of the order or presence of operations.
 
 % ergonomics vis a vis type systems
 By contrast, this paper does not attempt to account for design decisions that are principally about \emph{ergonomics}: for example, should \code|await| be a prefix or postfix operator in the concrete syntax?
@@ -41,7 +41,7 @@ Much of the divergence between designs for straight-line asynchrony is about whe
 
 \begin{wrapfigure}{r}{0.54\linewidth}
   \includegraphics[width=\linewidth]{f/cooperation.pdf}
-  \caption{An example program demonstrating the \awareness dimension. A branching execution trace is paired with an indicator of whether an invariant is satisfied. An \aware approach allows the canceled task to restore the invariant before proceeding with cancellation, while an \unaware approach remains cancelled with the invariant broken.}
+  \caption{An example program demonstrating the \awareness dimension. A branching execution trace is paired with an indicator of whether an invariant is satisfied. An \aware approach allows the cancelled task to restore the invariant before proceeding with cancellation, while an \unaware approach remains cancelled with the invariant broken.}
   \label{fig:cooperation}
 \end{wrapfigure}
 

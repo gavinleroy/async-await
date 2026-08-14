@@ -18,7 +18,7 @@ In some designs for straight-line asynchrony, especially earlier designs, tasks 
 
 Some have called \indef \extent an ``unstructured'' approach to asynchrony~\cite{smith_thoughts_2016}, akin to using goto for control flow, as task handles can easily go unhandled, leaving asynchronous work dangling with no clear policy for managing it.
 %
-This line of thought has led to the devleopment of ``structured'' asynchrony approaches~\cite{sustrik_structured_2025,mccall_swift_2021,elizarov_kotlin_2021}, which we describe as having \dyn \extent, found in Swift and Python+Trio. With \dyn \extent, a task's extent is tied to the extent of another task. In \Cref{fig:extent}, under \dyn \extent, the \code|child_work()| task is associated with the \code|parent_work()| task. When the \code|parent_work()| task completes, its associated tasks are destructed, which means cancellation in the case of Swift. Therefore the second print never occurs.
+This line of thought has led to the development of ``structured'' asynchrony approaches~\cite{sustrik_structured_2025,mccall_swift_2021,elizarov_kotlin_2021}, which we describe as having \dyn \extent, found in Swift and Python+Trio. With \dyn \extent, a task's extent is tied to the extent of another task. In \Cref{fig:extent}, under \dyn \extent, the \code|child_work()| task is associated with the \code|parent_work()| task. When the \code|parent_work()| task completes, its associated tasks are destructed, which means cancellation in the case of Swift. Therefore the second print never occurs.
 
 \paragraph{Design rationale.}
 

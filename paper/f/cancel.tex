@@ -1,12 +1,12 @@
 \noindent
 $\begin{array}[t]{@{}r@{\ }l@{}l@{}}
-                & \elided{ P \uplus \{ \langle \ell, E[\cdir{\sfid{cancelled?}()}] \rangle & {}\circ FS \}} \\
+                & \elided{ P \uplus \{ \langle \ell, E[\cdir{\bsfid{cancelled?}()}] \rangle & {}\circ FS \}} \\
 \longrightarrow & \elided{ P \uplus \{ \langle \ell, E[\cawa{e_{\mathit{bool}}}] \rangle & {}\circ FS \}}
 \end{array}$\hfill$\text{[Swift-Cancelled?]}$\par
 \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
-    \where\ e_{\mathit{bool}} = \sfid{task-cancelled}(\sigma, \ell)\,\cper{\ghost} 
+    \where\ e_{\mathit{bool}} = \sfid{task-cancelled}(\sigma, \ell)\,\cper{\ghost}
   \end{array}$
 }
 \end{tabular*}
@@ -20,7 +20,7 @@ $\begin{array}[t]{@{}r@{\ }l@{}l@{}l@{\ }l@{}l@{}l@{}}
 \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
-    \where\ \bsfid{true} = \sfid{task-cancelled}(\sigma, \ell)\,\cper{\ghost} 
+    \where\ \bsfid{true} = \sfid{task-cancelled}(\sigma, \ell)\,\cper{\ghost}
   \end{array}$%
 }
 \end{tabular*}
@@ -34,7 +34,7 @@ $\begin{array}[t]{@{}r@{\ }l@{}l@{}l@{\ }l@{}l@{}l@{}}
 \begin{tabular*}{\linewidth}{@{} l @{\extracolsep{\fill}} r @{}}
 \multicolumn{2}{@{}l@{}}{
   $\begin{array}{l}
-  \where\ \bsfid{true} = \sfid{task-cancelled}(\sigma_0, \ell),~ 
+  \where\ \bsfid{true} = \sfid{task-cancelled}(\sigma_0, \ell),~
   \cper{\sigma_1 = \sfid{task-uncancel}(\sigma_0, \ell)}
   \end{array}$
 }
