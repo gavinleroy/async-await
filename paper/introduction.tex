@@ -2,10 +2,10 @@
 
 Software developers have long struggled to write concurrent and parallel programs that are both correct and efficient. Programming languages have responded to this challenge by gradually lifting elements of concurrency from user-space to the level of language design. Approaches vary greatly, but one core idea shared between most modern languages is \emph{async/await}: marking blocks of code as \code|async|, and using an \code|await| keyword to wait for an async block to finish executing. These features can be found in recent versions of Python, JavaScript, Swift, Rust, \CSharp, and more.
 
-Our original motivation for studying async/await was to help developers translate their understanding of the concept from one language to another, e.g., from JavaScript to Python. In theory, both languages contain the same core concept with small differences in the details. We should be able to explain async/await just as one might explain lexically-scoped variables, if-statements, or other standardized language features~\cite{lu_identifying_2024}. In reality, the surface similarities between async/await designs can mask deep semantic divergences. For instance: what's the difference between a coroutine, a future, a promise, and a task? What happens when you cancel a task? When are tasks required to exit, if ever? How do errors propagate across a task boundary, if it all? These questions are further complicated by languages with customizable async/await runtimes (e.g., Rust and Python), which give different answers based on the choice of runtime.
+Our original motivation for studying async/await was to help developers translate their understanding of the concept from one language to another, e.g., from JavaScript to Rust. In theory, both languages contain the same core concept with small differences in the details. We should be able to explain async/await just as one might explain lexically-scoped variables, if-statements, or other standardized language features~\cite{lu_identifying_2024}. In reality, the surface similarities between async/await designs can mask deep semantic divergences. For instance: what's the difference between a coroutine, a future, a promise, and a task? What happens when you cancel a task? When are tasks required to exit, if ever? How do errors propagate across a task boundary, if at all? These questions are further complicated by languages with customizable async/await runtimes (e.g., Rust and Python), which give different answers based on the choice of runtime.
 
 \begin{figure}[t]
-  \begin{subfigure}[t]{0.30\linewidth}
+  \begin{subfigure}[t]{0.33\linewidth}
     \begin{lstlisting}[language=Pseudo]
 async fn write_to_log():
   print("A")
@@ -14,12 +14,12 @@ async fn write_to_log():
   print("B")
 
 async fn process_await():
-  task = spawn work()
+  task = spawn write_to_log()
   await sleep(0)
   await task
 
 async fn process_detach():
-  task = spawn work()
+  task = spawn write_to_log()
 \end{lstlisting}
   \caption{Two examples of functions that spawn a task to write data to a log, one that waits for the task, and another that doesn't.}
   \label{fig:motivating-example-process}
@@ -28,7 +28,7 @@ async fn process_detach():
   \begin{subfigure}[t]{0.28\linewidth}
     \begin{lstlisting}[language=Pseudo]
 async fn ex1():
-  t = work()
+  t = write_to_log()
   print("C")
   await sleep(3)
 
@@ -43,7 +43,8 @@ async fn ex3():
   print("C")
   await sleep(3)
 \end{lstlisting}
-\cprotect\caption{Three examples of invocations of the processing functions. \code|timeout| is used to try and prevent the \task from completing.}
+\cprotect\caption{Three example invocations of the processing functions.}
+ % \code|timeout| is used to try and prevent the \task from completing.
   \label{fig:motivating-example-invoke}
   \end{subfigure}
   \hfill
@@ -76,10 +77,10 @@ As a concrete example, consider the pseudocode in \Cref{fig:motivating-example},
 
 Observing this conceptual chaos, we set out to perform a \emph{design space exploration} of async/await in modern languages. The contribution of this paper is the result of that exploration:
 \begin{enumerate}
-  \item \textbf{We start by situating the work with a high-level overview of asynchronous programming} (\Cref{sec:motivation}). We contrast asynchrony against concurrency and parallelism, and introduce common asynchrony mechanisms such as racing and cancellation. 
+  \item \textbf{We start by situating the work with a high-level overview of asynchronous programming} (\Cref{sec:motivation}). We contrast asynchrony against concurrency and parallelism, and introduce common asynchrony mechanisms such as racing and cancellation.
 
   \item \textbf{We describe the core design dimensions of asynchrony in modern languages} (\Cref{sec:designdims}). Our goal is to capture the most fundamental distinctions between designs, focusing on design choices that cause similar-looking programs to exhibit divergent behavior.
 
-  \item \textbf{We provide a precise description of each design dimension using operational semantics} (\Cref{sec:semantics}). We give a precise model of each language's async design in terms of variants on a core asynchrony calculus with delimited continuations. 
+  \item \textbf{We provide a precise description of each design dimension using operational semantics} (\Cref{sec:semantics}). We give a precise model of each language's async design in terms of variants on a core asynchrony calculus with delimited continuations.
   % [WRITE ME ONCE SECTION IS COMPLETED.]
 \end{enumerate}

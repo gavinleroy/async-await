@@ -22,42 +22,42 @@
 \newcommand{\dimdir}[1]{{\setlength{\fboxsep}{0.8pt}\colorbox{P1C3}{\textcolor{P1C3t}{#1}}}}
 
 %% ---------------- node contents (no layout) ----------------
-%% FORMAL syntax (Section 4): \mathbfsf keywords, application by
+%% FORMAL syntax (Section 4): \bsfid keywords, application by
 %% juxtaposition, sys_io(t,v) for sleep, sys_block for the entry.
 %% Named definitions keep the root un-inlined (work, process_detach, ex2).
 \newcommand{\cfgRoot}{\begin{tabular}{@{}l@{}}
-  $\mathit{write\text{-}to\text{-}log} \triangleq \mathbfsf{async}\ \mathbfsf{fn}\ ()\ \to$\\
-  $\quad \mathbfsf{print}\ \text{"A"};$\\
-  $\quad\mathbfsf{await}\ \mathbfsf{sys\text{-}io}(2, ());$\\
-  $\quad\mathbfsf{print}\ \text{"B"}$\\
+    $\iid{write-to-log} \triangleq \bsfid{async}\ \bsfid{fn}\ ()\ \to$\\
+  $\quad \bsfid{print}\ \text{"A"};$\\
+  $\quad\bsfid{await}\ \bsfid{sys-io}(2, ());$\\
+  $\quad\bsfid{print}\ \text{"B"}$\\
   \fgap
-  $\mathit{process\text{-}detach} \triangleq \mathbfsf{async}\ \mathbfsf{fn}\ ()\ \to$\\
-  $\quad\mathbfsf{spawn}\ (\mathit{write\text{-}to\text{-}log}())$\\
+  $\iid{process-detach} \triangleq \bsfid{async}\ \bsfid{fn}\ ()\ \to$\\
+  $\quad\bsfid{spawn}\ \iid{write-to-log}()$\\
   \fgap
-  $\mathit{ex2} \triangleq \mathbfsf{async}\ \mathbfsf{fn}\ ()\ \to$\\
-  $\quad \mathbfsf{await}\ (\mathit{process\text{-}detach}());$\\
-  $\quad \mathbfsf{await}\ \mathbfsf{sys\text{-}io}(1, ());$\\
-  $\quad \mathbfsf{print}\ \text{"C"}$\\
+  $\mathit{ex2} \triangleq \bsfid{async}\ \bsfid{fn}\ ()\ \to$\\
+  $\quad \bsfid{await}\ \iid{process-detach}();$\\
+  $\quad \bsfid{await}\ \bsfid{sys-io}(1, ());$\\
+  $\quad \bsfid{print}\ \text{"C"}$\\
   \fgap
-  $\mathbfsf{sys\text{-}block}(\mathit{ex2}())$\\
+  $\bsfid{sys-block}(\mathit{ex2}())$\\
   \fgap
   $\mathit{out}$:\,$\varepsilon$
   \end{tabular}}
 
 % at work's application, process_detach inlined in main's frame
 \newcommand{\cfgSpawnRedex}{\begin{tabular}{@{}l@{}}
-  $C[\, \mathbfsf{spawn}\ (\mathit{write\text{-}to\text{-}log}()) \,]$\\
+  $C[\, \bsfid{spawn}\ \iid{write-to-log}() \,]$\\
   \fgap
   $\mathit{out}$:\,$\varepsilon$
   \end{tabular}}
 
 % work queued, unrun; plain C = no scope-exit obligation (indefinite extent)
 \newcommand{\cfgQueued}{\begin{tabular}{@{}l@{}}
-  $C[\, t_{\mathit{write\text{-}to\text{-}log}} \,]$\\
+  $C[\, t_{\iid{write-to-log}} \,]$\\
   \fgap
-  $Q$: $\mathbfsf{print}\ \text{"A"};$\\
-  \hphantom{$Q$: }$\mathbfsf{await}\ \mathbfsf{sys\text{-}io}(2, ());$\\
-  \hphantom{$Q$: }$\mathbfsf{print}\ \text{"B"}$\\
+  $Q$: $\bsfid{print}\ \text{"A"};$\\
+  \hphantom{$Q$: }$\bsfid{await}\ \bsfid{sys-io}(2, ());$\\
+  \hphantom{$Q$: }$\bsfid{print}\ \text{"B"}$\\
   \fgap
   $\mathit{out}$:\,$\varepsilon$
   \end{tabular}}
@@ -65,27 +65,27 @@
 % work queued with the INSTALLED scope-exit epilogue visible inline:
 % green await = extent obligation; coral cancel (Swift) = destruction
 \newcommand{\cfgQueuedTrio}{\begin{tabular}{@{}l@{}}
-  $C[\, t_{\mathit{write\text{-}to\text{-}log}};$\\
-  \hphantom{$C[\,$}\dimext{$\mathbfsf{await}\ t_{\mathit{write\text{-}to\text{-}log}}$}$\,]$\\
+  $C[\, t_{\iid{write-to-log}};$\\
+  \hphantom{$C[\,$}\dimext{$\bsfid{await}\ t_{\iid{write-to-log}}$}$\,]$\\
   \fgap
-  $Q$: $\mathbfsf{print}\ \text{"A"};$\\
-  \hphantom{$Q$: }$\mathbfsf{await}\ \mathbfsf{sys\text{-}io}(2, ());$\\
-  \hphantom{$Q$: }$\mathbfsf{print}\ \text{"B"}$\\
+  $Q$: $\bsfid{print}\ \text{"A"};$\\
+  \hphantom{$Q$: }$\bsfid{await}\ \bsfid{sys-io}(2, ());$\\
+  \hphantom{$Q$: }$\bsfid{print}\ \text{"B"}$\\
   \fgap
   $\mathit{out}$:\,$\varepsilon$
   \end{tabular}}
 
 \newcommand{\cfgQueuedSwift}{\begin{tabular}{@{}l@{}}
-  $C[\, t_{\mathit{write\text{-}to\text{-}log}};$\\
-  \hphantom{$C[\,$}\dimdes{$\mathbfsf{cancel}\ t_{\mathit{write\text{-}to\text{-}log}}$}$;$\\
-  \hphantom{$C[\,$}\dimpro{$\mathbfsf{try}$}\\
-  \hphantom{$C[\,$}\quad\dimext{$\mathbfsf{await}\ t_{\mathit{write\text{-}to\text{-}log}}$} \\
-  \hphantom{$C[\,$}\dimpro{$\mathbfsf{catch\ fn}\ \mathit{e}\,\to\,()$}
+  $C[\, t_{\iid{write-to-log}};$\\
+  \hphantom{$C[\,$}\dimdes{$\bsfid{cancel}\ t_{\iid{write-to-log}}$}$;$\\
+  \hphantom{$C[\,$}\dimpro{$\bsfid{try}$}\\
+  \hphantom{$C[\,$}\quad\dimext{$\bsfid{await}\ t_{\iid{write-to-log}}$} \\
+  \hphantom{$C[\,$}\dimpro{$\bsfid{catch\ fn}\ \mathit{e}\,\to\,()$}
   $\,]$\\
   \fgap
-  $Q$: $\mathbfsf{print}\ \text{"A"};$\\
-  \hphantom{$Q$: }$\mathbfsf{await}\ \mathbfsf{sys\text{-}io}(2, ());$\\
-  \hphantom{$Q$: }$\mathbfsf{print}\ \text{"B"}$\\
+  $Q$: $\bsfid{print}\ \text{"A"};$\\
+  \hphantom{$Q$: }$\bsfid{await}\ \bsfid{sys-io}(2, ());$\\
+  \hphantom{$Q$: }$\bsfid{print}\ \text{"B"}$\\
   \fgap
   $\mathit{out}$:\,$\varepsilon$
   \end{tabular}}
@@ -93,7 +93,7 @@
 % lazy intermediate: coroutine made ([Async-App]), spawn is the redex;
 % the Spawn VARIANT (dyn vs indef) decides the next branch
 \newcommand{\cfgLazyCor}{\begin{tabular}{@{}l@{}}
-  $C[\, \mathbfsf{spawn}\ \mathit{coro}_{\mathit{write\text{-}to\text{-}log}} \,]$\\
+  $C[\, \bsfid{spawn}\ \mathit{coro}_{\iid{write-to-log}} \,]$\\
   \fgap
   $\mathit{out}$:\,$\varepsilon$
   \end{tabular}}
@@ -101,25 +101,25 @@
 % Swift abort snapshot: work ran (A printed), its cancellation-aware sys_io
 % observed the flag and raises; main still blocked on the epilogue await
 \newcommand{\cfgSwiftAbort}{\begin{tabular}{@{}l@{}}
-    $C$$[\,$\dimawa{$\mathbfsf{throw}\ \text{"cancelled"}$}$\,]$\\
+    $C$$[\,$\dimawa{$\bsfid{throw}\ \text{"cancelled"}$}$\,]$\\
   \fgap
   $\mathit{out}$:\,A
   \end{tabular}}
 
 % eager: work already ran to its await; suspended in T
 \newcommand{\cfgEagerT}{\begin{tabular}{@{}l@{}}
-  $C[\, t_{\mathit{write\text{-}to\text{-}log}} \,]$\\
+  $C[\, t_{\iid{write-to-log}} \,]$\\
   \fgap
-  $T$: $(2,\ \mathit{write\text{-}to\text{-}log},\ \mathbfsf{print}\ \text{"B"})$\\
+  $T$: $(2,\ \iid{write-to-log},\ \bsfid{print}\ \text{"B"})$\\
   \fgap
   $\mathit{out}$:\,A
   \end{tabular}}
 
 % main done; orphan pending in T; sys_block holds the result
 \newcommand{\cfgBlockDone}{\begin{tabular}{@{}l@{}}
-  $\mathbfsf{sys\text{-}block}(())$\\
+  $\bsfid{sys-block}(())$\\
   \fgap
-  $T$: $(2,\ \mathit{write\text{-}to\text{-}log},\ \mathbfsf{print}\ \text{"B"})$\\
+  $T$: $(2,\ \iid{write-to-log},\ \bsfid{print}\ \text{"B"})$\\
   \fgap
   $\mathit{out}$:\,AC
   \end{tabular}}
@@ -128,8 +128,8 @@
 % the remaining code is spelled out (the context here is empty)
 \newcommand{\cfgSettled}[1]{\begin{tabular}{@{}l@{}}
   $();$\\
-  $\mathbfsf{await}\ \mathbfsf{sys\text{-}io}(1, ());$\\
-  $\mathbfsf{print}\ \text{"C"}$\\
+  $\bsfid{await}\ \bsfid{sys-io}(1, ());$\\
+  $\bsfid{print}\ \text{"C"}$\\
   \fgap
   $\mathit{out}$:\,#1
   \end{tabular}}
@@ -142,7 +142,6 @@
 % whenever any node shifts, moving everything else. Re-center at the very end
 % (wrap in center, or \useasboundingbox to freeze the bbox).
 \noindent
-% {\tiny where $C \triangleq [\cdot];\ \mathbfsf{await}\ \mathbfsf{sys\text{-}io}(1, 0);\ \mathbfsf{print}\ \text{"C"}$ --- the rest of $\mathit{ex2}$; $\mathbfsf{sys\text{-}block}$ is elided until \semrule{Block-Done} applies}\par\smallskip
 
 \begin{tikzpicture}[
   cfg/.style={draw=black!20, rounded corners=2pt, inner sep=2.5pt, font=\tiny\ttfamily},
@@ -191,11 +190,11 @@
   \node[font=\tiny\rmfamily, text=black!60, anchor=north east, inner sep=0pt]
     at (s1.east |- root.north)
     {\begin{tabular}{@{}l@{\quad}l@{}}
-        \multicolumn{2}{c}{\textsc{\underline{languages}}}\\[1.5pt]
-      \textbf{A}syncio    & S\textbf{M}ol\\
-      \textbf{C}\nolinebreak\hspace{-.05em}\raisebox{.3ex}{{\relsize{-2}\bfseries\#}} & T\textbf{R}io\\
-      \textbf{J}avaScript & \textbf{S}wift\\
-      To\textbf{K}io      & \\
+        \multicolumn{2}{c}{\textsc{languages}}\\[1.5pt]
+        \textbf{\underline{A}}syncio    & S\textbf{\underline{M}}ol\\
+        \textbf{\underline{C}}\nolinebreak\hspace{-.05em}\raisebox{.3ex}{{\relsize{-2}\bfseries\#}} & T\textbf{\underline{R}}io\\
+        \textbf{\underline{J}}avaScript & \textbf{\underline{S}}wift\\
+        To\textbf{\underline{K}}io      & \\
     \end{tabular}};
 
   %% language badges: who reaches each node

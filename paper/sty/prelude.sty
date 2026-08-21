@@ -251,8 +251,8 @@
 \newcommand{\awareness}{\dimension{awareness}\xspace}
 \newcommand{\aware}{\designpoint{aware}\xspace}
 \newcommand{\unaware}{\designpoint{unaware}\xspace}
-\newcommand{\coop}{\designpoint{cooperative}\xspace}
-\newcommand{\noncoop}{\designpoint{non-cooperative}\xspace}
+\newcommand{\coop}{\aware}
+\newcommand{\noncoop}{\unaware}
 
 \newcommand{\Direction}{\dimension{Direction}\xspace}
 \newcommand{\direction}{\dimension{direction}\xspace}
@@ -401,6 +401,7 @@
 \newcommand{\elided}[1]{\llangle#1\rrangle}
 \newcommand{\onthread}[1]{\llparenthesis#1\rrparenthesis}
 \newcommand{\mathbfsf}[1]{\bm{\mathsf{#1}}}
+\newcommand{\textbfsf}[1]{\textsf{\bfseries #1}}
 \newcommand{\where}{\mathrm{where}\xspace}
 \newcommand{\semmacro}[1]{\textsf{\textit{#1}}}
 
@@ -424,18 +425,12 @@
 
 \newcommand{\hltikz}[3]{%
   \kern-1.5pt% cancel left horizontal padding from text flow
-  \tikz[baseline=(X.base)]\node[%
-    rounded corners=1pt,%
-    inner xsep=1.5pt,%   % horizontal pad (split out from inner sep=3pt)
-    inner ysep=3pt,%     % keep vertical pad so box height is unchanged
-    text depth=0pt,%
-    shade,%
-    shading=radial,%
-    inner color=#1!95,%
-    outer color=#1!60,%
-    text opacity=1.0,%
-    text=#2%
-  ](X){#3};%
+  \tikz[baseline=(X.base)]{%
+    \pgfsetblendmode{multiply}%
+    \node[rounded corners=1pt, inner xsep=1.5pt, inner ysep=3pt,
+          text depth=0pt, shade, shading=radial,
+          inner color=#1!95, outer color=#1!60,
+          text opacity=1.0, text=#2](X){#3};}%
   \kern-1.5pt% cancel right horizontal padding -> comma sits flush
 }
 \newcommand{\ghost}[1][0.5em]{\vphantom{dp}\kern#1\relax}
@@ -484,20 +479,27 @@
 
 \newcommand{\legendmark}[1]{\tikz[baseline=-0.5ex]\draw[#1,fill=#1] (0,0) circle (0.6ex);\,}
 
-\csdef{legenditem@eag}{\legendmark{P1C1}\small\Eagerness}
-\csdef{legenditem@ext}{\legendmark{P1C2}\small\Extent}
+\csdef{legenditem@eag}{\legendmark{P1C1}\eagerness}
+\csdef{legenditem@ext}{\legendmark{P1C2}\extent}
 % \csdef{legenditem@ref}{\legendmark{P1C3}\small\References}
-\csdef{legenditem@des}{\legendmark{P1C6}\small\Destruction}
-\csdef{legenditem@pro}{\legendmark{P1C5}\small\Propagation}
-\csdef{legenditem@sus}{\legendmark{P1C8}\small\Suspension}
+\csdef{legenditem@des}{\legendmark{P1C6}\destruction}
+\csdef{legenditem@pro}{\legendmark{P1C5}\propagation}
+\csdef{legenditem@sus}{\legendmark{P1C8}\suspension}
 
-\csdef{legenditem@awa}{\legendmark{P1C4}\small Awareness}
-\csdef{legenditem@dir}{\legendmark{P1C3}\small Direction}
-\csdef{legenditem@per}{\legendmark{P1C7}\small Persistence}
+\csdef{legenditem@awa}{\legendmark{P1C4}\awareness}
+\csdef{legenditem@dir}{\legendmark{P1C3}\direction}
+\csdef{legenditem@per}{\legendmark{P1C7}\persistence}
+
+% For typesetting identifiers with hyphens
+\DeclareRobustCommand{\iid}[1]{\text{\normalfont\textit{#1}}}
+\DeclareRobustCommand{\sfid}[1]{\text{\normalfont\textsf{#1}}}
+\DeclareRobustCommand{\sfiid}[1]{\text{\normalfont\textsf{\textit{#1}}}}
+\DeclareRobustCommand{\bsfid}[1]{\text{\normalfont\textsf{\textbf{#1}}}}
+\DeclareRobustCommand{\bsfiid}[1]{\text{\normalfont\textsf{\textbf{\textit{#1}}}}}
 
 \newcommand{\makelegend}[1]{%
   \par\vspace{-0.5em}%
-  {\centering%
+  {\centering\sffamily\small%
     \def\legendsep{}%
     \renewcommand*{\do}[1]{%
       \legendsep 
@@ -553,7 +555,7 @@
   {\endlist}
 
 \newif\ifcameraready
-%\camerareadytrue
-\camerareadyfalse
+\camerareadytrue
+% \camerareadyfalse
 
 %%%
