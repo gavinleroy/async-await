@@ -84,10 +84,10 @@ The goal of the operational semantics is to highlight the differences between la
 
 \begin{table}[t]
   \small
+  \centering
   \input{./f/metafunctions.tex}
   \caption{Metafunctions and macros used in the reduction rules. Metafunctions evaluate to a term, while macros expand into expressions. We set macros in italics to distinguish them from metafunctions.}
   \label{table:metafunctions}
-  \vspace{-2em}
 \end{table}
 
 \subsection{Start/End of Life}
@@ -152,7 +152,7 @@ The Rust runtimes, Tokio and Smol, do not provide cancellation \awareness. Cance
 \begin{figure}[htb]
   \input{./f/explain-tree.tex}
   \makelegend{eag,ext,des,pro,awa}
-  \cprotect\caption{The branching evaluation of program \code|ex2| from \Cref{fig:motivating-example}. The nodes in the \abbr{dag} represent the program state at that point. Between nodes we perform multiple reductions until the semantics of the runtimes diverge. A node has several outgoing edges when the runtimes disagree on the next applicable rule and we highlight the rules with the color of the design dimension along which they diverge; we indicate which design point each branch uses with a subscript. For example, on the rightmost path, Swift's \seager \semrule{Async-App} queues $\iid{write-to-log}$ and injects a scope-exit epilogue that cancels its dependency (\cdes{\destruction}), awaits it (\cext{\extent}), and discards any resulting exception (\cpro{\propagation}). When $\iid{write-to-log}$ runs, its cancellation-aware \semrule{OS-IO} implementation observes the flag and raises a \emph{cancelled} exception (\cawa{\awareness}).}
+  \cprotect\caption{The branching evaluation of program \code|ex2| from \Cref{fig:motivating-example}. Nodes represent the program state at that point, edges represent multiple reductions. Nodes have multiple outgoing edges when runtimes disagree on the next applicable rule. Highlighting indicates the respective design dimension; subscripts indicate each branch's design point. For example, on the rightmost path, Swift's \seager \semrule{Async-App} queues $\iid{write-to-log}$ and injects a scope-exit epilogue that cancels its dependency (\cdes{\destruction}), awaits it (\cext{\extent}), and discards any resulting exception (\cpro{\propagation}). When $\iid{write-to-log}$ runs, its cancellation-aware \semrule{OS-IO} implementation observes the flag and raises a \emph{cancelled} exception (\cawa{\awareness}).}
   \label{fig:explain-tree}
 \end{figure}
 
