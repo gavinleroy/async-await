@@ -1,6 +1,6 @@
 % --- Define Table Macros ---
 \newcommand{\DimSection}[1]{%
-  \multicolumn{4}{@{}l}{\large #1} \\ \addlinespace[1ex]
+  \multicolumn{4}{@{}l}{\large #1} \\ \addlinespace[0.5ex]
 }
 
 \newcommand{\DimRowTitle}[2]{%
@@ -18,7 +18,9 @@
 \newcommand{\LangSep}{~$\cdot$\space}
 
 \begin{table}[htbp]
-\centering
+\caption{Overview of the asynchronous programming design dimensions}
+\label{tab:dims-overview}
+\raggedright
 \setlength{\parskip}{0pt}
 \begin{tabularx}{\textwidth}{@{}
   >{\raggedright\arraybackslash}p{3.2cm}
@@ -84,6 +86,4 @@
 \DimCell{\persistent}{A task can ignore cancellation but remains cancelled.}{Trio\LangSep Swift} & \\
 
 \end{tabularx}
-\caption{Overview of the asynchronous programming design dimensions}
-\label{tab:dims-overview}
 \end{table}
