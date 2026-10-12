@@ -8,6 +8,6 @@
 (define license 'MIT)
 
 (define deps '("base" "redex-lib"))
-(define build-deps '("rackunit-lib" "scribble-lib" "racket-doc"))
+(define build-deps (quote ("rackunit-lib" "scribble-lib" "racket-doc" "redex-doc")))
 
 (define scribblings '(("scribblings/oopsla26-async-await.scrbl" ())))
